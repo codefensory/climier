@@ -165,7 +165,7 @@ test("kernel state.restore rejects malformed v5 snapshot before policy or pre-sn
     await writeCanonicalState(dir, baseState());
     const dirPath = await snapshotDir(dir);
     await fs.mkdir(dirPath, { recursive: true });
-    const malformed = { version: 5, fence_generation: 1.5, nodes: {}, edges: [], initiatives: {}, log: [] };
+    const malformed = { version: 5, nodes: {}, edges: [], initiatives: {}, log: [] };
     await fs.writeFile(path.join(dirPath, "bad-v5.json"), JSON.stringify(malformed));
     await fs.writeFile(path.join(dirPath, "bad-v5.meta.json"), JSON.stringify({ id: "bad-v5" }));
     let policyCalls = 0;

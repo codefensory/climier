@@ -1,8 +1,7 @@
 import { validateStateInvariants } from "../contracts/state-invariants.ts";
 import { prepareLogEntry } from "./log.ts";
-import { withMutationBoundary } from "./lock.ts";
 import { readState, STATE_SCHEMA_VERSION, sqliteStateFile } from "./state.ts";
-import { writeSqliteState } from "./sqlite/store.ts";
+import { withSqliteTransaction, writeSqliteState } from "./sqlite/store.ts";
 
 export const TRANSFER_PAYLOAD_VERSION = STATE_SCHEMA_VERSION;
 
@@ -51,7 +50,7 @@ function validateTransferPayload(payload: unknown): asserts payload is TransferP
   }
   const value = payload as Record<string, unknown>;
   if (value.version !== TRANSFER_PAYLOAD_VERSION
-      || Object.hasOwn(value, "revision") || Object.hasOwn(value, "fence_generation")
+      || Object.hasOwn(value, "revision")
       || !value.nodes || typeof value.nodes !== "object" || Array.isArray(value.nodes)
       || !Array.isArray(value.edges)
       || !value.initiatives || typeof value.initiatives !== "object" || Array.isArray(value.initiatives)
@@ -109,7 +108,7 @@ function destinationState(payload: TransferPayload, current: TransferState | nul
 
 /** Capture the application snapshot and its revision from one SQLite transaction. */
 export async function captureTransferSource(projectDir: string): Promise<{ payload: TransferPayload; revision: number }> {
-  return withMutationBoundary(projectDir, async () => {
+  return withSqliteTransaction(sqliteStateFile(projectDir), async () => {
     const state = await readState(projectDir);
     if (!state) { throw transferError("CLIMIER_TRANSFER_INVALID_SOURCE", "transfer: source project has no state"); }
     assertTransferableSource(state);
@@ -132,7 +131,7 @@ export async function installTransferDestination(projectDir: string, payload: un
   }
   if (typeof force !== "boolean") { throw new Error("transfer: force must be boolean"); }
 
-  return withMutationBoundary(projectDir, async () => {
+  return withSqliteTransaction(sqliteStateFile(projectDir), async () => {
     const current = await readState(projectDir) as TransferState | null;
     if (!current) {
       if (expectedRevision !== undefined && !force) { assertExpectedRevision(null, expectedRevision); }

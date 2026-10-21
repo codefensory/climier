@@ -1,7 +1,5 @@
-import { emptyState, sqliteStateFile } from "./state.ts";
-import { withMutationBoundary } from "./lock.ts";
-import { readState } from "./state.ts";
-import { writeSqliteState } from "./sqlite/store.ts";
+import { emptyState, readState, sqliteStateFile } from "./state.ts";
+import { withSqliteTransaction, writeSqliteState } from "./sqlite/store.ts";
 
 function resolvedPluginId(ctx) {
   const pluginId = ctx && typeof ctx.pluginId === "string" ? ctx.pluginId.trim() : "";
@@ -27,7 +25,7 @@ function validateAppendEntry(entry) {
 export async function append(projectDir, entry) {
   validateAppendEntry(entry);
   const preparedEntry = prepareLogEntry(entry);
-  return withMutationBoundary(projectDir, async () => {
+  return withSqliteTransaction(sqliteStateFile(projectDir), async () => {
     const state = await readState(projectDir) || emptyState();
     const next = {
       ...state,

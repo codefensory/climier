@@ -24,7 +24,7 @@ import { importFresh } from "./helpers.ts";
 import {
   createTempProject,
   rmTempProject,
-  writeFencedState,
+  writeCanonicalState,
   readState as readStateHelper,
 } from "./helpers.ts";
 
@@ -42,7 +42,7 @@ async function deprecateKnowledgeWithSearch(provider, mutate, dir) {
       "K-old": knowledgeNode("K-old", { title: "shared deprecated", body: "shared body" }),
     },
   });
-  await writeFencedState(dir, base);
+  await writeCanonicalState(dir, base);
   await mutate({
     projectDir: dir,
     request: {
@@ -193,7 +193,7 @@ async function applyDeprecationWithDetails(provider, mutate, dir) {
       }),
     },
   });
-  await writeFencedState(dir, base);
+  await writeCanonicalState(dir, base);
   const out = await mutate({
     projectDir: dir,
     request: {
@@ -264,7 +264,7 @@ test("deprecate: apply uses tx only (does not leak the snapshot after kernel mut
     const base = emptySnapshot({
       nodes: { "K-1": knowledgeNode("K-1", { revision: 3, scope: { domains: ["auth"] } }) },
     });
-    await writeFencedState(dir, base);
+    await writeCanonicalState(dir, base);
     const before = await readStateHelper(dir);
     const expectedTitle = before.nodes["K-1"].title;
     const expectedScope = JSON.parse(JSON.stringify(before.nodes["K-1"].scope));

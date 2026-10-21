@@ -220,17 +220,17 @@ test("kernel.mutate: policy receives semantic SQLite snapshots for single and ba
 
 // Idempotency (no diff ⇒ no write, no log)
 
-test("kernel.mutate: two concurrent mutate calls serialise under the project lock", async () => {
+test("kernel.mutate: two concurrent mutate calls serialize under SQLite transactions", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
     await bootstrapProject(dir);
     const provider1 = updateNodeProvider({ id: "T1", newTitle: "first-arrives" }).provider;
     const provider2 = updateNodeProvider({ id: "T1", newTitle: "second-arrives" }).provider;
-    // Fire both at once. They DO NOT race because withLock spins.
+    // Fire both at once. Their transactions serialize without losing revisions.
     // req1 carries if_revision=3 (matches the initial snapshot).
     // req2 carries if_revision=4 — it only matches if req1 has already
-    // bumped T1 from 3 to 4 by the time req2 acquires the lock.
+    // bumped T1 from 3 to 4 by the time req2 reads the transaction snapshot.
     const req1 = mutate({
       projectDir: dir,
       request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
@@ -244,7 +244,7 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
     const settled = await Promise.allSettled([req1, req2]);
 
     // mutations must NOT be flagged as nested. REVISION_CONFLICT is
-    // still acceptable when req2 acquires the lock first and its
+    // still acceptable when req2 starts first and its
     // if_revision=4 doesn't match the initial snapshot rev=3.
     for (const r of settled) {
       if (r.status === "rejected") {
@@ -253,7 +253,7 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
       }
     }
     const after = await readStateHelper(dir);
-    // Two possible orderings under withLock serialisation:
+    // Two possible orderings under SQLite transaction serialization:
     //   (A) req1 first: req1 applies 3→4 ("first-arrives"); req2
     //       sees rev=4, applies 4→5 ("second-arrives"). Final rev=5.
     //   (B) req2 first: req2's if_revision=4 doesn't match snapshot

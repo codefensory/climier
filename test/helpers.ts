@@ -115,10 +115,6 @@ export function jsonStateFilePath(dir: string): string {
   return path.join(path.dirname(stateFilePath(dir)), "tasks.json");
 }
 
-export function lockFilePath(dir: string): string {
-  return path.join(path.dirname(stateFilePath(dir)), ".lock");
-}
-
 export async function createTempProject(): Promise<string> {
   return fsp.mkdtemp(path.join(os.tmpdir(), "climier-test-"));
 }
@@ -136,11 +132,6 @@ export async function writeLegacyJsonState(dir: string, state): Promise<void> {
   const file = jsonStateFilePath(dir);
   await fsp.mkdir(path.dirname(file), { recursive: true });
   await fsp.writeFile(file, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-}
-
-export async function writeFencedState(dir: string, state): Promise<CanonicalState> {
-  const { fence_generation: _fenceGeneration, ...content } = state;
-  return writeCanonicalState(dir, content);
 }
 
 export async function writeCanonicalState(dir: string, state): Promise<CanonicalState> {

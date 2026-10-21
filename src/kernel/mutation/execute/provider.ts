@@ -8,7 +8,7 @@ import { buildLogEntry } from "../log-entry.ts";
 import {
   checkStateRevision,
   freezePlan,
-  readMutationSnapshotUnderLock,
+  readMutationSnapshot,
   runPolicy,
   checkPrecondition,
   selectPrecondition,
@@ -175,8 +175,8 @@ async function applyProviderMutation({ provider, tx, plan, request, snapshot, co
   return normalizeApplyResult(applyResult, commandName);
 }
 
-export async function executeProviderMutation({ projectDir, lockContext, request, provider, policyAction, pluginId, commandName }) {
-  const sourceSnapshot = await readMutationSnapshotUnderLock(lockContext, projectDir);
+export async function executeProviderMutation({ projectDir, request, provider, policyAction, pluginId, commandName }) {
+  const sourceSnapshot = await readMutationSnapshot(projectDir);
   const { snapshot, mayBootstrap } = initialSnapshot(sourceSnapshot.state, request, provider, commandName);
   const plan = await prepareMutationPlan({ provider, snapshot, request, pluginId, commandName });
   await runPolicy({ policyAction, snapshot, plan, request, commandName });

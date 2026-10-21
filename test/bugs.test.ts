@@ -5,24 +5,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, importFresh } from "./helpers.ts";
 
-test("bug: withLock creates the state directory if missing", async () => {
-  const { withLock } = await importFresh("./storage/lock.ts");
-  const os = await import("node:os");
-  const base = await fs.mkdtemp(path.join(os.tmpdir(), "climier-bug3-"));
-  try {
-    let ran = false;
-    await withLock(base, async () => {
-      ran = true;
-    });
-    assert.equal(ran, true);
-    const { stateFilePath } = await import("./helpers.ts");
-    const stat = await fs.stat(path.dirname(stateFilePath(base)));
-    assert.ok(stat.isDirectory());
-  } finally {
-    await fs.rm(base, { recursive: true, force: true });
-  }
-});
-
 // BUG #4: readState throws on corrupted JSON; should return a sentinel or clear error.
 test("bug: corrupted state file produces a clear error, not a SyntaxError stack", async () => {
   const { readState } = await importFresh("./storage/state.ts");

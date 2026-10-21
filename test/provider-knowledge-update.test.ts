@@ -24,7 +24,7 @@ import { importFresh } from "./helpers.ts";
 import {
   createTempProject,
   rmTempProject,
-  writeFencedState,
+  writeCanonicalState,
   readState as readStateHelper,
 } from "./helpers.ts";
 
@@ -43,7 +43,7 @@ async function applyKnowledgeUpdate(provider, mutate, dir) {
       }),
     },
   });
-  await writeFencedState(dir, base);
+  await writeCanonicalState(dir, base);
   const out = await mutate({
     projectDir: dir,
     request: { action: "knowledge.update", actor: "alice", input: {
@@ -200,7 +200,7 @@ test("update: idempotent patch (no actual change) skips write and log", async ()
     const base = emptySnapshot({
       nodes: { "K-1": knowledgeNode("K-1", { revision: 1, title: "same", body: "b" }) },
     });
-    await writeFencedState(dir, base);
+    await writeCanonicalState(dir, base);
     const out = await mutate({
       projectDir: dir,
       request: { action: "knowledge.update", actor: "alice", input: {

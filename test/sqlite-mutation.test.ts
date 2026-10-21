@@ -8,6 +8,28 @@ import { createTempProject, jsonStateFilePath, rmTempProject, runCli, runCliSpaw
 type State = { version: number; revision: number; nodes: Record<string, any>; edges: unknown[]; initiatives: Record<string, unknown>; log: any[] };
 const emptyState = (): State => ({ version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] });
 
+async function sourceFiles(directory: string): Promise<string[]> {
+  const entries = await fs.readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(entries.map((entry) => entry.isDirectory()
+    ? sourceFiles(path.join(directory, entry.name))
+    : [path.join(directory, entry.name)]));
+  return nested.flat();
+}
+
+test("runtime source has no file-lock, lock capability, or generation-fence path", async () => {
+  const sourceDir = new URL("../src/", import.meta.url);
+  const files = await sourceFiles(sourceDir.pathname);
+  for (const file of files.filter((filename) => filename.endsWith(".ts"))) {
+    const source = await fs.readFile(file, "utf8");
+    const mutationSource = file.endsWith(`${path.sep}storage${path.sep}state.ts`)
+      ? source.replace(/export async function readJsonStateForMigration[\s\S]*?(?=\nasync function assertExplicitMigrationRequiredForFile)/, "")
+      : source;
+    assert.doesNotMatch(source, /\blockContext\b|withMutationBoundary/, file);
+    assert.doesNotMatch(mutationSource, /fence_generation/, file);
+  }
+  await assert.rejects(fs.access(new URL("../src/storage/lock.ts", import.meta.url)), { code: "ENOENT" });
+});
+
 test("SQLite log append uses a database transaction without JSON sidecars", async () => {
   const projectDir = await createTempProject();
   try {
@@ -59,7 +81,7 @@ test("SQLite manual transfer replaces an existing database without JSON sidecars
   }
 });
 
-test("concurrent SQLite CLI mutations serialize on the database revision and retain every note", async () => {
+test("50 concurrent SQLite CLI mutations serialize on the database revision and retain every note", async () => {
   const projectDir = await createTempProject();
   try {
     const { readState, sqliteStateFile } = await import("../src/storage/state.ts");
@@ -70,14 +92,14 @@ test("concurrent SQLite CLI mutations serialize on the database revision and ret
       nodes: { "T-concurrent": { id: "T-concurrent", kind: "resolvable", subkind: "task", title: "concurrent", status: "open", initiative: "core", revision: 1 } },
       initiatives: { core: { desc: "concurrency", created_at: "2026-10-20T00:00:00.000Z" } },
     });
-    const results = await Promise.all(Array.from({ length: 8 }, (_, index) => runCliSpawn([
+    const results = await Promise.all(Array.from({ length: 50 }, (_, index) => runCliSpawn([
       "--project", projectDir, "add-note", "T-concurrent", `note-${index}`, "--as", "worker",
     ])));
     assert.ok(results.every((result) => result.code === 0), results.map((result) => result.stdout).join("\n"));
     const state = await readState(projectDir);
-    assert.deepEqual(state.nodes["T-concurrent"].notes.map(({ text }) => text).sort(), Array.from({ length: 8 }, (_, index) => `note-${index}`).sort());
-    assert.equal(state.log.length, 8);
-    assert.equal(state.revision, 9);
+    assert.deepEqual(state.nodes["T-concurrent"].notes.map(({ text }) => text).sort(), Array.from({ length: 50 }, (_, index) => `note-${index}`).sort());
+    assert.equal(state.log.length, 50);
+    assert.equal(state.revision, 51);
   } finally { await rmTempProject(projectDir); }
 });
 

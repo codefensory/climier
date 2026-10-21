@@ -104,7 +104,7 @@ api.runtime
   .agent         // string — --as value, or CLIMIER_AGENT env var, or ""
 
 api.query
-  .node(id)            // raw node, read without taking the project lock
+  .node(id)            // raw node from SQLite; read-only, outside a mutation transaction
   .context(id)         // context view; allowed_actions is scoped to api.runtime.agent
   .status(options?)    // status summary; same flags as `climier status`
   .history(id, opts?)  // history entries for a node
@@ -112,10 +112,10 @@ api.query
 api.data
   .node
     .get(id)           // the calling plugin's data slice (undefined if missing)
-    .set(id, value)    // under the project lock; preserves meta and other plugins
+    .set(id, value)    // via a SQLite mutation transaction; preserves meta and other plugins
   .project
     .get(key)          // the calling plugin's data slot for the project key
-    .set(key, value)   // under the project lock; preserves nodes[id].plugins
+    .set(key, value)   // via a SQLite mutation transaction; preserves nodes[id].plugins
 
 api.core
   .version             // core operation contract version
@@ -169,8 +169,9 @@ Plugin data lives in two optional, additive fields of the persisted state:
 - `plugins[<id>].data` is the project-wide keyspace for the plugin.
 - `nodes[<id>].plugins[<id>].data` is the per-node keyspace.
 - The two keyspaces (root `plugins`, node-level `plugins`, plus node
-  `meta`) are disjoint. `data.*.set` takes the project lock, modifies
-  only the calling plugin's slice, and preserves every other slice.
+  `meta`) are disjoint. `data.*.set` uses the kernel's SQLite mutation
+  transaction, modifies only the calling plugin's slice, and preserves every
+  other slice.
 - `uninstall <id>` removes the installed directory but does NOT purge
   data — reinstall restores the same surface.
 - The DAG does not derive semantics from these fields; the host
@@ -190,7 +191,7 @@ Install takes a global lock at `$CLIMIER_HOME/plugins/.lock`, runs
 `npm install --prefix <staging> <source>`, validates the descriptor,
 imports the entrypoint, and promotes the staging directory to
 `installed/<id>` via an atomic rename. Uninstall removes
-`installed/<id>` under the same lock.
+`installed/<id>` under the same plugin-install lock.
 
 There is no central registry or manifest. Each `installed/<id>/`
 directory contains its own `node_modules`, `package.json`, and
@@ -334,7 +335,7 @@ export default {
     async applies(projectConfig) { … },
 
     // Required when `default.policy` is exported. Receives the
-    // action + snapshot under the lock; returns one of:
+    // action + snapshot inside the SQLite mutation transaction; returns one of:
     //   { decision: "allow" }
     //   { decision: "deny", reason: "<human readable>" }
     //   { decision: "abstain" }
@@ -383,7 +384,7 @@ Defaults core apply on `abstain` and on no policy installed; see
 ### 9.3 Discovery and selection
 
 `loadApplicablePolicy({ projectDir })` runs once per mutating command,
-before the project lock:
+before the SQLite mutation transaction:
 
 1. `readProjectConfig(projectDir)` — reads `.climier.json` raw, or `{}`
    when the file is missing. The object is frozen before being passed
@@ -402,10 +403,10 @@ before the project lock:
 6. Two or more applicable → `POLICY_CONFLICT`. Details carry both
    the installed `plugin_ids` and their `namespaces`.
 
-### 9.4 Authorisation under the lock
+### 9.4 Authorisation in the mutation transaction
 
-The decision runs INSIDE the handler's existing `withLock(projectDir)`,
-against a snapshot taken from the read state:
+The decision runs inside the SQLite `BEGIN IMMEDIATE` transaction, against
+a snapshot read from that transaction:
 
 ```js
 const decision = await authorizeAction({
@@ -413,7 +414,7 @@ const decision = await authorizeAction({
   action,        // canonical action from §9.2
   actor,         // --as / CLIMIER_AGENT (never empty for mutators)
   target,        // { id, kind, subkind, status?, claim? }
-  snapshot,      // read-only view of state under the lock
+  snapshot,      // read-only view of state in the SQLite transaction
   projectDir,
   projectConfig, // frozen raw .climier.json (or {})
 });
@@ -435,8 +436,8 @@ be persisted and may corrupt the live read.
 | `authorize` throws or returns a malformed shape | — | handler throws `POLICY_ERROR` |
 
 The seam does NOT cache decisions across calls; each mutation re-runs
-the full selection + authorisation. The seam does NOT introduce a
-new lock; it runs on the handler's critical path.
+the full selection + authorisation. The policy seam adds no separate lock or
+transaction; it runs on the mutation's critical path.
 
 ### 9.5 Lifecycle and policy
 
@@ -457,10 +458,10 @@ host does not infer them from actor names.
 
 ### 9.6 Claim coordination (task.take / task.takeover)
 
-`take` is the one core coordination invariant: claims are serialized inside
-the project lock. A free task is classified as `task.take`; a task already
-claimed by another actor is classified internally as `task.takeover`; a
-repeat take by the same actor is idempotent. A policy may deny a takeover,
+`take` is the one core coordination invariant: claims are serialized by
+the SQLite mutation transaction. A free task is classified as `task.take`; a
+claimed task is classified internally as `task.takeover`; a repeat take by the
+same actor is idempotent. A policy may deny a takeover,
 but it cannot produce two simultaneous claims. `task.takeover` is internal
 to the seam and is never a public CLI command. `release` clears a claim
 without submitting the task.
@@ -490,9 +491,9 @@ These limitations are documented here so authors do not assume otherwise:
 - **No sandboxing.** The plugin's `authorize` runs in-process, with
   the user's permissions, with access to the host's module cache and
   the filesystem. Plugins MUST NOT write to state files directly.
-- **No dedicated timeout.** A slow policy holds the project lock
-  for the duration of its `authorize`. The host does not cancel
-  long-running policies; if you need a cap, enforce it inside your
-  own `authorize`.
+- **No dedicated policy timeout.** A slow policy holds the SQLite write
+  transaction for the duration of its `authorize`. The host does not cancel
+  long-running policies; if you need a cap, enforce it inside your own
+  `authorize`.
 - **No persistent auditing.** Denials do not append to the state
   log. The JSON error is the only record.

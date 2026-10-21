@@ -2831,8 +2831,10 @@
       "path": "test/bugs.test.mjs",
       "name": "bug: withLock creates the state directory if missing",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/bugs.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/bugs.test.ts",
@@ -2852,8 +2854,10 @@
       "path": "test/bugs.test.ts",
       "name": "bug: withLock creates the state directory if missing",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/bugs.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/check-commit-msg.test.ts",
@@ -8330,8 +8334,10 @@
       "path": "test/kernel-policy-errors.test.mjs",
       "name": "kernel.mutate: same-chain nested mutate still rejected with INVALID_EXECUTION_CONTRACT (AsyncLocalStorage guard preserved)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-policy-errors.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/kernel-policy-errors.test.ts",
@@ -8405,10 +8411,18 @@
     },
     {
       "path": "test/kernel-policy-errors.test.ts",
+      "name": "kernel.mutate: nested mutation is rejected inside an active SQLite transaction",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-policy-errors.test.ts",
       "name": "kernel.mutate: same-chain nested mutate still rejected with INVALID_EXECUTION_CONTRACT (AsyncLocalStorage guard preserved)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-policy-errors.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
@@ -9770,8 +9784,10 @@
       "path": "test/kernel/mutation/policy-concurrency.test.mjs",
       "name": "kernel.mutate: two concurrent mutate calls serialise under the project lock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/policy-concurrency.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/kernel/mutation/policy-concurrency.test.ts",
@@ -9813,8 +9829,16 @@
       "path": "test/kernel/mutation/policy-concurrency.test.ts",
       "name": "kernel.mutate: two concurrent mutate calls serialise under the project lock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/policy-concurrency.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
+    },
+    {
+      "path": "test/kernel/mutation/policy-concurrency.test.ts",
+      "name": "kernel.mutate: two concurrent mutate calls serialize under SQLite transactions",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/kernel/mutation/preconditions.test.mjs",
@@ -10564,155 +10588,154 @@
       "path": "test/lock.test.mjs",
       "name": "stale lock recovery requires verified manual removal before schema-1 operation resumes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock acquires and releases on success",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock blocks concurrent acquires; second waits then succeeds",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock does not auto-clear an old lock file",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock preserves active project capabilities across nested A-to-B-to-A scopes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock releases on mutator error (no deadlock)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock reuses only the live same-project capability in nested async scope",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock times out if holder never releases",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.ts",
       "name": "project-id locks contend with the project writer lock",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "creates stale lock-file fixtures to verify project-id writer-lock contention",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "stale lock recovery requires verified manual removal before schema-1 operation resumes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "creates stale lock-file fixtures to verify project-id writer-lock contention",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock acquires and releases on success",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "creates stale lock-file fixtures to verify project-id writer-lock contention",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock blocks concurrent acquires; second waits then succeeds",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "creates stale lock-file fixtures to verify project-id writer-lock contention",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock does not auto-clear an old lock file",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "creates stale lock-file fixtures to verify project-id writer-lock contention",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock preserves active project capabilities across nested A-to-B-to-A scopes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "creates stale lock-file fixtures to verify project-id writer-lock contention",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock releases on mutator error (no deadlock)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "creates stale lock-file fixtures to verify project-id writer-lock contention",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock reuses only the live same-project capability in nested async scope",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "creates stale lock-file fixtures to verify project-id writer-lock contention",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock times out if holder never releases",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "creates stale lock-file fixtures to verify project-id writer-lock contention",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/log.test.mjs",
@@ -13731,8 +13754,10 @@
       "path": "test/plugin-log-seam-residual-invariant.test.mjs",
       "name": "plugin-log-seam: handlers still observe withLock → updateState → append order (one log per handler call)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugin-log-seam-residual-invariant.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugin-log-seam-residual-invariant.test.ts",
@@ -13743,10 +13768,18 @@
     },
     {
       "path": "test/plugin-log-seam-residual-invariant.test.ts",
+      "name": "plugin-log-seam: handlers still append one log per call inside the SQLite transaction",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/plugin-log-seam-residual-invariant.test.ts",
       "name": "plugin-log-seam: handlers still observe withLock → updateState → append order (one log per handler call)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugin-log-seam-residual-invariant.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugin-log-seam-residual-lifecycle.test.mjs",
@@ -16447,22 +16480,28 @@
       "path": "test/plugins/api/data-isolation.test.mjs",
       "name": "data.set takes the project lock (concurrent set + take both succeed without corruption)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugins/api/data-isolation.test.mjs",
       "name": "two plugins writing concurrently (node data + project data) preserve both keyspaces under withLock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugins/api/data-isolation.test.mjs",
       "name": "two plugins writing the SAME keyspace (project) serialize under withLock and both writes land",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugins/api/data-isolation.test.ts",
@@ -16585,24 +16624,48 @@
     },
     {
       "path": "test/plugins/api/data-isolation.test.ts",
+      "name": "data.set and take transactions both succeed without corruption",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/plugins/api/data-isolation.test.ts",
       "name": "data.set takes the project lock (concurrent set + take both succeed without corruption)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
+    },
+    {
+      "path": "test/plugins/api/data-isolation.test.ts",
+      "name": "two plugins writing concurrently (node data + project data) preserve both keyspaces in SQLite",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/plugins/api/data-isolation.test.ts",
       "name": "two plugins writing concurrently (node data + project data) preserve both keyspaces under withLock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
+    },
+    {
+      "path": "test/plugins/api/data-isolation.test.ts",
+      "name": "two plugins writing the SAME keyspace (project) serialize in SQLite and both writes land",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/plugins/api/data-isolation.test.ts",
       "name": "two plugins writing the SAME keyspace (project) serialize under withLock and both writes land",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugins/api/runtime-query.test.mjs",
@@ -16971,8 +17034,10 @@
       "path": "test/project-storage.test.mjs",
       "name": "storage: project metadata makes sibling worktrees share the same state and lock path",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/project-storage.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test name or behavior was retired by the SQLite transaction cutover.",
+      "replacement": "Updated SQLite transaction and writer-concurrency coverage"
     },
     {
       "path": "test/project-storage.test.mjs",
@@ -16992,8 +17057,16 @@
       "path": "test/project-storage.test.ts",
       "name": "storage: project metadata makes sibling worktrees share the same state and lock path",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/project-storage.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test name or behavior was retired by the SQLite transaction cutover.",
+      "replacement": "Updated SQLite transaction and writer-concurrency coverage"
+    },
+    {
+      "path": "test/project-storage.test.ts",
+      "name": "storage: project metadata makes sibling worktrees share the same state path",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/project-storage.test.ts",
@@ -21965,7 +22038,22 @@
     },
     {
       "path": "test/sqlite-mutation.test.ts",
+      "name": "50 concurrent SQLite CLI mutations serialize on the database revision and retain every note",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-mutation.test.ts",
       "name": "concurrent SQLite CLI mutations serialize on the database revision and retain every note",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test name or behavior was retired by the SQLite transaction cutover.",
+      "replacement": "Updated SQLite transaction and writer-concurrency coverage"
+    },
+    {
+      "path": "test/sqlite-mutation.test.ts",
+      "name": "runtime source has no file-lock, lock capability, or generation-fence path",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -22126,6 +22214,12 @@
     {
       "path": "test/state-migrate.test.ts",
       "name": "state migrate requires explicit confirmation and does not write before it",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-migrate.test.ts",
+      "name": "state migrate strips retired fence_generation from SQLite state and export",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -24242,8 +24336,10 @@
       "path": "test/storage-lock-log-layout.test.mjs",
       "name": "lock storage has a canonical module and no root shim",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-lock-log-layout.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test name or behavior was retired by the SQLite transaction cutover.",
+      "replacement": "Updated SQLite transaction and writer-concurrency coverage"
     },
     {
       "path": "test/storage-lock-log-layout.test.mjs",
@@ -24256,8 +24352,10 @@
       "path": "test/storage-lock-log-layout.test.ts",
       "name": "lock storage has a canonical module and no root shim",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-lock-log-layout.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test name or behavior was retired by the SQLite transaction cutover.",
+      "replacement": "Updated SQLite transaction and writer-concurrency coverage"
     },
     {
       "path": "test/storage-lock-log-layout.test.ts",
@@ -24265,6 +24363,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/storage-lock-log-layout.test.mjs"
+    },
+    {
+      "path": "test/storage-lock-log-layout.test.ts",
+      "name": "project storage lock module is retired",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/storage-paths.test.mjs",
@@ -28956,4 +29060,4 @@
       "coverage_removed": true
     }
   ]
-}\n
+}

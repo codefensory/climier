@@ -270,11 +270,16 @@ for explicit administrative changes to the DAG.
 New projects use two locations:
 
 - `<project>/.climier.json` — stable project metadata kept in the repo
-- `~/.climier/projects/<project-id>/tasks.json` — live mutable state
+- `$CLIMIER_HOME/projects/<project-id>/state.sqlite` — canonical live state
 
-You can override `~/.climier` with `$CLIMIER_HOME`.
+You can override `~/.climier` with `$CLIMIER_HOME`. Runtime reads and writes use
+SQLite; JSON schema-1 files are supported only by the explicit `state migrate`
+and `state export` workflows, plus snapshot restore.
 
-Why the split? It lets multiple worktrees, sessions, or agents share one lock and one live state file without committing operational noise to git.
+Why the split? Multiple worktrees, sessions, and agents share one SQLite
+database without committing operational state to git. SQLite serializes
+writers with `BEGIN IMMEDIATE` and `busy_timeout`, and commits state, revision,
+and audit log together.
 
 ## Output contract: JSON-only
 
@@ -298,7 +303,7 @@ no `--json` flag. JSON is the default.
 
 ## Command reference
 
-`init` creates a canonical schema-1 state with `{ initiatives, nodes, edges, log }` plus the revision-ledger fields. The one-time schema-1 import window for existing projects is complete, and its importer is not part of the current CLI. Current releases accept only canonical state. If older or incomplete state files are found, preserve the project files and restore a verified canonical backup or contact the maintainer; never use `init --force` to convert or recover existing data. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
+`init` creates canonical schema-1 state in SQLite with `{ initiatives, nodes, edges, log }` and a project revision. Runtime reads and writes use SQLite; `state migrate --as <agent> --yes` explicitly imports a complete legacy schema-1 JSON file and preserves a verified backup, while `state export` emits schema-1 JSON. If state is older or incomplete, preserve the project files and restore a verified canonical backup or contact the maintainer; never use `init --force` to convert or recover existing data. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
 
 Full reference: `docs/reference.md`.
 
@@ -342,7 +347,7 @@ and any TLS or private-network exposure. HTTP origins are accepted, but `login`,
 encryption; pass `--no-warnings` to suppress those non-blocking warnings. HTTPS
 remains recommended, and normal requests never fall back to local state. See
 [`docs/remote-server.md`](docs/remote-server.md) for the complete setup path,
-transfer workflows, rotation, backups, stale-lock recovery, and auth-file
+transfer workflows, rotation, backups, service-lock recovery, and auth-file
 recovery.
 
 ### Manual offline transfers
@@ -397,8 +402,8 @@ Use the lifecycle commands to record ownership and review state:
 2. `submit <id> --note "..." --as <agent>` records the handoff for review.
 3. `accept <id> --as <agent>` marks submitted work done; `reject <id> --reason "..." --as <agent>` returns it to open.
 
-Claims are serialized under the project lock. `release`, `reopen`, and
-`cancel` are available for explicit administration.
+Claims are serialized by the SQLite mutation transaction. `release`, `reopen`,
+and `cancel` are available for explicit administration.
 
 ### Mutating
 
@@ -424,7 +429,7 @@ Claims are serialized under the project lock. `release`, `reopen`, and
 | `update <id> ... --as <agent>` | Edit node fields such as title, body, definition, acceptance, domain, backlog, tags, or refs. |
 | `add-note <id> "<text>" --as <agent>` | Append a note thread entry to any node. |
 
-Claims are serialized under the project lock, so two actors racing to take the same task cannot both win.
+Claims are serialized by SQLite, so two actors racing to take the same task cannot both win.
 
 ### Add to the DAG
 
@@ -443,11 +448,11 @@ Claims are serialized under the project lock, so two actors racing to take the s
 
 ### Claims are atomic
 
-Mutating commands run under a file lock. Two sessions or agents racing to claim the same task cannot both win.
+Mutating commands run in SQLite `BEGIN IMMEDIATE` transactions with `busy_timeout`. Two sessions or agents racing to claim the same task cannot both win.
 
 ### Logging is part of the mutation
 
-The state change and the audit-log entry happen under the same lock. That keeps the log truthful under concurrent use.
+The state change, project revision, and audit-log entry commit in the same SQLite transaction. That keeps the log truthful under concurrent use.
 
 ### Cycles and unknown dependencies do not crash the DAG
 
@@ -493,18 +498,13 @@ climier take T-cutover-1 --as implementer
 
 That is by design. The spec is frozen while a task is actively owned, awaiting validation, or after it becomes the audit-of-record. Use `add-note` or `release` for administration; create a separate correction task for additional work after acceptance.
 
-### Stale lock file
+### A mutation encounters SQLite contention
 
-`climier` does **not** auto-clear stale lock files. That is deliberate: age-based lock stealing can let two writers enter at once if a legitimate operation runs long.
-
-If a process died and left `.lock` behind, inspect the active state directory and remove the stale file manually before retrying.
-
-The lock lives next to the live state file:
-
-```bash
-$CLIMIER_HOME/projects/<project-id>/.lock
-# default CLIMIER_HOME is ~/.climier
-```
+Project writes are serialized by SQLite. If a mutation fails while another
+writer is active, let that writer finish and retry. Preserve `state.sqlite` and do not delete database files as a
+recovery shortcut. A process crash is handled by SQLite transaction recovery;
+if state remains unreadable, preserve the database and backups and contact the
+maintainer.
 
 ### Boolean flag caveat
 

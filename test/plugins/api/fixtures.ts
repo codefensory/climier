@@ -1,4 +1,4 @@
-import { createTempProject, importFresh, writeFencedState, readState as readRawState } from "../../helpers.ts";
+import { createTempProject, importFresh, writeCanonicalState, readState as readRawState } from "../../helpers.ts";
 import type { PluginApi } from "../../../src/plugins/types.ts";
 
 type FixtureNode = Record<string, unknown> & { id: string };
@@ -124,7 +124,7 @@ export async function seedState(dir: string, mutate?: SeedMutator): Promise<{ re
   }
   const current = await readRawState(dir);
   base.revision = current?.revision ?? 0;
-  return writeFencedState(dir, base);
+  return writeCanonicalState(dir, base);
 }
 
 export async function freshApi(dir: string, opts: ApiOptions = {}): Promise<TestApi> {

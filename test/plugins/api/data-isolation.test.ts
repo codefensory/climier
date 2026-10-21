@@ -271,7 +271,7 @@ test("data.project.set log envelope: action=plugin-data-set, scope=project, key,
   }
 });
 
-test("two plugins writing concurrently (node data + project data) preserve both keyspaces under withLock", async () => {
+test("two plugins writing concurrently (node data + project data) preserve both keyspaces in SQLite", async () => {
   const dir = await createTempProject();
   try {
     await seedState(dir, (s) => {
@@ -296,7 +296,7 @@ test("two plugins writing concurrently (node data + project data) preserve both 
   }
 });
 
-test("two plugins writing the SAME keyspace (project) serialize under withLock and both writes land", async () => {
+test("two plugins writing the SAME keyspace (project) serialize in SQLite and both writes land", async () => {
   const dir = await createTempProject();
   try {
     await seedState(dir);
@@ -314,7 +314,7 @@ test("two plugins writing the SAME keyspace (project) serialize under withLock a
   }
 });
 
-test("data.set takes the project lock (concurrent set + take both succeed without corruption)", async () => {
+test("data.set and take transactions both succeed without corruption", async () => {
   const dir = await createTempProject();
   try {
     await seedState(dir);

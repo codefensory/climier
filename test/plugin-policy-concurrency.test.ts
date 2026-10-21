@@ -1,7 +1,7 @@
 
 //
 
-// INSIDE the handler's withLock block, so the lock is held for the
+// INSIDE the handler's SQLite transaction, so the transaction is held for the
 // full duration of the policy decision. Concurrent takes against the
 // same CLIMIER_HOME / project state exercise:
 //

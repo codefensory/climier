@@ -82,12 +82,11 @@ commit messages.
 
 ## State shape
 
-`init` creates the canonical schema-1 state with this shape. The reader accepts only this form. The one-time import window for pre-canonical projects has completed and its tool is retired. If older or incomplete state is found, preserve the project files and restore a verified canonical backup or contact the maintainer; never use `init --force` to convert or recover data:
+The schema-1 state projection has this shape. SQLite is the canonical runtime store; JSON with this shape is accepted only by the explicit `state migrate` workflow and emitted by `state export` or snapshot workflows. If migration finds older or incomplete JSON, preserve the project files and restore a verified canonical backup or contact the maintainer; never use `init --force` to convert or recover data:
 
 ```js
 {
   version: 1,
-  fence_generation: 1,
   revision: 0,
   initiatives: {
     "auth": { desc: "Auth migration", created_at: "2026-01-01T00:00:00.000Z" }
@@ -107,7 +106,6 @@ commit messages.
 The required top-level collections are:
 
 - `version: 1`
-- `fence_generation`
 - `revision`
 - `nodes`
 - `edges`
@@ -256,8 +254,8 @@ server requires a bearer.
 
 `climier ui` is launched from a project root (`--project`) and starts the
 loopback server; the launch project only identifies the process (and the token
-label). The catalog reads every local project by id, lock-safe and without a
-project root. A project's display name comes from the `rename` sidecar
+label). The catalog reads every local project by id using SQLite-backed read-only
+queries and without a project root. A project's display name comes from the `rename` sidecar
 (`$CLIMIER_HOME/projects/<id>/project.json`) or, when `climier ui` is launched
 from a workspace root such as `~/dev`, from an in-memory index of the
 `.climier.json` files found below it (two levels, shallowest wins). The index is
@@ -447,7 +445,7 @@ These commands record task ownership and review outcomes:
 - `reject <id> --reason "..." --as <agent>` returns submitted work to `open`.
 
 Use `release`, `reopen`, and `cancel` for explicit administration. Claims are
-serialized under the project lock.
+serialized by the SQLite mutation transaction.
 
 ### `take <id>`
 
@@ -863,21 +861,21 @@ No flags.
 ### `restore <snapshot-id>`
 
 Replace the live state with a validated schema-1 snapshot. The operation runs
-through the recovery path under the project lock and takes a pre-restore
+through the recovery path in a SQLite transaction and takes a pre-restore
 snapshot before changing the live state. A policy plugin may restrict the
 actor; callers must use the actor permitted by the active policy.
 
 Behavior:
 
 - validates a complete snapshot pair and its metadata before changing anything;
-- validates the canonical schema-1 collections and ledger fields;
+- validates the canonical schema-1 collections and state metadata;
 - takes the pre-restore snapshot, writes the validated state atomically, and
   appends the restore event to the restored log;
 - returns `{ snapshot: <metadata> }` and leaves state untouched on invalid input.
 
 Use `init --force` only for an intentional reset of the project, never to
-convert an existing project. For a pre-cut project, use the ordered import in
-[`docs/remote-server.md`](remote-server.md).
+convert an existing project. Import a complete legacy schema-1 JSON state with
+`climier state migrate --as <agent> --yes`.
 
 ### `state`
 
@@ -933,7 +931,7 @@ and transport are operator-managed.
 Successful HTTP non-loopback `login`, `link`, and remote `init` operations warn
 unless `--no-warnings` is supplied; see
 [`docs/remote-server.md`](remote-server.md) for transport, backup, rotation,
-transfers, and stale-lock recovery.
+transfers, and service-lock recovery.
 
 ## Server commands
 
@@ -1040,7 +1038,7 @@ execution blocks the upgrade with `UPGRADE_FLOW_ACTIVE`.
 
 - every created node starts at `revision: 1`
 - mutating lifecycle commands bump `revision`
-- state mutation and log append happen under the same lock
+- state mutation, project revision, and log append commit in the same SQLite transaction
 - `show`, `context`, `search`, `take`, `update`, and lifecycle commands require the canonical schema-1 state
 - `add-node` and `add-edge` are the raw escape hatches; prefer `add-task [id]`, `add-gate [id]`, and `add-knowledge [id]`
 

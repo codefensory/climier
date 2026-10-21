@@ -23,7 +23,7 @@ function caughtError(error: unknown): CaughtError {
 import {
   createTempProject,
   rmTempProject,
-  writeFencedState,
+  writeCanonicalState,
   readState as readStateHelper,
 } from "./helpers.ts";
 
@@ -32,7 +32,7 @@ import {
 // State fixtures (pure, JSON-shaped)
 
 async function prepareCreateFromDisk(provider, dir) {
-  await writeFencedState(dir, emptySnapshot());
+  await writeCanonicalState(dir, emptySnapshot());
   const before = await readStateHelper(dir);
   await provider.prepare({
     snapshot: before,
@@ -186,7 +186,7 @@ async function createSupersedingKnowledge(provider, mutate, dir) {
     },
     edges: [],
   });
-  await writeFencedState(dir, base);
+  await writeCanonicalState(dir, base);
   return mutate({
     projectDir: dir,
     request: {
@@ -274,7 +274,7 @@ test("create: provider never writes revision (kernel assigns it)", async () => {
   };
   const dir = await createTempProject();
   try {
-    await writeFencedState(dir, emptySnapshot());
+    await writeCanonicalState(dir, emptySnapshot());
     await assert.rejects(
       importKernel().then(({ mutate }) => mutate({
         projectDir: dir,

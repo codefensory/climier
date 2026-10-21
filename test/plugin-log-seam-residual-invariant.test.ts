@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.ts";
 import { initProject, seedOpenTask, runLoggedHandlers } from "./plugin-log-seam-residual-helpers.ts";
 
-test("plugin-log-seam: handlers still observe withLock → updateState → append order (one log per handler call)", async () => {
+test("plugin-log-seam: handlers still append one log per call inside the SQLite transaction", async () => {
   const dir = await createTempProject();
   try {
     await initProject(dir);
