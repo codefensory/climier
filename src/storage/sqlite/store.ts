@@ -401,7 +401,7 @@ export async function readSqliteCounts(file: string, filters: { kind?: string; s
     }
     const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
     const rows = database.query(
-      `SELECT json_extract(data, '$.kind') AS kind, json_extract(data, '$.subkind') AS subkind, json_extract(data, '$.status') AS status, COUNT(*) AS count FROM nodes${where} GROUP BY kind, subkind, status ORDER BY kind, subkind, status`,
+      `SELECT json_extract(data, '$.kind') AS kind, json_extract(data, '$.subkind') AS subkind, json_extract(data, '$.status') AS status, COUNT(*) AS count FROM nodes${where} GROUP BY kind, subkind, status ORDER BY MIN(position)`,
     ).all(...params);
     const byKind = new Map<string, number>();
     const bySubkind = new Map<string, number>();

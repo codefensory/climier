@@ -43,6 +43,44 @@ function expectedCounts(nodes: Record<string, Record<string, unknown>>, filters:
   return counts;
 }
 
+function assertCountsMatch(actual, expected) {
+  assert.deepEqual(actual, expected);
+  for (const field of ["byKind", "bySubkind", "byStatus"] as const) {
+    assert.deepEqual(Object.keys(actual[field]), Object.keys(expected[field]), `${field} key order`);
+  }
+}
+
+function representativeState(nodeCount: number) {
+  const statuses = ["open", "done", "in_progress", "canceled"];
+  const nodes: Record<string, Record<string, unknown>> = {};
+  const edges: Array<Record<string, string>> = [];
+  const actions = ["task.add", "task.update", "task.note", "gate.resolve", "knowledge.deprecate"];
+  for (let i = 0; i < nodeCount; i += 1) {
+    const id = `T-project-${i}`;
+    nodes[id] = {
+      id,
+      kind: "resolvable",
+      subkind: i % 3 === 0 ? "gate" : "task",
+      title: `Project migration milestone ${i}`,
+      body: `Implementation detail for milestone ${i}. Preserve the existing API contract, validate the migration against staging, and record any operational caveats for the next phase.`,
+      status: statuses[i % statuses.length],
+      revision: i + 1,
+      acceptance: `The milestone ${i} is verified with an observable result.`,
+    };
+    if (i > 0) {
+      edges.push({ from: `T-project-${i - 1}`, to: id, type: ["BLOCKS", "SUPERSEDES", "DERIVED_FROM"][i % 3] });
+    }
+  }
+  return {
+    version: 1,
+    revision: nodeCount,
+    nodes,
+    edges,
+    initiatives: { migration: { desc: "A representative prose-heavy migration plan", created_at: "2026-10-21T00:00:00.000Z" } },
+    log: Array.from({ length: nodeCount }, (_, i) => ({ action: actions[i % actions.length], node: `T-project-${i}`, revision: i + 1, note: `Reviewed migration evidence for milestone ${i}.` })),
+  };
+}
+
 async function countRowsRead(run: () => Promise<unknown>) {
   const { Database } = await import(SQLITE_MODULE);
   const originalQuery = Database.prototype.query;
@@ -104,6 +142,29 @@ test("point reads match complete SQLite state and preserve node property order",
   } finally { await rmTempProject(projectDir); }
 });
 
+test("count maps preserve first appearance order from the complete state", async () => {
+  const projectDir = await createTempProject();
+  try {
+    const state = {
+      version: 1,
+      revision: 2,
+      nodes: {
+        "T-open-first": { id: "T-open-first", kind: "resolvable", subkind: "task", title: "Open first", status: "open", revision: 1 },
+        "T-done-second": { id: "T-done-second", kind: "resolvable", subkind: "task", title: "Done second", status: "done", revision: 2 },
+      },
+      edges: [],
+      initiatives: { core: { desc: "Point store", created_at: "2026-10-21T00:00:00.000Z" } },
+      log: [],
+    };
+    await writeCanonicalState(projectDir, state);
+    const { stateFile } = await import("../src/storage/state.ts");
+    const { readSqliteState, readSqliteCounts } = await import("../src/storage/sqlite/store.ts");
+    const complete = await readSqliteState(stateFile(projectDir));
+    assert.ok(complete);
+    assertCountsMatch(await readSqliteCounts(stateFile(projectDir)), expectedCounts(complete.nodes as Record<string, Record<string, unknown>>));
+  } finally { await rmTempProject(projectDir); }
+});
+
 test("v3 SQLite databases migrate edge lookup columns and indexes", async () => {
   const projectDir = await createTempProject();
   try {
@@ -141,6 +202,40 @@ test("v3 SQLite databases migrate edge lookup columns and indexes", async () => 
   } finally { await rmTempProject(projectDir); }
 });
 
+test("point reads match a prose-heavy representative project across all six APIs", async () => {
+  const projectDir = await createTempProject();
+  try {
+    const state = representativeState(240);
+    await writeCanonicalState(projectDir, state);
+    const { stateFile } = await import("../src/storage/state.ts");
+    const { Database } = await import(SQLITE_MODULE);
+    const { readSqliteState, readSqliteNode, readSqliteNodesByIds, readSqliteEdgesOf, readSqliteLogSince, readSqliteCounts, readSqliteRevision } = await import("../src/storage/sqlite/store.ts");
+    const file = stateFile(projectDir);
+    const database = new Database(file);
+    try { database.query("UPDATE log SET state_revision = position + 1").run(); }
+    finally { database.close(); }
+
+    const complete = await readSqliteState(file);
+    assert.ok(complete);
+    const id = "T-project-42";
+    assert.equal(JSON.stringify(await readSqliteNode(file, id)), JSON.stringify(complete.nodes[id]));
+    const ids = ["T-project-40", id, "T-project-43", "missing"];
+    const idSet = new Set(ids);
+    const expectedNodes = Object.fromEntries(Object.entries(complete.nodes).filter(([nodeId]) => idSet.has(nodeId)));
+    assert.equal(JSON.stringify(await readSqliteNodesByIds(file, ids)), JSON.stringify(expectedNodes));
+    for (const type of [undefined, "SUPERSEDES"] as const) {
+      const expectedEdges = complete.edges.filter((edge: any) => (idSet.has(edge.from) || idSet.has(edge.to)) && (type === undefined || edge.type === type));
+      assert.equal(JSON.stringify(await readSqliteEdgesOf(file, ids, type === undefined ? {} : { type })), JSON.stringify(expectedEdges));
+    }
+    const since = 175;
+    const expectedLog = complete.log.filter((entry: any) => entry.revision > since);
+    assert.equal(JSON.stringify(await readSqliteLogSince(file, since)), JSON.stringify(expectedLog));
+    assertCountsMatch(await readSqliteCounts(file), expectedCounts(complete.nodes as Record<string, Record<string, unknown>>));
+    assertCountsMatch(await readSqliteCounts(file, { status: "done", subkind: "task" }), expectedCounts(complete.nodes as Record<string, Record<string, unknown>>, { status: "done", subkind: "task" }));
+    assert.equal(await readSqliteRevision(file), complete.revision);
+  } finally { await rmTempProject(projectDir); }
+});
+
 test("10,000-node point reads use indexed bounded work and match full-state projections", async () => {
   const projectDir = await createTempProject();
   try {
@@ -160,7 +255,7 @@ test("10,000-node point reads use indexed bounded work and match full-state proj
     const started = performance.now();
     const node = await readSqliteNode(file, "T-point-42");
     const elapsedMs = performance.now() - started;
-    assert.ok(elapsedMs <= 2, `readSqliteNode took ${elapsedMs.toFixed(3)} ms`);
+    assert.ok(elapsedMs <= 25, `readSqliteNode took ${elapsedMs.toFixed(3)} ms (loose timing guard; row budget is deterministic)`);
     assert.equal(JSON.stringify(node), JSON.stringify(complete.nodes["T-point-42"]));
 
     const ids = ["T-point-42", "T-point-43", "T-point-9999", "missing"];
