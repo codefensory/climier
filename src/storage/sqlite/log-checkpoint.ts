@@ -9,18 +9,17 @@ type Checkpoint = {
   agents: Map<string, number>;
 };
 
-type LogEntry = Record<string, any>;
+type LogEntry = Record<string, unknown>;
+type CheckpointSummaryEntry = LogEntry & { checkpoint: Record<string, unknown> & { count: number } };
 
 function isRecord(value: unknown): value is LogEntry {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function isCheckpointSummary(entry: unknown): entry is LogEntry {
-  return isRecord(entry)
-    && entry.action === CHECKPOINT_SUMMARY_ACTION
-    && isRecord(entry.checkpoint)
-    && Number.isSafeInteger(entry.checkpoint.count)
-    && entry.checkpoint.count > 0;
+function isCheckpointSummary(entry: unknown): entry is CheckpointSummaryEntry {
+  if (!isRecord(entry) || entry.action !== CHECKPOINT_SUMMARY_ACTION || !isRecord(entry.checkpoint)) { return false; }
+  const { count } = entry.checkpoint;
+  return typeof count === "number" && count > 0;
 }
 
 function newCheckpoint(): Checkpoint {
@@ -50,11 +49,11 @@ function addEntry(checkpoint: Checkpoint, entry: LogEntry) {
 function mergeCounts(target: Map<string, number>, source: unknown) {
   if (!isRecord(source)) { return; }
   for (const [key, count] of Object.entries(source)) {
-    if (Number.isSafeInteger(count) && count > 0) { addCount(target, key, count); }
+    if (typeof count === "number" && Number.isSafeInteger(count) && count > 0) { addCount(target, key, count); }
   }
 }
 
-function mergeSummary(checkpoint: Checkpoint, entry: LogEntry) {
+function mergeSummary(checkpoint: Checkpoint, entry: CheckpointSummaryEntry) {
   const summary = entry.checkpoint;
   if (checkpoint.count === 0) { checkpoint.firstTs = summary.first_ts ?? null; }
   checkpoint.count += summary.count;

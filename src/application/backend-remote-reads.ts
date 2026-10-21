@@ -143,20 +143,42 @@ function invalidDelta(): never {
   throw clientError("REMOTE_INVALID_RESPONSE", "application.backendClient: delta entry is invalid or out of sequence", { field: "changes" });
 }
 
+type MapDelta = { upsert: Record<string, unknown>; remove: unknown[] };
+type LogDelta = { append?: unknown[]; replace?: unknown[] };
+type SyncDelta = {
+  from_revision: number;
+  revision: number;
+  set: Record<string, unknown>;
+  remove: unknown[];
+  nodes: MapDelta;
+  initiatives: MapDelta;
+  log: LogDelta;
+  edges?: unknown[];
+};
+type SyncChange = { from_revision: number; revision: number; delta: SyncDelta };
+type SyncSnapshot = Record<string, unknown> & {
+  revision: number;
+  nodes: Record<string, unknown>;
+  initiatives: Record<string, unknown>;
+  edges: unknown[];
+  log: unknown[];
+};
+type ChangesResult = { revision: number; reset_required: boolean; changes: unknown[] };
+
 function isRevision(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
 }
 
-function validMapDelta(value: unknown): value is Record<string, unknown> & { upsert: Record<string, unknown>; remove: unknown[] } {
+function validMapDelta(value: unknown): value is MapDelta {
   return isRecord(value) && isRecord(value.upsert) && Array.isArray(value.remove);
 }
 
-function validLogDelta(value: unknown): value is Record<string, unknown> {
+function validLogDelta(value: unknown): value is LogDelta {
   if (!isRecord(value)) { return false; }
   return Array.isArray(value.append) !== Array.isArray(value.replace);
 }
 
-function validDelta(value: unknown): value is Record<string, any> {
+function validDelta(value: unknown): value is SyncDelta {
   if (!isRecord(value)) { return false; }
   const fieldsValid = [
     isRevision(value.from_revision),
@@ -180,33 +202,33 @@ function applyMapDelta(source: unknown, delta: unknown): Record<string, unknown>
   return result;
 }
 
-function isCurrentChange(state: Record<string, any>, change: unknown): change is Record<string, any> {
-  if (!isRecord(change) || !validDelta(change.delta)) { return false; }
+function isCurrentChange(state: SyncSnapshot, change: unknown): change is SyncChange {
+  if (!isRecord(change) || !isRevision(change.from_revision) || !validDelta(change.delta)) { return false; }
   return change.from_revision === state.revision && change.revision === change.delta.revision
     && change.delta.from_revision === state.revision && change.delta.revision > state.revision;
 }
 
-function applyRemoteChange(state: Record<string, any>, change: unknown): Record<string, any> {
+function applyRemoteChange(state: SyncSnapshot, change: unknown): SyncSnapshot {
   if (!isCurrentChange(state, change)) { invalidDelta(); }
   const delta = change.delta;
-  const next = { ...state, ...delta.set, revision: delta.revision };
+  const next: SyncSnapshot = { ...state, ...delta.set, revision: delta.revision };
   for (const key of delta.remove) {
     if (typeof key !== "string") { invalidDelta(); }
     delete next[key];
   }
   next.nodes = applyMapDelta(state.nodes, delta.nodes);
   next.initiatives = applyMapDelta(state.initiatives, delta.initiatives);
-  if (Object.hasOwn(delta, "edges")) { next.edges = delta.edges; }
-  next.log = Array.isArray(delta.log.replace) ? delta.log.replace : [...state.log, ...delta.log.append];
+  if (delta.edges !== undefined) { next.edges = delta.edges; }
+  next.log = Array.isArray(delta.log.replace) ? delta.log.replace : [...state.log, ...delta.log.append ?? []];
   return next;
 }
 
-function validSyncSnapshot(value: unknown): value is Record<string, any> {
+function validSyncSnapshot(value: unknown): value is SyncSnapshot {
   return isRecord(value) && isRecord(value.nodes) && isRecord(value.initiatives)
     && Array.isArray(value.edges) && Array.isArray(value.log) && isRevision(value.revision);
 }
 
-function validChangesResult(value: unknown): value is Record<string, any> {
+function validChangesResult(value: unknown): value is ChangesResult {
   return isRecord(value) && Array.isArray(value.changes) && isRevision(value.revision)
     && typeof value.reset_required === "boolean";
 }

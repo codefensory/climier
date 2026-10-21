@@ -23,7 +23,7 @@ const KNOWLEDGE_CLOSURE_ACTIONS = new Set(["knowledge.update", "knowledge.deprec
 type EdgeRow = { position: number; edge: Record<string, unknown> };
 type MutationInput = Record<string, unknown>;
 type DeclaredSnapshot = {
-  state: Record<string, any> | null;
+  state: Record<string, unknown> | null;
   raw: null;
   closure: { previousRevision: number; maximumNodeRevision: number; edgePositions?: number[]; rootOrder?: string[] | null } | null;
 };
@@ -312,7 +312,7 @@ export async function readDeclaredBatchMutationSnapshot(
   registry: { lookup: (id: string) => { snapshotClosure?: SnapshotClosure } | null },
 ) {
   const snapshots: Array<{
-    state: Record<string, any>;
+    state: Record<string, unknown>;
     raw: null;
     closure: { previousRevision: number; maximumNodeRevision: number; edgePositions?: number[]; rootOrder?: string[] | null };
   }> = [];
@@ -340,7 +340,7 @@ export async function readDeclaredBatchMutationSnapshot(
       if (!["version", "revision", "nodes", "edges", "initiatives", "log"].includes(key)) { extras[key] = value; }
     }
     const positions = snapshot.closure.edgePositions || [];
-    snapshot.state.edges.forEach((edge, index) => positionedEdges.set(positions[index] ?? index, edge));
+    (snapshot.state.edges as Array<Record<string, unknown>>).forEach((edge, index) => positionedEdges.set(positions[index] ?? index, edge));
   }
   if (batchMayAddBlocks(operations)) {
     const file = sqliteStateFile(projectDir);

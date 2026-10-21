@@ -5,6 +5,7 @@ import { asCaughtError, codedError, throwV2 } from "../../contracts/errors.ts";
 import { EDGE_TYPES, validateEdge, validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { SQLITE_INDEXES, SQLITE_PRAGMAS, SQLITE_SCHEMA, SQLITE_SCHEMA_VERSION } from "./schema.ts";
 import { bodyHash, createStateDelta, makeStoredLogAppendRows, makeStoredLogRows, nodeWithoutBodyText, readDeltaFloor, readSqliteChangesInTransaction, writeDeltaFloor } from "./delta.ts";
+import type { StateDelta } from "./delta.ts";
 
 const SQLITE_MODULE = "bun:sqlite";
 const COLLECTIONS = new Set(["nodes", "edges", "initiatives", "log"]);
@@ -14,7 +15,19 @@ const MAX_NODE_REVISION_KEY = "__maximum_node_revision";
 const EDGE_VALIDATION_EPOCH_KEY = "edge_validation_epoch";
 const EDGE_VALIDATION_CHECKED_KEY = "edge_validation_checked_epoch";
 const SQLITE_HEADER = Buffer.from("SQLite format 3\0");
-const sqliteTransaction = new AsyncLocalStorage<{ file: string; database: any }>();
+type SqliteStatementHandle = {
+  run: (...params: unknown[]) => unknown;
+  get: (...params: unknown[]) => Record<string, unknown> | undefined;
+  all: (...params: unknown[]) => Array<Record<string, unknown>>;
+};
+type SqliteDatabaseHandle = {
+  query: (sql: string) => SqliteStatementHandle;
+  prepare: (sql: string) => SqliteStatementHandle;
+  exec: (sql: string) => unknown;
+  transaction: (operation: () => unknown) => () => unknown;
+  close: () => unknown;
+};
+const sqliteTransaction = new AsyncLocalStorage<{ file: string; database: SqliteDatabaseHandle }>();
 const sqliteQueues = new Map<string, Promise<void>>();
 
 type SqliteState = Record<string, unknown> & {
@@ -227,7 +240,7 @@ function activeDatabase(file: string) {
   return active?.database;
 }
 
-async function withReadTransaction<T>(file: string, missing: T, read: (database: any) => T): Promise<T> {
+async function withReadTransaction<T>(file: string, missing: T, read: (database) => T): Promise<T> {
   const active = activeDatabase(file);
   if (active) { return read(active); }
   try {
@@ -242,7 +255,7 @@ async function withReadTransaction<T>(file: string, missing: T, read: (database:
   finally { database.close(); }
 }
 
-async function runSqliteReadTransaction<T>(file: string, database: any, operation: () => Promise<T>): Promise<T> {
+async function runSqliteReadTransaction<T>(file: string, database, operation: () => Promise<T>): Promise<T> {
   let started = false;
   try {
     database.exec("BEGIN");
@@ -388,6 +401,11 @@ function replaceMetadata(database, state: SqliteState) {
   })) { insert.run(key, JSON.stringify(value)); }
 }
 
+function edgeColumns(edge: unknown): Array<string | null> {
+  const value = edge as { from?: string; to?: string; type?: string } | null | undefined;
+  return [value?.from ?? null, value?.to ?? null, value?.type ?? null];
+}
+
 // Full rewrites are for migration/restore and the safe fallback when no trustworthy incremental delta exists.
 function replaceRows(database, state: SqliteState, previousState?: Record<string, unknown> | null) {
   const previous = (previousState === undefined ? readStateInTransaction(database, { includeBodies: false }) : previousState) as SqliteState | null;
@@ -398,7 +416,7 @@ function replaceRows(database, state: SqliteState, previousState?: Record<string
   replaceMetadata(database, state);
   replaceNodes(database, state.nodes);
   const insertEdge = database.prepare("INSERT INTO edges (position, data, from_id, to_id, edge_type) VALUES (?, ?, ?, ?, ?)");
-  state.edges.forEach((edge: any, position) => insertEdge.run(position, JSON.stringify(edge), edge?.from ?? null, edge?.to ?? null, edge?.type ?? null));
+  state.edges.forEach((edge, position) => insertEdge.run(position, JSON.stringify(edge), ...edgeColumns(edge)));
   const insertInitiative = database.prepare("INSERT INTO initiatives (name, position, data) VALUES (?, ?, ?)");
   Object.entries(state.initiatives).forEach(([name, initiative], position) => insertInitiative.run(name, position, JSON.stringify(initiative)));
   const insertLog = database.prepare("INSERT INTO log (position, data, from_revision, state_revision, delta) VALUES (?, ?, ?, ?, ?)");
@@ -429,7 +447,7 @@ function isDeltaState(value: unknown): value is SqliteState {
     && Array.isArray(candidate.log);
 }
 
-function canApplyStateDelta(database, previous: SqliteState | null, state: SqliteState, delta: Record<string, any>): boolean {
+function canApplyStateDelta(database, previous: SqliteState | null, state: SqliteState, delta: StateDelta): boolean {
   if (!previous || state.revision < previous.revision || !Object.hasOwn(delta.log, "append")) { return false; }
   if (!appendCompatibleOrder(previous.nodes, state.nodes) || !appendCompatibleOrder(previous.initiatives, state.initiatives)) { return false; }
   const storedRevision = database.query("SELECT value FROM meta WHERE key = 'revision'").get();
@@ -437,7 +455,7 @@ function canApplyStateDelta(database, previous: SqliteState | null, state: Sqlit
   return previous.revision === 0 && !hasUnversionedRows(database);
 }
 
-function applyStateDelta(database, state: SqliteState, previous: SqliteState, delta: Record<string, any>) {
+function applyStateDelta(database, state: SqliteState, previous: SqliteState, delta: StateDelta) {
   const extras = Object.fromEntries(Object.entries(state).filter(([key]) => !META_FIELDS.has(key) && !COLLECTIONS.has(key)));
   const findMetadata = database.query("SELECT value FROM meta WHERE key = ?");
   const upsertMetadata = database.query("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
@@ -453,12 +471,12 @@ function applyStateDelta(database, state: SqliteState, previous: SqliteState, de
   }
   database.query("DELETE FROM meta WHERE key NOT IN ('version', 'revision', 'extras', ?, ?)").run(ROOT_ORDER_KEY, MAX_NODE_REVISION_KEY);
 
-  const changedNodeIds = [...Object.keys(delta.nodes.upsert), ...delta.nodes.remove];
+  const changedNodeIds = [...Object.keys(delta.nodes.upsert), ...delta.nodes.remove as string[]];
   const existingNodes = new Map<string, { position: number; body_hash: string | null }>();
   const findNode = database.query("SELECT position, body_hash FROM nodes WHERE id = ?");
   for (const id of changedNodeIds) {
     const row = findNode.get(id);
-    if (row) { existingNodes.set(id, row); }
+    if (row) { existingNodes.set(id, row as { position: number; body_hash: string | null }); }
   }
   let nextNodePosition: number | undefined;
   const insertNode = database.query("INSERT INTO nodes (id, position, data, body_hash) VALUES (?, ?, ?, ?)");
@@ -479,12 +497,12 @@ function applyStateDelta(database, state: SqliteState, previous: SqliteState, de
   const deleteBody = database.query("DELETE FROM node_body WHERE hash = ? AND NOT EXISTS (SELECT 1 FROM nodes WHERE body_hash = ?)");
   for (const hash of obsoleteBodyHashes) { deleteBody.run(hash, hash); }
 
-  const changedInitiativeNames = [...Object.keys(delta.initiatives.upsert), ...delta.initiatives.remove];
+  const changedInitiativeNames = [...Object.keys(delta.initiatives.upsert), ...delta.initiatives.remove as string[]];
   const existingInitiatives = new Map<string, number>();
   const findInitiative = database.query("SELECT position FROM initiatives WHERE name = ?");
   for (const name of changedInitiativeNames) {
     const row = findInitiative.get(name);
-    if (row) { existingInitiatives.set(name, row.position); }
+    if (row) { existingInitiatives.set(name, row.position as number); }
   }
   let nextInitiativePosition: number | undefined;
   const insertInitiative = database.query("INSERT INTO initiatives (name, position, data) VALUES (?, ?, ?)");
@@ -503,7 +521,7 @@ function applyStateDelta(database, state: SqliteState, previous: SqliteState, de
   if (Object.hasOwn(delta, "edges")) {
     database.exec("DELETE FROM edges");
     const insertEdge = database.query("INSERT INTO edges (position, data, from_id, to_id, edge_type) VALUES (?, ?, ?, ?, ?)");
-    state.edges.forEach((edge: any, position) => insertEdge.run(position, JSON.stringify(edge), edge?.from ?? null, edge?.to ?? null, edge?.type ?? null));
+    state.edges.forEach((edge, position) => insertEdge.run(position, JSON.stringify(edge), ...edgeColumns(edge)));
   }
 
   const appendedLogRows = makeStoredLogAppendRows(database, state, previous, delta);
@@ -1091,7 +1109,7 @@ export async function writeSqliteMutation(file: string, mutation: {
   const database = activeDatabase(file);
   if (!database) { throw new Error("kernel mutation writes require an active SQLite transaction"); }
   const metadata = Object.fromEntries(database.query("SELECT key, value FROM meta").all()
-    .map(({ key, value }) => [key, JSON.parse(value)]));
+    .map(({ key, value }) => [key, JSON.parse(value as string)]));
   if (metadata.version !== 1) { throw new Error("writeState: SQLite store requires canonical schema-1 state"); }
   if (metadata.revision !== mutation.previousRevision) {
     throw new Error(`storage: mutation snapshot revision ${mutation.previousRevision} does not match stored revision ${metadata.revision}`);
@@ -1103,7 +1121,7 @@ export async function writeSqliteMutation(file: string, mutation: {
     ? metadata[MAX_NODE_REVISION_KEY]
     : database.query(
       "SELECT COALESCE(MAX(CASE WHEN json_type(data, '$.revision') = 'integer' THEN json_extract(data, '$.revision') ELSE 0 END), 0) AS revision FROM nodes",
-    ).get().revision;
+    ).get()!.revision;
 
   const nodeUpserts = mutation.nodes.upsert || {};
   const nodeRemovals = mutation.nodes.remove || [];
@@ -1111,7 +1129,7 @@ export async function writeSqliteMutation(file: string, mutation: {
   const findNode = database.query("SELECT body_hash FROM nodes WHERE id = ?");
   for (const id of [...Object.keys(nodeUpserts), ...nodeRemovals]) {
     const row = findNode.get(id);
-    if (row) { oldNodeRows.set(id, row); }
+    if (row) { oldNodeRows.set(id, { body_hash: row.body_hash as string | null }); }
   }
   const insertNode = database.query("INSERT INTO nodes (id, position, data, body_hash) VALUES (?, ?, ?, ?)");
   const updateNode = database.query("UPDATE nodes SET data = ?, body_hash = ? WHERE id = ?");
@@ -1122,7 +1140,7 @@ export async function writeSqliteMutation(file: string, mutation: {
     if (oldNodeRows.has(id)) { updateNode.run(JSON.stringify(data), hash, id); }
     else {
       if (nextNodePosition === undefined) {
-        nextNodePosition = (database.query("SELECT COALESCE(MAX(position), -1) AS position FROM nodes").get().position as number) + 1;
+        nextNodePosition = (database.query("SELECT COALESCE(MAX(position), -1) AS position FROM nodes").get()!.position as number) + 1;
       }
       insertNode.run(id, nextNodePosition++, JSON.stringify(data), hash);
     }
@@ -1136,7 +1154,7 @@ export async function writeSqliteMutation(file: string, mutation: {
   const maximumNodeRevisionAfterMutation = nodeRemovals.length > 0
     ? database.query(
       "SELECT COALESCE(MAX(CASE WHEN json_type(data, '$.revision') = 'integer' THEN json_extract(data, '$.revision') ELSE 0 END), 0) AS revision FROM nodes",
-    ).get().revision
+    ).get()!.revision
     : Math.max(priorMaximumNodeRevision, maximumNodeRevision(nodeUpserts));
 
   const edgeAdds = mutation.edges.add || [];
@@ -1146,7 +1164,7 @@ export async function writeSqliteMutation(file: string, mutation: {
     deleteEdge.run(edge.from, edge.to, edge.type);
   }
   if (edgeAdds.length > 0) {
-    let position = (database.query("SELECT COALESCE(MAX(position), -1) AS position FROM edges").get().position as number) + 1;
+    let position = (database.query("SELECT COALESCE(MAX(position), -1) AS position FROM edges").get()!.position as number) + 1;
     const insertEdge = database.query("INSERT INTO edges (position, data, from_id, to_id, edge_type) VALUES (?, ?, ?, ?, ?)");
     for (const edge of edgeAdds as Array<Record<string, unknown>>) {
       insertEdge.run(position++, JSON.stringify(edge), edge.from, edge.to, edge.type);
@@ -1164,7 +1182,7 @@ export async function writeSqliteMutation(file: string, mutation: {
     if (existing) { updateInitiative.run(JSON.stringify(initiative), name); }
     else {
       if (nextInitiativePosition === undefined) {
-        nextInitiativePosition = (database.query("SELECT COALESCE(MAX(position), -1) AS position FROM initiatives").get().position as number) + 1;
+        nextInitiativePosition = (database.query("SELECT COALESCE(MAX(position), -1) AS position FROM initiatives").get()!.position as number) + 1;
       }
       insertInitiative.run(name, nextInitiativePosition++, JSON.stringify(initiative));
     }
@@ -1209,7 +1227,7 @@ export async function writeSqliteMutation(file: string, mutation: {
     delta.edges = readRows(database, "edges", "position").map(({ data }) => JSON.parse(data));
   }
   if (readDeltaFloor(database) === null) { writeDeltaFloor(database, mutation.previousRevision); }
-  const position = (database.query("SELECT COALESCE(MAX(position), -1) AS position FROM log").get().position as number) + 1;
+  const position = (database.query("SELECT COALESCE(MAX(position), -1) AS position FROM log").get()!.position as number) + 1;
   database.query("INSERT INTO log (position, data, from_revision, state_revision, delta) VALUES (?, ?, ?, ?, ?)")
     .run(position, JSON.stringify(mutation.logEntry), mutation.previousRevision, mutation.revision, JSON.stringify(delta));
   return mutation.revision;
@@ -1230,7 +1248,7 @@ export async function writeSqliteState(file: string, state: unknown, previousSta
     else {
       let replacementPrevious = previous;
       const storedRevision = active.query("SELECT value FROM meta WHERE key = 'revision'").get();
-      if (previous && storedRevision && JSON.parse(storedRevision.value) !== previous.revision) {
+      if (previous && storedRevision && JSON.parse(storedRevision.value as string) !== previous.revision) {
         replacementPrevious = readStateInTransaction(active);
       } else if (previous && !storedRevision && hasUnversionedRows(active)) {
         replacementPrevious = null;

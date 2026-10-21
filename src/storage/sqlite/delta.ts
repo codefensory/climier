@@ -9,6 +9,22 @@ type DeltaState = Record<string, unknown> & {
   log: unknown[];
 };
 
+export type MapDelta = {
+  upsert: Record<string, unknown>;
+  remove: unknown[];
+};
+
+export type StateDelta = {
+  from_revision: number;
+  revision: number;
+  set: Record<string, unknown>;
+  remove: unknown[];
+  nodes: MapDelta;
+  initiatives: MapDelta;
+  log: { append?: unknown[]; replace?: unknown[] };
+  edges?: unknown[];
+};
+
 export function bodyHash(body: string): string {
   return crypto.createHash("sha256").update(body).digest("hex");
 }
@@ -48,7 +64,7 @@ function changedNodes(previous: Record<string, unknown>, next: Record<string, un
   return { upsert, remove };
 }
 
-export function createStateDelta(previous: DeltaState, next: DeltaState, previousBodyHashes: Map<string, string | null>) {
+export function createStateDelta(previous: DeltaState, next: DeltaState, previousBodyHashes: Map<string, string | null>): StateDelta {
   const set: Record<string, unknown> = {};
   const remove: string[] = [];
   const coreFields = new Set(["revision", "nodes", "edges", "initiatives", "log"]);
@@ -57,7 +73,7 @@ export function createStateDelta(previous: DeltaState, next: DeltaState, previou
     if (!Object.hasOwn(next, key)) { remove.push(key); }
     else if (!Object.hasOwn(previous, key) || (previous[key] !== next[key] && !structurallyEqual(previous[key], next[key]))) { set[key] = next[key]; }
   }
-  const delta: Record<string, unknown> = {
+  const delta: StateDelta = {
     from_revision: previous.revision,
     revision: next.revision,
     set,
@@ -99,7 +115,7 @@ function retainedLogMetadata(appendOnly: boolean, old, data: string) {
   return { from_revision: old.from_revision, state_revision: old.state_revision, delta: old.delta };
 }
 
-export function makeStoredLogAppendRows(database, state: DeltaState, previous: DeltaState, delta: Record<string, any>) {
+export function makeStoredLogAppendRows(database, state: DeltaState, previous: DeltaState, delta: StateDelta) {
   const hasNewLogEntry = state.log.length > previous.log.length;
   updateDeltaHistoryFloor(database, { previous, state, appendOnly: true, hasNewLogEntry });
   const markedPosition = state.revision > previous.revision && state.log.length > 0 ? state.log.length - 1 : -1;
