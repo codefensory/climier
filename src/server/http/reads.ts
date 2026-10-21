@@ -215,7 +215,7 @@ function createProjectors({ deps, httpError }) {
     search: (snapshot, route, filters) => projectSearch(snapshot, filters, deps),
     initiatives: (snapshot, route, filters) => projectInitiatives(snapshot, filters, deps),
     log: (snapshot, route, filters) => deps.projectLogView({ snapshot, filters }),
-    state: (snapshot) => deps.projectSnapshot({ snapshot }),
+    state: (snapshot) => snapshot,
     node: (snapshot, route) => projectNode(snapshot, route.id, deps, httpError),
   };
 }

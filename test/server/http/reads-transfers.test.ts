@@ -152,13 +152,20 @@ test("HTTP typed read routes match the CLI output from the same state snapshot",
       ["read/search/API", "search", "all=true", ["API"]],
       ["read/initiatives", "initiatives", "all=true", []],
       ["read/log", "log", "limit=1&agent=alice", []],
-      ["read/state", "state", "", []],
     ];
     for (const [route, command, query, positional] of routes) {
       const response = await fetch(`${baseUrl}/v1/projects/project-a/${route}${query ? `?${query}` : ""}`, { headers: authHeaders() });
       assert.equal(response.status, 200, `${route}: ${JSON.stringify(await response.clone().json())}`);
       assert.deepEqual((await response.json() as ReadBody).result, await cliCommand(projectDirs[0], command, query, positional), route);
     }
+
+    const canonicalResponse = await fetch(`${baseUrl}/v1/projects/project-a/read/state`, { headers: authHeaders() });
+    assert.equal(canonicalResponse.status, 200);
+    assert.deepEqual((await canonicalResponse.json() as ReadBody).result, await readState(projectDirs[0]));
+    const stateProjection = await cliCommand(projectDirs[0], "state");
+    assert.deepEqual(Object.keys(stateProjection), ["revision", "nodes", "edges", "derived", "plugins"]);
+    assert.equal("initiatives" in stateProjection, false);
+    assert.equal("log" in stateProjection, false);
   });
 });
 
@@ -189,7 +196,7 @@ test("HTTP delta reads return only revisions after since without changing full-s
 
     const unchangedSnapshot = await fetch(`${baseUrl}/v1/projects/project-a/read/state`, { headers: authHeaders() });
     assert.equal(unchangedSnapshot.status, 200);
-    assert.deepEqual((await unchangedSnapshot.json() as ReadBody).result, await cliCommand(projectDir, "state"));
+    assert.deepEqual((await unchangedSnapshot.json() as ReadBody).result, await readState(projectDir));
     const ahead = await fetch(`${baseUrl}/v1/projects/project-a/read/changes?since=44`, { headers: authHeaders() });
     assert.equal(ahead.status, 409);
     assert.equal((await ahead.json() as { error: { code: string } }).error.code, "REVISION_AHEAD");
