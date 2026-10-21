@@ -4,6 +4,8 @@
 // transaction, lock, persistence, log, command, registry or adapter imports.
 
 
+import { incoming, type GraphProjection } from "../../kernel/graph.ts";
+
 const NON_OPEN_TASK_STATUSES = new Set(["in_progress", "submitted", "done", "archived", "canceled"]);
 const SATISFIED_TASK_STATUSES = new Set(["done", "archived"]);
 type TaskNode = Record<string, unknown> & {
@@ -17,52 +19,59 @@ function nodesOf(state): Record<string, TaskNode> {
   return state && state.nodes && typeof state.nodes === "object" ? state.nodes : {};
 }
 
-function edgesOf(state) {
-  return Array.isArray(state && state.edges) ? state.edges : [];
-}
 
-
-export function supersededBy(state, id) {
-  return edgesOf(state)
-    .filter((edge) => edge.type === "SUPERSEDES" && edge.to === id)
+export function supersededBy(state, id, graph?: GraphProjection) {
+  return incoming(state, id, "SUPERSEDES", graph?.indexes)
     .map((edge) => edge.from)
     .toSorted()[0] || null;
 }
 
-function isSatisfiedNode(node, state, id, seen) {
-  if (node.subkind === "task") {
-    const status = node.status || "open";
-    if (SATISFIED_TASK_STATUSES.has(status)) {
-      return true;
-    }
-    if (status !== "canceled") {
-      return false;
-    }
-    const nextId = supersededBy(state, id);
-    if (!nextId) {
-      return false;
-    }
-    const nextSeen = new Set(seen);
-    nextSeen.add(id);
-    return isSatisfiedV2(state, nextId, nextSeen);
-  }
-  if (node.subkind !== "gate") {
-    return false;
-  }
-  const status = node.status || "open";
-  if (status === "resolved") {
-    return true;
-  }
-  if (status !== "superseded") {
-    return false;
-  }
-  const nextId = supersededBy(state, id);
+function satisfyReplacement({ state, id }, visiting, graph?: GraphProjection) {
+  const nextId = supersededBy(state, id, graph);
   if (!nextId) {
     return false;
   }
-  const nextSeen = new Set(seen);
-  nextSeen.add(id);
-  return isSatisfiedV2(state, nextId, nextSeen);
+  visiting.add(id);
+  const satisfied = satisfy(state, nextId, visiting, graph);
+  visiting.delete(id);
+  return satisfied;
+}
+
+function satisfyNode({ state, node, id }, visiting, graph?: GraphProjection) {
+  const status = node.status || "open";
+  if (node.subkind === "task") {
+    return SATISFIED_TASK_STATUSES.has(status) ||
+      (status === "canceled" && satisfyReplacement({ state, id }, visiting, graph));
+  }
+  if (node.subkind === "gate") {
+    return status === "resolved" ||
+      (status === "superseded" && satisfyReplacement({ state, id }, visiting, graph));
+  }
+  return false;
+}
+
+function isUnknownOrKnowledge(node) {
+  return !node || node.kind === "knowledge";
+}
+
+function rememberSatisfaction(graph: GraphProjection | undefined, id: string, satisfied: boolean) {
+  graph?.satisfactionMemo.set(id, satisfied);
+  return satisfied;
+}
+
+function satisfy(state, id, visiting, graph?: GraphProjection) {
+  if (visiting.has(id)) {
+    return false;
+  }
+  const memo = graph?.satisfactionMemo;
+  if (memo?.has(id)) {
+    return memo.get(id)!;
+  }
+  const node = nodesOf(state)[id];
+  if (isUnknownOrKnowledge(node)) {
+    return rememberSatisfaction(graph, id, false);
+  }
+  return rememberSatisfaction(graph, id, satisfyNode({ state, node, id }, visiting, graph));
 }
 
 /**
@@ -72,12 +81,9 @@ function isSatisfiedNode(node, state, id, seen) {
  * gates and canceled tasks with replacements follow their chains, with cycle
  * protection so malformed graphs remain blocked instead of overflowing.
  */
-export function isSatisfiedV2(state, id, seen = new Set()) {
-  const node = nodesOf(state)[id];
-  if (!node || node.kind === "knowledge" || seen.has(id)) {
-    return false;
-  }
-  return isSatisfiedNode(node, state, id, seen);
+export function isSatisfiedV2(state, id, seen = new Set(), graph?: GraphProjection) {
+  const currentGraph = seen.size === 0 || !graph ? graph : { ...graph, satisfactionMemo: new Map() };
+  return satisfy(state, id, new Set(seen), currentGraph);
 }
 
 /**
@@ -85,7 +91,7 @@ export function isSatisfiedV2(state, id, seen = new Set()) {
  * An unknown blocker is unsatisfied by design. Cycles of open tasks therefore
  * remain blocked without requiring a separate topological traversal.
  */
-export function isTaskReady(state, id) {
+export function isTaskReady(state, id, graph?: GraphProjection) {
   const node = nodesOf(state)[id];
   if (!node || node.kind !== "resolvable" || node.subkind !== "task") {
     return false;
@@ -94,9 +100,8 @@ export function isTaskReady(state, id) {
   if (NON_OPEN_TASK_STATUSES.has(status) || node.backlog === true) {
     return false;
   }
-  return edgesOf(state)
-    .filter((edge) => edge.type === "BLOCKS" && edge.to === id)
-    .every((edge) => isSatisfiedV2(state, edge.from));
+  return incoming(state, id, "BLOCKS", graph?.indexes)
+    .every((edge) => isSatisfiedV2(state, edge.from, undefined, graph));
 }
 
 // Short aliases make the provider's domain vocabulary usable without tying
@@ -106,10 +111,10 @@ export const isReady = isTaskReady;
 export const readiness = isTaskReady;
 
 
-export function collectReadyTasks(state) {
+export function collectReadyTasks(state, graph?: GraphProjection) {
   const ready: string[] = [];
   for (const [id, node] of Object.entries(nodesOf(state))) {
-    if (node && node.kind === "resolvable" && node.subkind === "task" && isTaskReady(state, id)) {
+    if (node && node.kind === "resolvable" && node.subkind === "task" && isTaskReady(state, id, graph)) {
       ready.push(id);
     }
   }
@@ -122,7 +127,7 @@ function collectOpenGate(id, node, status, openGates) {
   }
 }
 
-function collectTaskStatus(state, task, pools) {
+function collectTaskStatus(state, task, pools, graph?: GraphProjection) {
   const { id, node, status } = task;
   if (node.subkind === "gate" || NON_OPEN_TASK_STATUSES.has(status)) {
     return;
@@ -131,7 +136,7 @@ function collectTaskStatus(state, task, pools) {
     pools.backlog.push(id);
     return;
   }
-  if (isTaskReady(state, id)) {
+  if (isTaskReady(state, id, graph)) {
     pools.ready.push(id);
   } else {
     pools.blocked.push(id);
@@ -139,7 +144,7 @@ function collectTaskStatus(state, task, pools) {
 }
 
 
-export function deriveV2(state) {
+export function deriveV2(state, graph?: GraphProjection) {
   const pools = { ready: [], blocked: [], backlog: [], openGates: [] };
   const nodes = nodesOf(state);
   for (const [id, node] of Object.entries(nodes)) {
@@ -148,7 +153,7 @@ export function deriveV2(state) {
     }
     const status = node.status || "open";
     collectOpenGate(id, node, status, pools.openGates);
-    collectTaskStatus(state, { id, node, status }, pools);
+    collectTaskStatus(state, { id, node, status }, pools, graph);
   }
   return pools;
 }
@@ -164,7 +169,7 @@ function lifecycleStatus(node, status) {
 }
 
 
-export function statusOfV2(state, id) {
+export function statusOfV2(state, id, graph?: GraphProjection) {
   const node = nodesOf(state)[id];
   if (!node) {
     return "unknown";
@@ -177,7 +182,7 @@ export function statusOfV2(state, id) {
   if (node.backlog === true) {
     return "backlog";
   }
-  return isTaskReady(state, id) ? "ready" : "blocked";
+  return isTaskReady(state, id, graph) ? "ready" : "blocked";
 }
 
 

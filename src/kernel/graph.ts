@@ -11,8 +11,59 @@
 //     are deterministic given a fixed snapshot.
 //   - Missing/typed-wrong `edges` is tolerated and yields [].
 
+export interface GraphIndexes {
+  incomingByType: Map<string, Map<string, Record<string, unknown>[]>>;
+  outgoingByType: Map<string, Map<string, Record<string, unknown>[]>>;
+}
+
 function asEdges(state) {
   return Array.isArray(state && state.edges) ? state.edges : [];
+}
+
+function appendIndexedEdge(index, key, edge) {
+  let edges = index.get(key);
+  if (!edges) {
+    edges = [];
+    index.set(key, edges);
+  }
+  edges.push(edge);
+}
+
+/**
+ * Build per-projection adjacency lists for the edge types used by read views.
+ * Arrays retain snapshot order and contain the original edge references.
+ */
+export function createGraphIndexes(state): GraphIndexes {
+  const incomingByType = new Map();
+  const outgoingByType = new Map();
+  for (const type of ["BLOCKS", "SUPERSEDES"]) {
+    incomingByType.set(type, new Map());
+    outgoingByType.set(type, new Map());
+  }
+  for (const edge of asEdges(state)) {
+    const incomingIndex = incomingByType.get(edge && edge.type);
+    const outgoingIndex = outgoingByType.get(edge && edge.type);
+    if (!incomingIndex || !outgoingIndex) {
+      continue;
+    }
+    appendIndexedEdge(incomingIndex, edge.to, edge);
+    appendIndexedEdge(outgoingIndex, edge.from, edge);
+  }
+  return { incomingByType, outgoingByType };
+}
+
+export interface GraphProjection {
+  indexes: GraphIndexes;
+  satisfactionMemo: Map<string, boolean>;
+}
+
+export function createGraphProjection(state): GraphProjection {
+  return { indexes: createGraphIndexes(state), satisfactionMemo: new Map() };
+}
+
+function indexedEdges(indexes, direction, id, type) {
+  const byType = indexes && indexes[direction] && indexes[direction].get(type);
+  return byType ? byType.get(id) || [] : null;
 }
 
 /**
@@ -39,7 +90,11 @@ export function edgesArray(state) {
  * @param {string} [type] - optional edge type filter.
  * @returns {object[]}
  */
-export function incoming(state, id, type) {
+export function incoming(state, id, type, indexes?: GraphIndexes) {
+  const indexed = type === undefined ? null : indexedEdges(indexes, "incomingByType", id, type);
+  if (indexed !== null) {
+    return indexed;
+  }
   const edges = asEdges(state);
   if (type === undefined) {
     return edges.filter((edge) => edge.to === id);
@@ -59,7 +114,11 @@ export function incoming(state, id, type) {
  * @param {string} [type] - optional edge type filter.
  * @returns {object[]}
  */
-export function outgoing(state, id, type) {
+export function outgoing(state, id, type, indexes?: GraphIndexes) {
+  const indexed = type === undefined ? null : indexedEdges(indexes, "outgoingByType", id, type);
+  if (indexed !== null) {
+    return indexed;
+  }
   const edges = asEdges(state);
   if (type === undefined) {
     return edges.filter((edge) => edge.from === id);

@@ -1,4 +1,5 @@
-import { derive, statusOf, blockingForNode } from "./core.ts";
+import { createProjectionGraph, derive, statusOf, unsatisfiedBlockerIdsForNode } from "./core.ts";
+import type { GraphProjection as ProjectionGraph } from "../kernel/graph.ts";
 import type { ReadModelNode, ReadModelSnapshot } from "./types.ts";
 
 interface NodeFilters {
@@ -104,8 +105,13 @@ function matchesNodeFilters(node: ReadModelNode, { initiative, domain, kind }: N
     (!domain || node.domain === domain) && (!kind || node.kind === kind);
 }
 
-function matchesStatus(node: ReadModelNode, id: string, snapshot: ReadModelSnapshot, status: string | null): boolean {
-  return !status || (node.status || "open") === status || statusOf({ snapshot, id }) === status;
+function matchesStatus(node: ReadModelNode, { id, snapshot, status, graph }: {
+  id: string;
+  snapshot: ReadModelSnapshot;
+  status: string | null;
+  graph: ProjectionGraph;
+}): boolean {
+  return !status || (node.status || "open") === status || statusOf({ snapshot, id, graph }) === status;
 }
 
 function isStaleClaimCandidate(node: ReadModelNode, initiative: string | null | undefined): boolean {
@@ -175,19 +181,19 @@ function selectSubmittedTasks(
   return status && status !== "submitted" ? [] : submitted;
 }
 
-function createTaskResult(nodes: Record<string, ReadModelNode>, id: string, snapshot: ReadModelSnapshot) {
+function createTaskResult(nodes: Record<string, ReadModelNode>, id: string, snapshot: ReadModelSnapshot, graph: ProjectionGraph) {
   const summary = nodeSummary(nodes[id]);
-  const unsatisfiedBlockers = blockingForNode(snapshot, id).filter((blocker) => blocker.satisfied === false)
-    .map((blocker) => blocker.node && blocker.node.id).filter(Boolean);
+  const unsatisfiedBlockers = unsatisfiedBlockerIdsForNode(snapshot, id, graph);
   return { ...summary, unsatisfied_blockers: unsatisfiedBlockers };
 }
 
-function createStatusResult(
-  nodes: Record<string, ReadModelNode>,
-  pools: StatusPools,
-  tasks: TaskLists,
-  snapshot: ReadModelSnapshot,
-): StatusResult {
+function createStatusResult({ nodes, pools, tasks, snapshot, graph }: {
+  nodes: Record<string, ReadModelNode>;
+  pools: StatusPools;
+  tasks: TaskLists;
+  snapshot: ReadModelSnapshot;
+  graph: ProjectionGraph;
+}): StatusResult {
   const { ready, inProgress, submitted, blocked, backlog, cap } = tasks;
   return {
     summary: {
@@ -203,7 +209,7 @@ function createStatusResult(
       ready: cap(ready).map((id) => nodeSummary(nodes[id])),
       in_progress: cap(inProgress).map((id) => nodeSummary(nodes[id])),
       submitted: cap(submitted).map((id) => nodeSummary(nodes[id])),
-      blocked: cap(blocked).map((id) => createTaskResult(nodes, id, snapshot)),
+      blocked: cap(blocked).map((id) => createTaskResult(nodes, id, snapshot, graph)),
       backlog: cap(backlog).map((id) => nodeSummary(nodes[id])),
     },
     gates: { open: cap(pools.openGates).map((id) => nodeSummary(nodes[id])) },
@@ -271,6 +277,7 @@ function matchesPool({
   id,
   nodes,
   snapshot,
+  graph,
   initiative,
   domain,
   kind,
@@ -279,10 +286,11 @@ function matchesPool({
   id: string;
   nodes: Record<string, ReadModelNode>;
   snapshot: ReadModelSnapshot;
+  graph: ProjectionGraph;
 } & NodeFilters & { status: string | null }): boolean {
   const node = nodes[id];
   return Boolean(node) && matchesNodeFilters(node, { initiative, domain, kind }) &&
-    matchesStatus(node, id, snapshot, status);
+    matchesStatus(node, { id, snapshot, status, graph });
 }
 
 function selectTasks(
@@ -373,15 +381,16 @@ function projectHistoricalStatuses(
   };
 }
 
-function taskLists({ snapshot, nodes, pools, filters, derived }: {
+function taskLists({ snapshot, nodes, pools, filters, derived, graph }: {
   snapshot: ReadModelSnapshot;
+  graph: ProjectionGraph;
   nodes: Record<string, ReadModelNode>;
   pools: StatusPools;
   filters: StatusFilters;
   derived: StatusDerived;
 }): TaskLists {
   const cap = (items) => filters.limit === null ? items : items.slice(0, filters.limit);
-  const pool = (ids) => ids.filter((id) => matchesPool({ ...filters, id, nodes, snapshot }));
+  const pool = (ids) => ids.filter((id) => matchesPool({ ...filters, id, nodes, snapshot, graph }));
   return {
     ready: pool(derived.ready),
     inProgress: pools.inProgress,
@@ -403,9 +412,10 @@ export function projectStatusView({ snapshot = {}, filters = {}, now }: ProjectS
   requireNow(now);
   const nodes = snapshot?.nodes || {};
   const options = statusFilters(filters);
-  const derived = derive({ snapshot });
+  const graph = createProjectionGraph(snapshot);
+  const derived = derive({ snapshot, graph });
   const pools = selectStatusPools(nodes, derived, options);
-  const tasks = taskLists({ snapshot, nodes, pools, filters: options, derived });
-  const result = createStatusResult(nodes, pools, tasks, snapshot);
+  const tasks = taskLists({ snapshot, nodes, pools, filters: options, derived, graph });
+  const result = createStatusResult({ nodes, pools, tasks, snapshot, graph });
   return applyStatusOptions({ result, pools, nodes, filters: options, now });
 }

@@ -1,4 +1,4 @@
-import { blockingForNode, informingForNode, knowledgeForNode, statusOf } from "./core.ts";
+import { blockingForNode, createProjectionGraph, informingForNode, knowledgeForNode, statusOf } from "./core.ts";
 import type { ReadModelClaim, ReadModelNode, ReadModelSnapshot } from "./types.ts";
 
 interface ContextClaim {
@@ -180,12 +180,13 @@ export function projectContextView({ snapshot, id, agent, staleMs = 2 * 60 * 60 
   if (!node) {
     return null;
   }
+  const graph = createProjectionGraph(snapshot);
   const claim = contextClaim(node, staleMs, now);
-  const blocking = blockingForNode(snapshot, id as string);
+  const blocking = blockingForNode(snapshot, id as string, graph);
   const knowledge = knowledgeForNode(snapshot, id as string);
   const informing = informingForNode(snapshot, id as string);
   const alerts = createContextAlerts(claim, blocking, knowledge, id as string);
-  const derivedStatus = statusOf({ snapshot, id: id as string });
+  const derivedStatus = statusOf({ snapshot, id: id as string, graph });
   return {
     ...projectContextNode(node, derivedStatus, agent),
     claim,
