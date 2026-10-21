@@ -9,6 +9,8 @@
 // Builds a throwaway CLIMIER_HOME, migrates the fixture to SQLite, then measures
 // end-to-end (process) and in-process (layers) on the same copy.
 
+/* oxlint-disable complexity, max-lines, max-lines-per-function, max-statements -- linear measurement sequence: one readable pass per recorded stage keeps a report reproducible. */
+
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -22,12 +24,14 @@ import { executeOperation } from "../src/application/operations/execute.ts";
 import { mutate } from "../src/kernel/mutate.ts";
 import { newlyReadyTasks } from "../src/providers/task/derivation.ts";
 import { runCliInProcess } from "../test/cli-harness.ts";
+import type { ProjectState } from "../src/contracts/domain.ts";
+import type { ReadModelSnapshot } from "../src/read-model/types.ts";
 
 const options = new Map<string, string>();
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i += 1) {
   const raw = argv[i];
-  if (!raw.startsWith("--")) continue;
+  if (!raw.startsWith("--")) { continue; }
   const [key, inline] = raw.slice(2).split("=");
   if (inline !== undefined) { options.set(key, inline); continue; }
   const next = argv[i + 1];
@@ -41,7 +45,7 @@ const dispatchUrl = new URL("../src/cli/dispatch.ts", import.meta.url).href;
 const realFixture = path.join(os.homedir(), ".climier/projects/b4e2c579bbb81669/tasks.json");
 
 function median(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = values.toSorted((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
@@ -74,13 +78,13 @@ function syntheticState(nodeCount: number, { bodyBytes = 1200, logPerNode = 8, e
   const edges: Array<{ from: string; to: string; type: string }> = [];
   const seen = new Set<string>();
   const addEdge = (from: string, to: string, type: string) => {
-    if (from === to) return;
+    if (from === to) { return; }
     const key = `${from}|${to}|${type}`;
-    if (seen.has(key)) return;
+    if (seen.has(key)) { return; }
     seen.add(key);
     edges.push({ from, to, type });
   };
-  for (let i = 1; i < nodeCount; i += 1) addEdge(ids[i - 1], ids[i], "BLOCKS");
+  for (let i = 1; i < nodeCount; i += 1) { addEdge(ids[i - 1], ids[i], "BLOCKS"); }
   const extra = Math.floor(nodeCount * extraEdges);
   for (let i = 0; i < extra * 2 && edges.length < nodeCount + extra; i += 1) {
     addEdge(ids[Math.floor(random() * nodeCount)], ids[Math.floor(random() * nodeCount)], "DERIVED_FROM");
@@ -108,17 +112,17 @@ function makeWorkspace(fixture: Fixture) {
   fs.writeFileSync(path.join(projectDir, ".climier.json"), JSON.stringify({ version: 1, project_id: projectId }));
   fs.copyFileSync(fixture.file, path.join(stateDir, "tasks.json"));
   const env = { ...process.env, CLIMIER_HOME: home, CLIMIER_STATE_BACKEND: "" };
-  const run = (argv: string[]) => {
+  const run = (args: string[]) => {
     const started = performance.now();
-    const result = spawnSync(process.execPath, [cli, "--project", projectDir, ...argv], {
+    const result = spawnSync(process.execPath, [cli, "--project", projectDir, ...args], {
       env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 256 * 1024 * 1024,
     });
     return { ms: performance.now() - started, ok: result.status === 0, out: `${result.stdout}${result.stderr}` };
   };
   const migrate = run(["state", "migrate", "--yes", "--as", "bench"]);
-  if (!migrate.ok) throw new Error(`migration failed: ${migrate.out.slice(0, 600)}`);
+  if (!migrate.ok) { throw new Error(`migration failed: ${migrate.out.slice(0, 600)}`); }
   const sqliteFile = path.join(stateDir, "state.sqlite");
-  if (!fs.existsSync(sqliteFile)) throw new Error("migration produced no state.sqlite");
+  if (!fs.existsSync(sqliteFile)) { throw new Error("migration produced no state.sqlite"); }
   return { root, home, projectDir, sqliteFile, env, run };
 }
 
@@ -156,19 +160,19 @@ function timeSync(fn: () => unknown, runs: number): number {
 
 // Prototype of the target: build the BLOCKS adjacency once and memoize
 // satisfaction, so readiness for every node is O(N + E) instead of O(N * E).
-function readinessPrototype(snapshot: Record<string, any>) {
+function readinessPrototype(snapshot: ProjectState) {
   const incoming = new Map<string, string[]>();
-  for (const edge of snapshot.edges ?? []) {
-    if (edge.type !== "BLOCKS") continue;
+  for (const edge of snapshot.edges) {
+    if (edge.type !== "BLOCKS") { continue; }
     const bucket = incoming.get(edge.to);
-    if (bucket) bucket.push(edge.from); else incoming.set(edge.to, [edge.from]);
+    if (bucket) { bucket.push(edge.from); } else { incoming.set(edge.to, [edge.from]); }
   }
   const satisfied = new Map<string, boolean>();
   const SATISFIED = new Set(["done", "archived"]);
   const satisfy = (id: string, seen: Set<string>): boolean => {
     const cached = satisfied.get(id);
-    if (cached !== undefined) return cached;
-    const node = snapshot.nodes?.[id];
+    if (cached !== undefined) { return cached; }
+    const node = snapshot.nodes[id];
     let result = false;
     if (node && node.kind !== "knowledge" && !seen.has(id)) {
       if (node.subkind === "gate") {
@@ -183,34 +187,34 @@ function readinessPrototype(snapshot: Record<string, any>) {
   };
   let ready = 0;
   let blocked = 0;
-  for (const [id, node] of Object.entries(snapshot.nodes ?? {})) {
-    if (!node || (node as any).subkind !== "task") continue;
-    const status = (node as any).status || "open";
-    if (status !== "open" || (node as any).backlog === true) continue;
+  for (const [id, node] of Object.entries(snapshot.nodes)) {
+    if (!node || node.subkind !== "task") { continue; }
+    const status = node.status || "open";
+    if (status !== "open" || node.backlog === true) { continue; }
     const blockers = incoming.get(id) ?? [];
     let ok = true;
     for (const blocker of blockers) {
       if (!satisfy(blocker, new Set())) { ok = false; break; }
     }
-    if (ok) ready += 1; else blocked += 1;
+    if (ok) { ready += 1; } else { blocked += 1; }
   }
   return { ready, blocked };
 }
 
 async function measure(fixture: Fixture, iterations: number) {
   const workspace = makeWorkspace(fixture);
-  const snapshot = await readSqliteState(workspace.sqliteFile) as Record<string, any>;
+  const snapshot = await readSqliteState(workspace.sqliteFile) as ProjectState;
   const registry = createBuiltinOperationRegistry();
   // The probe must be a task: gates and knowledge reject task.update/add-note preconditions.
-  const probeId = Object.values(snapshot.nodes ?? {})
-    .filter((node: any) => node?.kind === "resolvable" && node?.subkind === "task")
-    .map((node: any) => node.id)[0] ?? Object.keys(snapshot.nodes ?? {})[0];
+  const probeId = Object.values(snapshot.nodes)
+    .filter((node) => node.kind === "resolvable" && node.subkind === "task")
+    .map((node) => node.id)[0] ?? Object.keys(snapshot.nodes)[0];
   const acceptState = structuredClone(snapshot);
-  const acceptTarget = (Object.values(acceptState.nodes ?? {}) as Array<Record<string, any>>).find((node) =>
+  const acceptTarget = Object.values(acceptState.nodes).find((node) =>
     node.kind === "resolvable" && node.subkind === "task",
   );
-  if (!acceptTarget) throw new Error(`no task available to benchmark accept in ${fixture.label}`);
-  const acceptTargetId = acceptTarget.id as string;
+  if (!acceptTarget) { throw new Error(`no task available to benchmark accept in ${fixture.label}`); }
+  const acceptTargetId = acceptTarget.id;
   Object.assign(acceptTarget, {
     status: "submitted",
     submitted_by: "bench",
@@ -223,6 +227,7 @@ async function measure(fixture: Fixture, iterations: number) {
   fs.writeFileSync(acceptFixtureFile, JSON.stringify(acceptState));
   const acceptWorkspace = makeWorkspace({ ...fixture, file: acceptFixtureFile });
   const resetAcceptDatabase = () => writeSqliteState(acceptWorkspace.sqliteFile, acceptState);
+  const readModelSnapshot = snapshot as unknown as ReadModelSnapshot;
   const rawNodes = JSON.stringify(snapshot.nodes);
   const rawLog = JSON.stringify(snapshot.log);
   const copy = path.join(workspace.root, "write-probe.sqlite");
@@ -232,7 +237,7 @@ async function measure(fixture: Fixture, iterations: number) {
   ], { env: workspace.env, encoding: "utf8" }).stdout.trim());
 
   const e2e: Record<string, number> = {};
-  for (const [label, argv] of [
+  for (const [label, command] of [
     ["version", ["--version"]],
     ["status", ["status"]],
     ["context", ["context", probeId]],
@@ -243,7 +248,7 @@ async function measure(fixture: Fixture, iterations: number) {
     ["initiatives", ["initiatives"]],
   ] as Array<[string, string[]]>) {
     const samples: number[] = [];
-    for (let i = 0; i < iterations; i += 1) samples.push(workspace.run(argv).ms);
+    for (let i = 0; i < iterations; i += 1) { samples.push(workspace.run(command).ms); }
     e2e[label] = median(samples);
   }
   const mutationSamples: number[] = [];
@@ -260,7 +265,7 @@ async function measure(fixture: Fixture, iterations: number) {
     await resetAcceptDatabase();
     const result = acceptWorkspace.run(["accept", acceptTargetId, "--as", "bench"]);
     acceptSamples.push(result.ms);
-    if (!result.ok) throw new Error(`accept benchmark failed: ${result.out.slice(0, 300)}`);
+    if (!result.ok) { throw new Error(`accept benchmark failed: ${result.out.slice(0, 300)}`); }
   }
   e2e.accept = median(acceptSamples);
 
@@ -273,12 +278,12 @@ async function measure(fixture: Fixture, iterations: number) {
     "validate invariants": timeSync(() => validateStateInvariants(snapshot, "bench"), iterations),
     "createTransaction": timeSync(() => createTransaction(snapshot), iterations),
     "structuredClone(state)": timeSync(() => structuredClone(snapshot), iterations),
-    "status view": timeSync(() => projectStatusView({ snapshot, filters: {}, now: Date.now() }), iterations),
+    "status view": timeSync(() => projectStatusView({ snapshot: readModelSnapshot, filters: {}, now: Date.now() }), iterations),
     "accept readiness delta": timeSync(() => newlyReadyTasks(acceptState, acceptedState, acceptTargetId), iterations),
     "readiness prototype (adjacency)": timeSync(() => readinessPrototype(snapshot), iterations),
-    "context view": timeSync(() => projectContextView({ snapshot, id: probeId, agent: "bench", now: Date.now() }), iterations),
+    "context view": timeSync(() => projectContextView({ snapshot: readModelSnapshot, id: probeId, agent: "bench", now: Date.now() }), iterations),
     "write replace total": await timeAsync(() => writeSqliteState(copy, snapshot, snapshot), 3),
-    "update no-op": await timeAsync(() => updateSqliteState(copy, (state: any) => state), 3),
+    "update no-op": await timeAsync(() => updateSqliteState(copy, (state) => state), 3),
     "status in-process": await timeAsync(() => runCliInProcess(["status"], { cwd: workspace.projectDir, env: workspace.env }), iterations),
     "update in-process": await timeResettableAsync(async () => {
       const previousHome = process.env.CLIMIER_HOME;
@@ -302,7 +307,7 @@ async function measure(fixture: Fixture, iterations: number) {
     }, () => writeSqliteState(workspace.sqliteFile, snapshot), Math.max(3, Math.min(iterations, 5))),
     "accept in-process": await timeResettableAsync(async () => {
       const result = await runCliInProcess(["accept", acceptTargetId, "--as", "bench"], { cwd: acceptWorkspace.projectDir, env: acceptWorkspace.env });
-      if (result.code !== 0) throw new Error(`accept in-process benchmark failed: ${result.stdout.slice(0, 300)}`);
+      if (result.code !== 0) { throw new Error(`accept in-process benchmark failed: ${result.stdout.slice(0, 300)}`); }
     }, resetAcceptDatabase, Math.max(3, Math.min(iterations, 5))),
     "add-note in-process": await timeAsync(() => runCliInProcess(["add-note", probeId, "ip", "--as", "bench"], { cwd: workspace.projectDir, env: workspace.env }), 3),
   };
@@ -323,16 +328,92 @@ async function measure(fixture: Fixture, iterations: number) {
 
 function printReport(report: Awaited<ReturnType<typeof measure>>) {
   const floor = report.e2e.version;
-  if (!report.mutationOk) console.log(`  !! add-note fallo: ${report.mutationError.replace(/\n/g, " ")}`);
+  if (!report.mutationOk) { console.log(`  !! add-note fallo: ${report.mutationError.replace(/\n/g, " ")}`); }
   console.log(`\n# ${report.label} — ${report.counts.nodes} nodos · ${report.counts.edges} edges · ${report.counts.log} log · sqlite ${(report.sqliteBytes / 1048576).toFixed(1)} MB · boot ${report.moduleGraphMs.toFixed(1)} ms`);
   console.log("E2E".padEnd(16), "ms".padStart(8), "− piso".padStart(9));
   for (const [label, ms] of Object.entries(report.e2e)) {
     console.log(label.padEnd(16), ms.toFixed(1).padStart(8), (ms - floor).toFixed(1).padStart(9));
   }
   console.log("capa".padEnd(24), "ms".padStart(8));
-  for (const [label, ms] of Object.entries(report.layers).sort((a, b) => (b[1] as number) - (a[1] as number))) {
+  for (const [label, ms] of Object.entries(report.layers).toSorted((a, b) => (b[1] as number) - (a[1] as number))) {
     console.log(label.padEnd(24), (ms as number).toFixed(2).padStart(8));
   }
+}
+
+type Report = Awaited<ReturnType<typeof measure>>;
+type Row = { metric: string; values: number[]; ratio: number; verdict: string };
+
+function verdict(ratio: number, sizeRatio: number): string {
+  if (ratio > sizeRatio * 1.6) { return "SUPERLINEAL"; }
+  if (ratio < sizeRatio * 0.5) { return "sublineal"; }
+  return "lineal";
+}
+
+function scaleRow(label: string, reports: Report[], pick: (report: Report) => number, sizeRatio: number): Row {
+  const values = reports.map(pick);
+  const ratio = values.at(-1)! / Math.max(values[0], 0.05);
+  return { metric: label, values, ratio, verdict: verdict(ratio, sizeRatio) };
+}
+
+function printSweep(reports: Report[]) {
+  const first = reports[0];
+  const last = reports.at(-1)!;
+  const sizeRatio = last.counts.nodes / first.counts.nodes;
+  console.log(`\nEscala: ${first.counts.nodes} -> ${last.counts.nodes} nodos (x${sizeRatio.toFixed(1)})`);
+  const rows = [
+    ...Object.keys(last.layers).map((label) => scaleRow(label, reports, (report) => (report.layers[label] ?? 0) as number, sizeRatio)),
+    ...Object.keys(last.e2e)
+      .filter((label) => label !== "version")
+      .map((label) => scaleRow(`e2e ${label}`, reports, (report) => (report.e2e[label] ?? 0) as number, sizeRatio)),
+  ].toSorted((a, b) => b.values.at(-1)! - a.values.at(-1)!);
+  console.log("metrica".padEnd(24) + reports.map((report) => String(report.counts.nodes).padStart(9)).join("") + "   x  verdict");
+  for (const row of rows) {
+    console.log(
+      row.metric.padEnd(24),
+      row.values.map((value) => value.toFixed(1).padStart(9)).join(""),
+      row.ratio.toFixed(1).padStart(5),
+      `  ${row.verdict}`,
+    );
+  }
+  for (const report of reports) { printReport(report); }
+}
+
+async function measureSweep(sizes: number[], runs: number): Promise<Report[]> {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "climier-synth-"));
+  const reports: Report[] = [];
+  for (const size of sizes) {
+    const { state, counts } = syntheticState(size);
+    const file = path.join(root, `synth-${size}.json`);
+    fs.writeFileSync(file, JSON.stringify(state));
+    reports.push(await measure({ label: `synthetic ${size}`, file, counts }, runs));
+  }
+  fs.rmSync(root, { recursive: true, force: true });
+  return reports;
+}
+
+function resolveFixture(synth: string | undefined): Fixture {
+  if (synth) {
+    const size = Number(synth);
+    const { state, counts } = syntheticState(size);
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "climier-synth-")), `synth-${size}.json`);
+    fs.writeFileSync(file, JSON.stringify(state));
+    return { label: `synthetic ${size}`, file, counts };
+  }
+  const file = options.get("fixture") ?? realFixture;
+  if (!fs.existsSync(file)) {
+    console.error(`bench-core: fixture not found: ${file}`);
+    process.exit(1);
+  }
+  const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  return {
+    label: path.basename(path.dirname(path.dirname(file))) || "fixture",
+    file,
+    counts: {
+      nodes: Object.keys(parsed.nodes ?? {}).length,
+      edges: parsed.edges?.length ?? 0,
+      log: parsed.log?.length ?? 0,
+    },
+  };
 }
 
 const iterations = Number(options.get("iterations") ?? 5);
@@ -340,76 +421,18 @@ const json = options.get("json") === "true";
 const sweep = options.get("sweep");
 
 if (sweep) {
-  const sizes = sweep.split(",").map((value) => Number(value.trim())).filter(Boolean).sort((a, b) => a - b);
-  const fixtures: Fixture[] = [];
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "climier-synth-"));
-  for (const size of sizes) {
-    const { state, counts } = syntheticState(size);
-    const file = path.join(root, `synth-${size}.json`);
-    fs.writeFileSync(file, JSON.stringify(state));
-    fixtures.push({ label: `synthetic ${size}`, file, counts });
-  }
-  const reports: Array<Awaited<ReturnType<typeof measure>>> = [];
-  for (const fixture of fixtures) reports.push(await measure(fixture, Math.max(3, iterations)));
-  fs.rmSync(root, { recursive: true, force: true });
+  const sizes = sweep.split(",").map((value) => Number(value.trim())).filter(Boolean).toSorted((a, b) => a - b);
+  const reports = await measureSweep(sizes, Math.max(3, iterations));
   if (json) {
     console.log(JSON.stringify(reports, null, 2));
   } else {
-    const first = reports[0];
-    const last = reports[reports.length - 1];
-    const sizeRatio = last.counts.nodes / first.counts.nodes;
-    console.log(`\nEscala: ${first.counts.nodes} -> ${last.counts.nodes} nodos (x${sizeRatio.toFixed(1)})`);
-    const rows: Array<{ metric: string; values: number[]; ratio: number; verdict: string }> = [];
-    for (const [label, value] of Object.entries(last.layers)) {
-      const values = reports.map((report) => (report.layers[label] ?? 0) as number);
-      const ratio = values[values.length - 1] / Math.max(values[0], 0.05);
-      rows.push({ metric: label, values, ratio, verdict: ratio > sizeRatio * 1.6 ? "SUPERLINEAL" : ratio < sizeRatio * 0.5 ? "sublineal" : "lineal" });
-    }
-    for (const [label, value] of Object.entries(last.e2e)) {
-      if (label === "version") continue;
-      const values = reports.map((report) => (report.e2e[label] ?? 0) as number);
-      const ratio = values[values.length - 1] / Math.max(values[0], 0.05);
-      rows.push({ metric: `e2e ${label}`, values, ratio, verdict: ratio > sizeRatio * 1.6 ? "SUPERLINEAL" : ratio < sizeRatio * 0.5 ? "sublineal" : "lineal" });
-    }
-    const header = "metrica".padEnd(24) + reports.map((report) => String(report.counts.nodes).padStart(9)).join("") + "   x" + "  verdict";
-    console.log(header);
-    for (const row of rows.sort((a, b) => b.values[b.values.length - 1] - a.values[a.values.length - 1])) {
-      console.log(
-        row.metric.padEnd(24),
-        row.values.map((value) => value.toFixed(1).padStart(9)).join(""),
-        row.ratio.toFixed(1).padStart(5),
-        `  ${row.verdict}`,
-      );
-    }
-    for (const report of reports) printReport(report);
+    printSweep(reports);
   }
 } else {
-  const synth = options.get("synth");
-  let fixture: Fixture;
-  if (synth) {
-    const size = Number(synth);
-    const { state, counts } = syntheticState(size);
-    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "climier-synth-")), `synth-${size}.json`);
-    fs.writeFileSync(file, JSON.stringify(state));
-    fixture = { label: `synthetic ${size}`, file, counts };
+  const report = await measure(resolveFixture(options.get("synth")), iterations);
+  if (json) {
+    console.log(JSON.stringify(report, null, 2));
   } else {
-    const file = options.get("fixture") ?? realFixture;
-    if (!fs.existsSync(file)) {
-      console.error(`bench-core: fixture not found: ${file}`);
-      process.exit(1);
-    }
-    const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-    fixture = {
-      label: path.basename(path.dirname(path.dirname(file))) || "fixture",
-      file,
-      counts: {
-        nodes: Object.keys(parsed.nodes ?? {}).length,
-        edges: parsed.edges?.length ?? 0,
-        log: parsed.log?.length ?? 0,
-      },
-    };
+    printReport(report);
   }
-  const report = await measure(fixture, iterations);
-  if (json) console.log(JSON.stringify(report, null, 2));
-  else printReport(report);
 }
