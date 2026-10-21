@@ -4,9 +4,11 @@ import type {
   OperationRegistry,
   Provider,
   ProviderKind,
+  SnapshotClosure,
 } from "../../contracts/operations.ts";
 
 const ADMITTED_KINDS = Object.freeze(["task", "gate", "knowledge", "core"] as const);
+const ADMITTED_SNAPSHOT_CLOSURES = Object.freeze(["task", "task.create", "task.accept"] as const);
 type RegistryEntry = OperationEntry;
 
 function asError(code: string, message: string, details?: Record<string, unknown>): Error {
@@ -34,11 +36,14 @@ function requireIterable(providers: unknown): asserts providers is Iterable<unkn
 
 function validateProviderEntry(raw: unknown, index: number): RegistryEntry {
   assertEntryObject(raw, index);
-  const { id, kind, provider } = raw;
+  const { id, kind, provider, snapshotClosure } = raw;
   assertEntryId(id, index);
   assertEntryKind(id, kind, index);
   assertEntryProvider(id, provider, index);
-  return { id, kind, provider };
+  if (snapshotClosure !== undefined && !ADMITTED_SNAPSHOT_CLOSURES.includes(snapshotClosure as SnapshotClosure)) {
+    throw asError("REGISTRY_INVALID_ENTRY", `buildRegistry: entry[${index}].snapshotClosure is not admitted`, { index, id, snapshotClosure });
+  }
+  return { id, kind, provider, ...(snapshotClosure ? { snapshotClosure: snapshotClosure as SnapshotClosure } : {}) };
 }
 
 function assertEntryObject(raw: unknown, index: number): asserts raw is Record<string, unknown> {
@@ -72,7 +77,7 @@ function assertEntryProvider(id: OperationId, provider: unknown, index: number):
 }
 
 function addValidatedEntry(raw: unknown, index: number, seen: Map<OperationId, number>, entries: RegistryEntry[]): void {
-  const { id, kind, provider } = validateProviderEntry(raw, index);
+  const { id, kind, provider, snapshotClosure } = validateProviderEntry(raw, index);
   if (seen.has(id)) {
     const firstIndex = seen.get(id);
     throw asError("REGISTRY_DUPLICATE_ID", `buildRegistry: duplicate operation id '${id}' (first at index ${firstIndex}, second at index ${index})`, {
@@ -80,7 +85,12 @@ function addValidatedEntry(raw: unknown, index: number, seen: Map<OperationId, n
     });
   }
   seen.set(id, index);
-  entries.push(Object.freeze({ id, kind, provider: Object.freeze({ prepare: provider.prepare, apply: provider.apply }) }));
+  entries.push(Object.freeze({
+    id,
+    kind,
+    provider: Object.freeze({ prepare: provider.prepare, apply: provider.apply }),
+    ...(snapshotClosure ? { snapshotClosure } : {}),
+  }));
 }
 
 function collectEntries(providers: Iterable<unknown>): RegistryEntry[] {

@@ -38,6 +38,7 @@ type Dependencies = ValidExecutionArgs & {
   registry: OperationRegistry;
   mutate: MutateFn;
   provider: Provider;
+  snapshotClosure?: import("../../contracts/operations.ts").SnapshotClosure;
 };
 
 function contractError(message: string, field: string, details: Record<string, unknown> = {}): never {
@@ -91,7 +92,7 @@ function resolveRegistry(source: SourceInput): OperationRegistry {
   return source.registry;
 }
 
-function resolveProvider(registry: OperationRegistry, operation: string): Provider {
+function resolveProvider(registry: OperationRegistry, operation: string): { provider: Provider; snapshotClosure?: import("../../contracts/operations.ts").SnapshotClosure } {
   const entry = registry.lookup(operation);
   if (!entry || typeof entry !== "object") {
     const error = new Error(`application.executeOperation: operation '${operation}' is not registered`);
@@ -103,7 +104,7 @@ function resolveProvider(registry: OperationRegistry, operation: string): Provid
   if (!provider || typeof provider !== "object" || typeof provider.prepare !== "function" || typeof provider.apply !== "function") {
     contractError(`registry entry for '${operation}' must provide prepare and apply functions`, "source.registry", { operation });
   }
-  return provider;
+  return { provider, snapshotClosure: entry.snapshotClosure };
 }
 
 function isInputRecord(value: unknown): value is Record<string, unknown> {
@@ -207,15 +208,17 @@ function addPluginId(mutation: Mutation, source: SourceInput): Mutation {
   return mutation;
 }
 
-function singleMutation({ projectDir, request, provider, policyAction, policyActionFromPlan, source }: {
+function singleMutation({ projectDir, request, provider, policyAction, policyActionFromPlan, source, snapshotClosure }: {
   projectDir: string;
   request: OperationRequest;
   provider: Provider;
   policyAction: PolicyAction | null;
+  snapshotClosure?: import("../../contracts/operations.ts").SnapshotClosure;
   policyActionFromPlan?: boolean;
   source: SourceInput;
 }): Mutation {
   const mutation: Mutation = { projectDir, request, provider };
+  if (snapshotClosure) {mutation.snapshotClosure = snapshotClosure;}
   if (policyActionFromPlan === true) {mutation.policyActionFromPlan = true;}
   if (policyAction) {mutation.policyAction = policyAction;}
   return addPluginId(mutation, source);
@@ -241,8 +244,16 @@ function operationDependencies(args: ExecutionArgs): Dependencies {
   validateArguments(candidate);
   const registry = resolveRegistry(candidate.source);
   const mutate = resolveMutation(candidate.source);
-  const provider = resolveProvider(registry, candidate.operation);
-  return { ...candidate, input: args.input, policyActionFromPlan: args.policyActionFromPlan, registry, mutate, provider };
+  const { provider, snapshotClosure } = resolveProvider(registry, candidate.operation);
+  return {
+    ...candidate,
+    input: args.input,
+    policyActionFromPlan: args.policyActionFromPlan,
+    registry,
+    mutate,
+    provider,
+    snapshotClosure,
+  };
 }
 
 /**

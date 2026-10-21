@@ -2,6 +2,8 @@ import { asCaughtError } from "../../../contracts/errors.ts";
 
 
 import { readState } from "../../../storage/state.ts";
+import { readDeclaredMutationSnapshot } from "./closure.ts";
+import type { SnapshotClosure } from "../../../contracts/operations.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
 import {
   commandLabel,
@@ -248,6 +250,15 @@ export function validateBatchOperation(raw, index) {
   return { op: raw.op, input: cloneBatchValue(raw.input) };
 }
 
-export async function readMutationSnapshot(projectDir: string) {
-  return { state: await readState(projectDir), raw: null };
+export async function readMutationSnapshot(
+  projectDir: string,
+  snapshotClosure?: SnapshotClosure,
+  request?: Record<string, unknown>,
+  allowClosure = true,
+) {
+  if (snapshotClosure && request && allowClosure) {
+    const declared = await readDeclaredMutationSnapshot(projectDir, snapshotClosure, request);
+    if (declared !== undefined) { return declared; }
+  }
+  return { state: await readState(projectDir), raw: null, closure: null };
 }

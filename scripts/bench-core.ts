@@ -18,6 +18,8 @@ import { validateStateInvariants } from "../src/contracts/state-invariants.ts";
 import { createTransaction } from "../src/kernel/transaction.ts";
 import { projectStatusView, projectContextView } from "../src/read-model/index.ts";
 import { createBuiltinOperationRegistry } from "../src/application/operations/builtins.ts";
+import { executeOperation } from "../src/application/operations/execute.ts";
+import { mutate } from "../src/kernel/mutate.ts";
 import { newlyReadyTasks } from "../src/providers/task/derivation.ts";
 import { runCliInProcess } from "../test/cli-harness.ts";
 
@@ -134,6 +136,7 @@ async function timeResettableAsync(fn: () => Promise<unknown>, reset: () => Prom
   const samples: number[] = [];
   for (let i = 0; i < runs; i += 1) {
     await reset();
+    (globalThis as unknown as { Bun?: { gc(force?: boolean): void } }).Bun?.gc(true);
     const started = performance.now();
     await fn();
     samples.push(performance.now() - started);
@@ -197,6 +200,7 @@ function readinessPrototype(snapshot: Record<string, any>) {
 async function measure(fixture: Fixture, iterations: number) {
   const workspace = makeWorkspace(fixture);
   const snapshot = await readSqliteState(workspace.sqliteFile) as Record<string, any>;
+  const registry = createBuiltinOperationRegistry();
   const probeId = Object.keys(snapshot.nodes ?? {})[Math.min(5, Object.keys(snapshot.nodes ?? {}).length - 1)];
   const acceptState = structuredClone(snapshot);
   const acceptTarget = (Object.values(acceptState.nodes ?? {}) as Array<Record<string, any>>).find((node) =>
@@ -273,6 +277,26 @@ async function measure(fixture: Fixture, iterations: number) {
     "write replace total": await timeAsync(() => writeSqliteState(copy, snapshot, snapshot), 3),
     "update no-op": await timeAsync(() => updateSqliteState(copy, (state: any) => state), 3),
     "status in-process": await timeAsync(() => runCliInProcess(["status"], { cwd: workspace.projectDir, env: workspace.env }), iterations),
+    "update in-process": await timeResettableAsync(async () => {
+      const previousHome = process.env.CLIMIER_HOME;
+      process.env.CLIMIER_HOME = workspace.home;
+      try {
+        await executeOperation({
+          projectDir: workspace.projectDir,
+          actor: "bench",
+          operation: "task.update",
+          input: {
+            id: probeId,
+            if_revision: snapshot.nodes[probeId].revision,
+            changes: { title: `bench ${snapshot.nodes[probeId].title}` },
+          },
+          source: { registry, mutate },
+        });
+      } finally {
+        if (previousHome === undefined) { delete process.env.CLIMIER_HOME; }
+        else { process.env.CLIMIER_HOME = previousHome; }
+      }
+    }, () => writeSqliteState(workspace.sqliteFile, snapshot), Math.max(3, Math.min(iterations, 5))),
     "accept in-process": await timeResettableAsync(async () => {
       const result = await runCliInProcess(["accept", acceptTargetId, "--as", "bench"], { cwd: acceptWorkspace.projectDir, env: acceptWorkspace.env });
       if (result.code !== 0) throw new Error(`accept in-process benchmark failed: ${result.stdout.slice(0, 300)}`);

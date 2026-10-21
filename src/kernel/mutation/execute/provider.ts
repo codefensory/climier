@@ -1,7 +1,7 @@
 
 
 import { emptyState, isCanonicalStateVersion, sqliteStateFile } from "../../../storage/state.ts";
-import { writeSqliteState } from "../../../storage/sqlite/store.ts";
+import { writeSqliteMutation, writeSqliteState } from "../../../storage/sqlite/store.ts";
 import { createTransaction } from "../../transaction.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
 import { buildLogEntry } from "../log-entry.ts";
@@ -156,7 +156,7 @@ async function persistMutation({ projectDir, persistedState, previousState }) {
   await writeSqliteState(sqliteStateFile(projectDir), persistedState, previousState);
 }
 
-async function commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, plan }) {
+async function commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, plan, closure }) {
   const targetNextRevision = deriveTargetRevision(snapshot, plan, diff.created, diff.updated);
   const { persistedState, logEntry } = createPersistedState({
     snapshot,
@@ -166,7 +166,22 @@ async function commitMutation({ projectDir, snapshot, draftView, diff, request, 
     pluginId,
     targetNextRevision,
   });
-  await persistMutation({ projectDir, persistedState, previousState: snapshot });
+  if (closure) {
+    const nodeUpsert = Object.fromEntries([...diff.created, ...diff.updated].map(({ id, node }) => [id, node]));
+    const initiativeUpsert = Object.fromEntries([...diff.initiativeDiff.created, ...diff.initiativeDiff.updated]
+      .map(({ name, initiative }) => [name, initiative]));
+    const revision = Math.max(persistedState.revision, closure.maximumNodeRevision || 0);
+    await writeSqliteMutation(sqliteStateFile(projectDir), {
+      previousRevision: snapshot.revision,
+      revision,
+      nodes: { upsert: nodeUpsert, remove: diff.removedNodes },
+      edges: { add: diff.addedEdges, remove: diff.removedEdges },
+      initiatives: { upsert: initiativeUpsert },
+      logEntry,
+    });
+  } else {
+    await persistMutation({ projectDir, persistedState, previousState: snapshot });
+  }
   return logEntry;
 }
 
@@ -175,8 +190,9 @@ async function applyProviderMutation({ provider, tx, plan, request, snapshot, co
   return normalizeApplyResult(applyResult, commandName);
 }
 
-export async function executeProviderMutation({ projectDir, request, provider, policyAction, pluginId, commandName }) {
-  const sourceSnapshot = await readMutationSnapshot(projectDir);
+export async function executeProviderMutation({ projectDir, request, provider, policyAction, pluginId, snapshotClosure, commandName }) {
+  // A selected policy may inspect the entire project snapshot.
+  const sourceSnapshot = await readMutationSnapshot(projectDir, snapshotClosure, request, !policyAction?.pluginId);
   const { snapshot, mayBootstrap } = initialSnapshot(sourceSnapshot.state, request, provider, commandName);
   const plan = await prepareMutationPlan({ provider, snapshot, request, pluginId, commandName });
   await runPolicy({ policyAction, snapshot, plan, request, commandName });
@@ -186,7 +202,16 @@ export async function executeProviderMutation({ projectDir, request, provider, p
   validateDraftStructural(draftView, commandName);
   const diff = computeMutationDiff(snapshot, draftView, tx.getDirtyIds(), tx.getDirtyEdgeChanges());
   const isIdempotent = !mayBootstrap && diff.isIdempotent;
-  const logEntry = isIdempotent ? null : await commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, plan });
+  const logEntry = isIdempotent ? null : await commitMutation({
+    projectDir,
+    snapshot,
+    draftView,
+    diff,
+    request,
+    pluginId,
+    plan,
+    closure: sourceSnapshot.closure,
+  });
   return {
     result: outcome.result,
     effects: outcome.effects,

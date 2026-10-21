@@ -16,6 +16,7 @@ import {
 import { edgeAddProvider, edgeRemoveProvider } from "../../providers/core/edge.ts";
 import { noteAddProvider } from "../../providers/core/note.ts";
 import { initiativeCreateProvider } from "../../providers/core/initiative.ts";
+import type { SnapshotClosure } from "../../contracts/operations.ts";
 
 const TASK_OPERATION_IDS = Object.freeze([
   "task.create", "task.update", "task.take", "task.release", "task.reopen", "task.cancel",
@@ -33,7 +34,7 @@ function asError(code, message, details) {
   return error;
 }
 
-function entriesFromIds(ids, providers, kind, label) {
+function entriesFromIds(ids, providers, kind, label, closures = {}) {
   return ids.map((id, index) => {
     const provider = providers[id];
     if (!provider) {
@@ -41,7 +42,7 @@ function entriesFromIds(ids, providers, kind, label) {
       const suffix = label === "task" ? ` (opIndex ${index})` : "";
       throw asError("REGISTRY_BUILTIN_PROVIDER_MISSING", `bootstrapBuiltins: missing ${label} provider for ${id}${suffix}`, details);
     }
-    return { id, kind, provider };
+    return { id, kind, provider, ...(closures[id] ? { snapshotClosure: closures[id] } : {}) };
   });
 }
 
@@ -50,7 +51,17 @@ function taskEntries() {
     "task.create": taskCreateProvider, "task.update": taskUpdateProvider, "task.take": taskTakeProvider,
     "task.release": taskReleaseProvider, "task.reopen": taskReopenProvider, "task.cancel": taskCancelProvider,
     "task.submit": taskSubmitProvider, "task.accept": taskAcceptProvider, "task.reject": taskRejectProvider,
-  }, "task", "task");
+  }, "task", "task", {
+    "task.create": "task.create",
+    "task.update": "task",
+    "task.take": "task",
+    "task.release": "task",
+    "task.reopen": "task",
+    "task.cancel": "task",
+    "task.submit": "task",
+    "task.accept": "task.accept",
+    "task.reject": "task",
+  } satisfies Record<string, SnapshotClosure>);
 }
 
 function gateEntries() {
@@ -80,11 +91,11 @@ function coreEntries() {
   return entriesFromIds(CORE_OPERATION_IDS, {
     "edge.add": edgeAddProvider, "edge.remove": edgeRemoveProvider, "note.add": noteAddProvider,
     "initiative.create": initiativeCreateProvider,
-  }, "core", "core").map(({ id, kind, provider }) => {
+  }, "core", "core", { "note.add": "task" }).map(({ id, kind, provider, snapshotClosure }) => {
     if (typeof provider !== "object" || typeof provider.prepare !== "function" || typeof provider.apply !== "function") {
       throw asError("REGISTRY_BUILTIN_PROVIDER_MISSING", `bootstrapBuiltins: core provider for ${id} is not { prepare, apply }`, { id });
     }
-    return { id, kind, provider };
+    return { id, kind, provider, ...(snapshotClosure ? { snapshotClosure } : {}) };
   });
 }
 
