@@ -1,7 +1,7 @@
 
 
-import { emptyState, isFencedStateVersion } from "../../../storage/state.ts";
-import { bootstrapFencedStateUnderLock, commitFencedStateUnderLock } from "../../../storage/ledger.ts";
+import { emptyState, isCanonicalStateVersion, sqliteStateFile } from "../../../storage/state.ts";
+import { writeSqliteState } from "../../../storage/sqlite/store.ts";
 import { createTransaction } from "../../transaction.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
 import { buildLogEntry } from "../log-entry.ts";
@@ -27,7 +27,7 @@ function isBootstrapAllowed(loadedState, request, provider) {
 }
 
 function validateLoadedSnapshot(snapshot, mayBootstrap, commandName) {
-  const invalidSnapshot = !snapshot || typeof snapshot !== "object" || !isFencedStateVersion(snapshot.version);
+  const invalidSnapshot = !snapshot || typeof snapshot !== "object" || !isCanonicalStateVersion(snapshot.version);
   if (invalidSnapshot && !mayBootstrap) {
     throw new Error(`${commandName}: state file missing or not canonical (run init first)`);
   }
@@ -138,7 +138,6 @@ function createPersistedState({ snapshot, draftView, diff, request, pluginId, ta
   const persistedState = {
     ...snapshot,
     version: snapshot.version,
-    fence_generation: snapshot.fence_generation,
     nodes: finalNodesForSnapshot(snapshot, diff.nextNodes),
     edges: draftView.edges,
     initiatives: finalInitiativesForSnapshot(snapshot, draftView.initiatives),
@@ -153,15 +152,11 @@ function createPersistedState({ snapshot, draftView, diff, request, pluginId, ta
   return { persistedState, logEntry };
 }
 
-async function persistMutation({ projectDir, mayBootstrap, lockContext, persistedState, sourceSnapshot }) {
-  if (mayBootstrap) {
-    await bootstrapFencedStateUnderLock(lockContext, persistedState, { projectDir });
-    return;
-  }
-  await commitFencedStateUnderLock(lockContext, persistedState, { projectDir, sourceSnapshot });
+async function persistMutation({ projectDir, persistedState }) {
+  await writeSqliteState(sqliteStateFile(projectDir), persistedState);
 }
 
-async function commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan, sourceSnapshot }) {
+async function commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, plan }) {
   const targetNextRevision = deriveTargetRevision(snapshot, plan, diff.created, diff.updated);
   const { persistedState, logEntry } = createPersistedState({
     snapshot,
@@ -171,7 +166,7 @@ async function commitMutation({ projectDir, snapshot, draftView, diff, request, 
     pluginId,
     targetNextRevision,
   });
-  await persistMutation({ projectDir, mayBootstrap, lockContext, persistedState, sourceSnapshot });
+  await persistMutation({ projectDir, persistedState });
   return logEntry;
 }
 
@@ -191,7 +186,7 @@ export async function executeProviderMutation({ projectDir, lockContext, request
   validateDraftStructural(draftView, commandName);
   const diff = computeMutationDiff(snapshot, draftView, tx.getDirtyIds(), tx.getDirtyEdgeChanges());
   const isIdempotent = !mayBootstrap && diff.isIdempotent;
-  const logEntry = isIdempotent ? null : await commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan, sourceSnapshot });
+  const logEntry = isIdempotent ? null : await commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, plan });
   return {
     result: outcome.result,
     effects: outcome.effects,

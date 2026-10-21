@@ -8,14 +8,14 @@ import { SQLITE_PRAGMAS, SQLITE_SCHEMA, SQLITE_SCHEMA_VERSION } from "./schema.t
 
 const SQLITE_MODULE = "bun:sqlite";
 const COLLECTIONS = new Set(["nodes", "edges", "initiatives", "log"]);
-const META_FIELDS = new Set(["version", "fence_generation", "revision"]);
+const META_FIELDS = new Set(["version", "revision"]);
 const ROOT_ORDER_KEY = "__root_order";
+const SQLITE_HEADER = Buffer.from("SQLite format 3\0");
 const sqliteTransaction = new AsyncLocalStorage<{ file: string; database: any }>();
 const sqliteQueues = new Map<string, Promise<void>>();
 
 type SqliteState = Record<string, unknown> & {
   version: number;
-  fence_generation: number;
   revision: number;
   nodes: Record<string, unknown>;
   edges: unknown[];
@@ -60,7 +60,28 @@ function migrateInlineBodies(database) {
   }
 }
 
+async function assertDatabaseFile(file: string) {
+  let handle;
+  try {
+    handle = await fs.open(file, "r");
+  } catch (rawCaughtValue: unknown) {
+    const error = asCaughtError(rawCaughtValue);
+    if (error.code === "ENOENT") { return; }
+    throw error;
+  }
+  try {
+    const header = Buffer.alloc(SQLITE_HEADER.length);
+    const { bytesRead } = await handle.read(header, 0, header.length, 0);
+    if (bytesRead > 0 && (bytesRead !== header.length || !header.equals(SQLITE_HEADER))) {
+      throw new Error(`storage: file at ${file} is corrupt or not a database`);
+    }
+  } finally {
+    await handle.close();
+  }
+}
+
 async function openDatabase(file: string) {
+  await assertDatabaseFile(file);
   const { Database } = await import(SQLITE_MODULE);
   const database = new Database(file, { create: true });
   try {
@@ -88,11 +109,14 @@ function assertCanonicalState(state: unknown, command: string): asserts state is
     throw new Error(`${command}: invalid state (not an object)`);
   }
   const candidate = state as Record<string, unknown>;
-  if (candidate.version !== 1 || !Number.isInteger(candidate.fence_generation)) {
-    throw new Error(`${command}: SQLite store requires canonical schema-1 state with fence_generation`);
-  }
   for (const key of COLLECTIONS) {
     if (!(key in candidate)) { throw new Error(`${command}: invalid state (missing '${key}' collection)`); }
+  }
+  if (candidate.version !== 1) {
+    throw new Error(`${command}: SQLite store requires canonical schema-1 state`);
+  }
+  if (Object.hasOwn(candidate, "fence_generation")) {
+    throw new Error(`${command}: fence_generation is not part of canonical SQLite state`);
   }
   validateStateInvariants(candidate, command);
 }
@@ -168,10 +192,11 @@ function readStateInTransaction(database, { includeBodies = true }: { includeBod
   const metadata = Object.fromEntries(database.query("SELECT key, value FROM meta").all()
     .map(({ key, value }) => [key, JSON.parse(value)]));
   if (metadata.version === undefined) { return null; }
+  const extras = { ...metadata.extras };
+  delete extras.fence_generation;
   const values = {
-    ...metadata.extras,
+    ...extras,
     version: metadata.version,
-    ...(metadata.fence_generation === undefined ? {} : { fence_generation: metadata.fence_generation }),
     revision: metadata.revision,
     nodes: readNodes(database, includeBodies),
     edges: readRows(database, "edges", "position").map(({ data }) => JSON.parse(data)),
@@ -206,10 +231,9 @@ function replaceNodes(database, nodes: Record<string, unknown>) {
 
 function replaceMetadata(database, state: SqliteState) {
   const insert = database.prepare("INSERT INTO meta (key, value) VALUES (?, ?)");
-  const extras = Object.fromEntries(Object.entries(state).filter(([key]) => !META_FIELDS.has(key) && !COLLECTIONS.has(key)));
+  const extras = Object.fromEntries(Object.entries(state).filter(([key]) => !META_FIELDS.has(key) && !COLLECTIONS.has(key) && key !== "fence_generation"));
   for (const [key, value] of Object.entries({
     version: state.version,
-    fence_generation: state.fence_generation,
     revision: state.revision,
     extras,
     [ROOT_ORDER_KEY]: Object.keys(state),
@@ -261,7 +285,6 @@ export async function updateSqliteState(file: string, mutator: (state: Record<st
   if (!active) { return withSqliteTransaction(file, () => updateSqliteState(file, mutator)); }
   const current = readStateInTransaction(active) || {
     version: 1,
-    fence_generation: 1,
     revision: 0,
     nodes: {},
     edges: [],

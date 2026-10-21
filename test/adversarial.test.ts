@@ -840,7 +840,7 @@ describe("agent source precedence", () => {
 // structural classification and point to the importer rather than init --force.
 
 describe("init --force on existing state", () => {
-  test("init rejects a pre-release tasks shape with migration guidance, not --force", async () => {
+  test("init rejects a tasks.json-only project with explicit migration guidance", async () => {
     const dir = await createTempProject();
     try {
       // Bootstrap project metadata, then write the pre-release shape directly
@@ -852,26 +852,25 @@ describe("init --force on existing state", () => {
       const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
       const climierHome = process.env.CLIMIER_HOME;
       assert.ok(climierHome);
-      const stateFile = path.join(climierHome, "projects", meta.project_id, "tasks.json");
+      const projectStateDir = path.join(climierHome, "projects", meta.project_id);
+      const stateFile = path.join(projectStateDir, "tasks.json");
+      await fs.rm(path.join(projectStateDir, "state.sqlite"));
       await fs.writeFile(stateFile, JSON.stringify({
         version: 1,
         tasks: { T1: { id: "T1", title: "x" } },
         decisions: {}, gotchas: {}, initiatives: {}, log: [],
       }), "utf8");
-      // Try to init without --force on the pre-release state.
+      // Init must not implicitly import the legacy JSON state.
       const r2 = await runCli(["--project", dir, "init"]);
       assert.equal(r2.code, 1, `expected exit 1; got ${r2.code}: ${r2.stdout}`);
       const data = JSON.parse(r2.stdout);
       assert.equal(data.ok, false);
       const code = typeof data.error === "string" ? null : data.error && data.error.code;
       const msg = typeof data.error === "string" ? data.error : (data.error && data.error.message);
-      assert.equal(code, "STORAGE_ERROR");
-      assert.match(msg, /PRE_RELEASE_STATE_UNSUPPORTED|restore a verified backup/i);
+      assert.equal(code, "CLIMIER_SQLITE_MIGRATION_REQUIRED");
+      assert.match(msg, /climier state migrate/);
       assert.doesNotMatch(msg, /init --force/i);
-      // Rejection leaves the pre-release shape untouched.
-      const s = await readRawState(dir);
-      assert.equal(s.version, 1);
-      assert.ok(s.tasks.T1);
+      assert.deepEqual(JSON.parse(await fs.readFile(stateFile, "utf8")).tasks, { T1: { id: "T1", title: "x" } });
     } finally { await rmTempProject(dir); }
   });
 
@@ -888,7 +887,7 @@ describe("init --force on existing state", () => {
       assert.equal(r2.code, 0, r2.stderr);
       const s = await readRawState(dir);
       assert.equal(s.version, 1);
-      assert.ok(s.revision > 1, "force-init replacement preserves monotonic revision progression");
+      assert.ok(s.revision > 0, "force-init replacement advances the SQLite revision");
       assert.deepEqual(s.nodes, {});
       assert.deepEqual(s.edges, []);
     } finally { await rmTempProject(dir); }
@@ -907,7 +906,7 @@ describe("init --force on existing state", () => {
       assert.equal(r.code, 0, r.stderr);
       const s = await readRawState(dir);
       assert.equal(s.version, 1);
-      assert.equal(s.revision, 5, "--force advances beyond the fenced state high-water");
+      assert.equal(s.revision, 4, "--force advances beyond the SQLite state revision");
       assert.deepEqual(s.nodes, {}, "data must be wiped after --force reinit");
       assert.deepEqual(s.initiatives, {}, "initiatives must be wiped too");
     } finally { await rmTempProject(dir); }

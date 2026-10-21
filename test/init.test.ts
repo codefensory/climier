@@ -6,7 +6,7 @@ import path from "node:path";
 import { createTempProject, rmTempProject, stateExists, stateFilePath, importFresh, runCli } from "./helpers.ts";
 import { runCli as runCliInProcess } from "../src/cli/dispatch.ts";
 
-test("init: creates empty canonical v1 state and ledger when none exists", async () => {
+test("init: creates an empty canonical v1 SQLite state when none exists", async () => {
   const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
@@ -20,12 +20,7 @@ test("init: creates empty canonical v1 state and ledger when none exists", async
     const { readState } = await importFresh("./storage/state.ts");
     const s = await readState(dir);
     assert.equal(s.version, 1);
-    assert.equal(s.fence_generation, 1);
     assert.equal(s.revision, 1);
-    const ledgerPath = path.join(path.dirname(stateFilePath(dir)), "revision-ledger.json");
-    const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
-    assert.equal(ledger.high_water_revision, s.revision);
-    assert.equal(Object.hasOwn(ledger, "migration_pending"), false);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
     assert.deepEqual(s.initiatives, {});
@@ -231,7 +226,6 @@ test("init: ignores unknown flags and still creates an empty canonical v1 state"
     await init({ statePath: dir, flags: { seed: "migration" }, positional: [], projectDir: dir });
     const s = await readState(dir);
     assert.equal(s.version, 1);
-    assert.equal(s.fence_generation, 1);
     assert.equal(s.revision, 1);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
@@ -259,26 +253,21 @@ test("init: refuses to overwrite an existing valid state without --force", async
   } finally { await rmTempProject(dir); }
 });
 
-test("init: --force replaces an existing canonical v1 state and preserves ledger high-water", async () => {
+test("init: --force replaces an existing canonical SQLite state", async () => {
   const { default: init } = await importFresh("./cli/commands/init.ts");
-  const { readState } = await importFresh("./storage/state.ts");
+  const { readState, writeState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
-    const file = stateFilePath(dir);
-    await fs.writeFile(file, JSON.stringify({
-      version: 1, fence_generation: 1, revision: 0, nodes: { T1: { id: "T1", title: "v1" } },
+    await writeState(dir, {
+      version: 1, revision: 20, nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "v1", status: "open", revision: 20 } },
       edges: [], initiatives: {}, log: [],
-    }), "utf8");
+    });
 
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const s = await readState(dir);
     assert.equal(s.version, 1);
-    assert.equal(s.fence_generation, 1);
-    const ledgerPath = path.join(path.dirname(file), "revision-ledger.json");
-    const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
-    assert.equal(s.revision, ledger.high_water_revision);
-    assert.ok(s.revision > 1, "force-init must not lower an existing ledger high-water");
+    assert.ok(s.revision > 20, "force-init must advance the existing revision");
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
   } finally { await rmTempProject(dir); }

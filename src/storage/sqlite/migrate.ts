@@ -2,8 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { asCaughtError } from "../../contracts/errors.ts";
-import { readState, sqliteStateFile, stateFile } from "../state.ts";
-import { stateBackend } from "../paths.ts";
+import { jsonStateFile, readJsonStateForMigration, sqliteStateFile } from "../state.ts";
 import { withLock } from "../lock.ts";
 import { readSqliteState, writeSqliteState } from "./store.ts";
 
@@ -41,10 +40,10 @@ async function fileExists(file: string) {
 }
 
 async function validatedJsonSource(projectDir: string, jsonFile: string) {
-  const state = await readState(projectDir);
+  const state = await readJsonStateForMigration(projectDir);
   if (!state) { throw new Error(`state migrate: no canonical JSON state exists at ${jsonFile}`); }
   const raw = await fs.readFile(jsonFile);
-  const verifiedState = await readState(projectDir);
+  const verifiedState = await readJsonStateForMigration(projectDir);
   if (!isDeepStrictEqual(verifiedState, state) || !(await fs.readFile(jsonFile)).equals(raw)) {
     throw new Error(`state migrate: JSON source at ${jsonFile} changed while being validated`);
   }
@@ -67,12 +66,8 @@ function assertSqliteMatches(sqliteState: unknown, jsonState: unknown, sqliteFil
 }
 
 export async function migrateJsonStateToSqlite(projectDir: string) {
-  if (stateBackend() !== "json") {
-    throw new Error("state migrate: set CLIMIER_STATE_BACKEND=json to migrate the canonical JSON source explicitly");
-  }
-
   return withLock(projectDir, async () => {
-    const jsonFile = stateFile(projectDir);
+    const jsonFile = jsonStateFile(projectDir);
     const sqliteFile = sqliteStateFile(projectDir);
     const backupFile = `${jsonFile}.sqlite-backup`;
     const { raw, state } = await validatedJsonSource(projectDir, jsonFile);

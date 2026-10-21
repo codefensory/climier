@@ -45,17 +45,6 @@ function validateSnapshotVersion(parsed, id, snapshotPath) {
       version: parsed && parsed.version,
     });
   }
-  validateFenceGeneration(parsed, id);
-}
-
-function validateFenceGeneration(parsed, id) {
-  if (!Number.isInteger(parsed.fence_generation)) {
-    throwV2("INVALID_STATUS", `state.restore: snapshot ${id} has an invalid fence_generation`, {
-      id,
-      field: "fence_generation",
-      value: parsed.fence_generation ?? null,
-    });
-  }
 }
 
 function validateSnapshotCollections(parsed, id) {

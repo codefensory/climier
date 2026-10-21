@@ -252,7 +252,7 @@ test("update: missing node returns NODE_NOT_FOUND", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("update: rejects update on a future state with the public incompatibility code", async () => {
+test("update: does not implicitly import a future tasks.json state", async () => {
   const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await createTempProject();
   try {
@@ -263,7 +263,9 @@ test("update: rejects update on a future state with the public incompatibility c
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
     const climierHome = process.env.CLIMIER_HOME;
     assert.ok(climierHome, "CLIMIER_HOME must be set by the test helpers");
-    const futureFile = path.join(climierHome, "projects", meta.project_id, "tasks.json");
+    const projectStateDir = path.join(climierHome, "projects", meta.project_id);
+    const futureFile = path.join(projectStateDir, "tasks.json");
+    await fs.rm(path.join(projectStateDir, "state.sqlite"));
     await fs.writeFile(futureFile, JSON.stringify({
       version: 6,
       nodes: {}, edges: [], initiatives: {}, log: [],
@@ -273,8 +275,8 @@ test("update: rejects update on a future state with the public incompatibility c
       await update({ statePath: dir, positional: ["T1"], flags: { title: "y", as: "alice" } });
     } catch (error) { caught = error; }
     assert.ok(caught, "should have thrown");
-    assert.equal(caught.code, "CLIMIER_INCOMPATIBLE_VERSION");
-    assert.match(caught.message, /version 6/i);
+    assert.equal(caught.code, "CLIMIER_SQLITE_MIGRATION_REQUIRED");
+    assert.match(caught.message, /climier state migrate/);
   } finally { await rmTempProject(dir); }
 });
 
@@ -291,7 +293,9 @@ test("update: rejects a pre-release state with migration guidance", async () => 
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
     const climierHome = process.env.CLIMIER_HOME;
     assert.ok(climierHome, "CLIMIER_HOME must be set by the test helpers");
-    const v1File = path.join(climierHome, "projects", meta.project_id, "tasks.json");
+    const projectStateDir = path.join(climierHome, "projects", meta.project_id);
+    const v1File = path.join(projectStateDir, "tasks.json");
+    await fs.rm(path.join(projectStateDir, "state.sqlite"));
     await fs.writeFile(v1File, JSON.stringify({
       version: 1,
       tasks: { F0T1: { id: "F0T1", title: "v1 task", initiative: "x" } },
@@ -302,9 +306,8 @@ test("update: rejects a pre-release state with migration guidance", async () => 
       await update({ statePath: dir, positional: ["F0T1"], flags: { title: "y", as: "alice" } });
     } catch (e) { caught = e; }
     assert.ok(caught, "should have thrown");
-    assert.equal(caught.code, "PRE_RELEASE_STATE_UNSUPPORTED");
-    assert.match(caught.message, /restore a verified backup/i);
-    assert.doesNotMatch(caught.message, /init --force/i);
+    assert.equal(caught.code, "CLIMIER_SQLITE_MIGRATION_REQUIRED");
+    assert.match(caught.message, /climier state migrate/);
   } finally { await rmTempProject(dir); }
 });
 

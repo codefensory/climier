@@ -66,7 +66,7 @@ function assertUpdatedKnowledgeState(after) {
   });
   assert.equal(after.log.length, 1);
   assert.equal(after.log[0].action, "knowledge.update");
-  assert.equal(after.log[0].revision, 4);
+  assert.equal(after.log[0].revision, 3);
 }
 
 test("update: prepare rejects missing id", async () => {
@@ -184,7 +184,7 @@ test("update: apply patches title/body/mitigation/scope via tx", async () => {
     assert.equal(out.idempotent, false);
     assert.equal(out.diff.updated.length, 1);
     assert.equal(out.diff.updated[0].id, "K-1");
-    assert.equal(out.diff.updated[0].node.revision, 4, "kernel advances beyond the fenced fixture high-water");
+    assert.equal(out.diff.updated[0].node.revision, 3, "kernel increments the node revision in SQLite");
     assertUpdatedKnowledgeState(after);
   } finally {
     await rmTempProject(dir);
@@ -212,7 +212,7 @@ test("update: idempotent patch (no actual change) skips write and log", async ()
     assert.equal(out.log_entry, null);
     const after = await readStateHelper(dir);
     assert.equal(after.log.length, 0);
-    assert.equal(after.nodes["K-1"].revision, 2, "fenced fixture revision remains unchanged on idempotent update");
+    assert.equal(after.nodes["K-1"].revision, 1, "stored node revision remains unchanged on idempotent update");
   } finally {
     await rmTempProject(dir);
   }

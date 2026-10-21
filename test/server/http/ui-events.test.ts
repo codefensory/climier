@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import fs from "node:fs/promises";
 import { test } from "node:test";
 
-import { ledgerFile } from "../../../src/storage/ledger.ts";
+import { readState, writeState } from "../../../src/storage/state.ts";
 import { createUiEvents } from "../../../src/server/http/ui-events.ts";
 import { authHeaders, withApi } from "./fixtures.ts";
 type ErrorBody = { error: { code: string } };
@@ -31,14 +30,6 @@ type MockResponse = EventEmitter & {
   end(): void;
 };
 
-async function writeRevision(file, revision) {
-  const ledger = JSON.parse(await fs.readFile(file, "utf8"));
-  ledger.high_water_revision = revision;
-  const temporary = `${file}.tmp-${process.pid}-${revision}`;
-  await fs.writeFile(temporary, `${JSON.stringify(ledger)}\n`);
-  await fs.rename(temporary, file);
-}
-
 async function waitFor(predicate, timeout = 1000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -61,9 +52,9 @@ test("UI events authenticate, send heartbeats, and emit only changed revisions",
     const first = await reader.read();
     assert.equal(new TextDecoder().decode(first.value), ": heartbeat\n\n");
 
-    const ledger = ledgerFile(projectDirs[0]);
-    const revision = JSON.parse(await fs.readFile(ledger, "utf8")).high_water_revision;
-    await writeRevision(ledger, revision + 1);
+    const current = await readState(projectDirs[0]);
+    const revision = current.revision;
+    await writeState(projectDirs[0], { ...current, revision: revision + 1 });
     let text = "";
     while (!text.includes("data: ")) {
       const chunk = await reader.read();

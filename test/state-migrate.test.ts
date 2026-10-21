@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import fsp from "node:fs/promises";
 import path from "node:path";
 
-import { createTempProject, rmTempProject, runCli, stateFilePath, writeCanonicalState } from "./helpers.ts";
+import { createTempProject, jsonStateFilePath, rmTempProject, runCli, stateFilePath, writeLegacyJsonState } from "./helpers.ts";
 
 function fixture() {
   return {
@@ -23,39 +23,21 @@ function fixture() {
 }
 
 function backupPath(projectDir: string) {
-  return `${stateFilePath(projectDir)}.sqlite-backup`;
+  return `${jsonStateFilePath(projectDir)}.sqlite-backup`;
 }
 
-async function cli(projectDir: string, args: string[], backend?: string) {
-  return runCli(["--project", projectDir, ...args], {
-    env: { CLIMIER_STATE_BACKEND: backend },
-  });
+async function cli(projectDir: string, args: string[]) {
+  return runCli(["--project", projectDir, ...args]);
 }
 
 async function assertReproducibleExport(projectDir: string, original: Buffer) {
-  const first = await cli(projectDir, ["state", "export"], "sqlite");
+  const first = await cli(projectDir, ["state", "export"]);
   assert.equal(first.code, 0, `${first.stderr}\n${first.stdout}`);
-  const second = await cli(projectDir, ["state", "export"], "sqlite");
+  const second = await cli(projectDir, ["state", "export"]);
   assert.equal(second.code, 0, `${second.stderr}\n${second.stdout}`);
   assert.equal(first.stdout, second.stdout, "exports must be reproducible");
   assert.deepEqual(JSON.parse(first.stdout), JSON.parse(original.toString("utf8")));
   return first.stdout;
-}
-
-async function assertBackendReadParity(projectDir: string) {
-  for (const args of [["status"], ["context", "T-large", "--as", "reader"], ["history", "T-large"]]) {
-    const json = await cli(projectDir, args, "json");
-    const sqlite = await cli(projectDir, args, "sqlite");
-    assert.equal(json.code, 0, `${json.stderr}\n${json.stdout}`);
-    assert.equal(sqlite.code, 0, `${sqlite.stderr}\n${sqlite.stdout}`);
-    assert.equal(sqlite.stdout, json.stdout, `${args.join(" ")} differs between JSON and SQLite storage`);
-  }
-}
-
-async function assertVerifiedBackup(projectDir: string, stateFile: string, original: Buffer, expectedHash: string) {
-  const backup = await fsp.readFile(backupPath(projectDir));
-  assert.equal(crypto.createHash("sha256").update(backup).digest("hex"), expectedHash);
-  assert.deepEqual(await fsp.readFile(stateFile), original, "migration must preserve the JSON source byte-for-byte");
 }
 
 test("explicit migration is advertised under state, not as a top-level importer", async () => {
@@ -80,51 +62,62 @@ test("state migrate flags cannot be silently ignored by read subcommands", async
   }
 });
 
-test("state migrate requires explicit confirmation and does not write before it", async () => {
+test("a tasks.json-only project requires explicit migration and is never imported on read", async () => {
   const dir = await createTempProject();
   try {
-    await writeCanonicalState(dir, fixture());
-    const original = await fsp.readFile(stateFilePath(dir));
-
-    const jsonRead = await cli(dir, ["state", "export"]);
-    assert.equal(jsonRead.code, 0, `${jsonRead.stderr}\n${jsonRead.stdout}`);
-    assert.deepEqual(JSON.parse(jsonRead.stdout), JSON.parse(original.toString("utf8")));
-
-    const result = await cli(dir, ["state", "migrate", "--as", "worker"]);
+    await writeLegacyJsonState(dir, fixture());
+    const result = await cli(dir, ["state", "export"]);
     assert.notEqual(result.code, 0);
-    assert.match(result.stdout, /--yes/);
-    assert.deepEqual(await fsp.readFile(stateFilePath(dir)), original);
-    await assert.rejects(fsp.access(backupPath(dir)), { code: "ENOENT" });
-    await assert.rejects(fsp.access(path.join(path.dirname(stateFilePath(dir)), "state.sqlite")), { code: "ENOENT" });
+    assert.match(JSON.parse(result.stdout).error.message, /climier state migrate/);
+    await assert.rejects(fsp.access(stateFilePath(dir)), { code: "ENOENT" });
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("state migrate backs up, verifies and imports large schema-1 JSON idempotently", async () => {
+test("state migrate requires explicit confirmation and does not write before it", async () => {
   const dir = await createTempProject();
   try {
-    await writeCanonicalState(dir, fixture());
-    const stateFile = stateFilePath(dir);
-    const original = await fsp.readFile(stateFile);
+    await writeLegacyJsonState(dir, fixture());
+    const jsonFile = jsonStateFilePath(dir);
+    const original = await fsp.readFile(jsonFile);
+
+    const result = await cli(dir, ["state", "migrate", "--as", "worker"]);
+    assert.notEqual(result.code, 0);
+    assert.match(result.stdout, /--yes/);
+    assert.deepEqual(await fsp.readFile(jsonFile), original);
+    await assert.rejects(fsp.access(backupPath(dir)), { code: "ENOENT" });
+    await assert.rejects(fsp.access(stateFilePath(dir)), { code: "ENOENT" });
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("state migrate backs up and imports schema-1 JSON with a reproducible export", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeLegacyJsonState(dir, fixture());
+    const jsonFile = jsonStateFilePath(dir);
+    const original = await fsp.readFile(jsonFile);
     const expectedHash = crypto.createHash("sha256").update(original).digest("hex");
 
     let result = await cli(dir, ["state", "migrate", "--as", "worker", "--yes"]);
     assert.equal(result.code, 0, `${result.stderr}\n${result.stdout}`);
     assert.equal(JSON.parse(result.stdout).migrated, true);
-    await assertVerifiedBackup(dir, stateFile, original, expectedHash);
+    const backup = await fsp.readFile(backupPath(dir));
+    assert.equal(crypto.createHash("sha256").update(backup).digest("hex"), expectedHash);
+    assert.deepEqual(backup, original);
+    await fsp.access(stateFilePath(dir));
 
     const firstExport = await assertReproducibleExport(dir, original);
-
     result = await cli(dir, ["state", "migrate", "--as", "worker", "--yes"]);
     assert.equal(result.code, 0, `${result.stderr}\n${result.stdout}`);
-    assert.equal(JSON.parse(result.stdout).migrated, false, "re-running migration must not rewrite the existing store");
-    assert.deepEqual(await fsp.readFile(stateFile), original);
-
-    const jsonExport = await cli(dir, ["state", "export"], undefined);
-    assert.equal(jsonExport.code, 0, `${jsonExport.stderr}\n${jsonExport.stdout}`);
-    assert.deepEqual(JSON.parse(jsonExport.stdout), JSON.parse(firstExport));
-    await assertBackendReadParity(dir);
+    assert.equal(JSON.parse(result.stdout).migrated, false);
+    const exported = await cli(dir, ["state", "export"]);
+    assert.equal(exported.code, 0, exported.stdout);
+    assert.deepEqual(JSON.parse(exported.stdout), JSON.parse(firstExport));
+    const status = await cli(dir, ["status"]);
+    assert.equal(status.code, 0, status.stdout);
   } finally {
     await rmTempProject(dir);
   }
@@ -133,17 +126,19 @@ test("state migrate backs up, verifies and imports large schema-1 JSON idempoten
 test("state migrate refuses a changed or unverifiable backup instead of overwriting it", async () => {
   const dir = await createTempProject();
   try {
-    await writeCanonicalState(dir, fixture());
-    const stateFile = stateFilePath(dir);
-    const original = await fsp.readFile(stateFile);
+    await writeLegacyJsonState(dir, fixture());
     const migrated = await cli(dir, ["state", "migrate", "--as", "worker", "--yes"]);
     assert.equal(migrated.code, 0, `${migrated.stderr}\n${migrated.stdout}`);
+    const before = await cli(dir, ["state", "export"]);
+    assert.equal(before.code, 0, before.stdout);
 
     await fsp.writeFile(backupPath(dir), "tampered backup");
     const result = await cli(dir, ["state", "migrate", "--as", "worker", "--yes"]);
     assert.notEqual(result.code, 0);
     assert.match(result.stdout, /backup/i);
-    assert.deepEqual(await fsp.readFile(stateFile), original);
+    const after = await cli(dir, ["state", "export"]);
+    assert.equal(after.code, 0, after.stdout);
+    assert.equal(after.stdout, before.stdout);
   } finally {
     await rmTempProject(dir);
   }

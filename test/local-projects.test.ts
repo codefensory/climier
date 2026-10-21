@@ -5,8 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { initState } from "../src/kernel/state-operations.ts";
-import { listProjectIds } from "../src/storage/state.ts";
-import { ledgerFileForProjectId, readStateByProjectId } from "../src/storage/ledger.ts";
+import { listProjectIds, readStateByProjectId } from "../src/storage/state.ts";
 
 type ProjectState = { version: number; revision: number; nodes: Record<string, unknown> };
 
@@ -38,7 +37,7 @@ test("readStateByProjectId reads a canonical state without a project root", asyn
   assert.equal(state.version, 1);
   assert.equal(state.revision, 1);
   assert.deepEqual(state.nodes, {});
-  assert.equal(ledgerFileForProjectId("proj-a"), path.join(home, "projects", "proj-a", "revision-ledger.json"));
+  assert.equal(await fs.access(path.join(home, "projects", "proj-a", "state.sqlite")).then(() => true), true);
 });
 
 test("readStateByProjectId returns null for an unknown id without creating the project", async (t) => {
@@ -48,16 +47,16 @@ test("readStateByProjectId returns null for an unknown id without creating the p
   await assert.rejects(fs.access(path.join(home, "projects", "missing")));
 });
 
-test("listProjectIds lists storage dirs with state or ledger and skips the rest", async (t) => {
+test("listProjectIds lists projects with SQLite state and skips other storage dirs", async (t) => {
   const home = await makeHome(t);
   await makeProject(home, "proj-b");
   await makeProject(home, "proj-a");
   await fs.mkdir(path.join(home, "projects", "stray"), { recursive: true });
   await fs.writeFile(path.join(home, "projects", "stray", "notes.txt"), "x");
-  await fs.mkdir(path.join(home, "projects", "ledger-only"), { recursive: true });
-  await fs.writeFile(path.join(home, "projects", "ledger-only", "revision-ledger.json"), "{}\n");
+  await fs.mkdir(path.join(home, "projects", "json-only"), { recursive: true });
+  await fs.writeFile(path.join(home, "projects", "json-only", "tasks.json"), "{}\n");
 
-  assert.deepEqual(await listProjectIds(), ["ledger-only", "proj-a", "proj-b"]);
+  assert.deepEqual(await listProjectIds(), ["proj-a", "proj-b"]);
 });
 
 test("listProjectIds is empty when the projects root does not exist", async (t) => {
@@ -66,7 +65,7 @@ test("listProjectIds is empty when the projects root does not exist", async (t) 
   await fs.access(home);
 });
 
-test("readStateByProjectId rejects a state without a ledger instead of guessing", async (t) => {
+test("readStateByProjectId rejects a tasks.json-only project with migration guidance", async (t) => {
   const home = await makeHome(t);
   const dir = path.join(home, "projects", "legacy");
   await fs.mkdir(dir, { recursive: true });
@@ -74,6 +73,6 @@ test("readStateByProjectId rejects a state without a ledger instead of guessing"
 
   await assert.rejects(
     readStateByProjectId("legacy"),
-    (error) => typeof error === "object" && error !== null && "code" in error && error.code === "CLIMIER_LEDGER_MISSING",
+    (error) => typeof error === "object" && error !== null && "code" in error && error.code === "CLIMIER_SQLITE_MIGRATION_REQUIRED" && "message" in error && typeof error.message === "string" && /climier state migrate/.test(error.message),
   );
 });

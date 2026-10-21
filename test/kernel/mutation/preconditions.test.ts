@@ -87,15 +87,15 @@ test("kernel.mutate: if_revisions (multi) for multiple nodes; all must match und
         action: "task.multi_update",
         actor: "alice",
         input: {},
-          if_revision: { kind: "multi", values: { T1: 8, T2: 8 } },
+          if_revision: { kind: "multi", values: { T1: 3, T2: 7 } },
       },
       provider,
     });
     assert.equal(out.idempotent, false);
     const after = await readStateHelper(dir);
-    assert.equal(after.nodes.T1.revision, 9);
+    assert.equal(after.nodes.T1.revision, 8);
     assert.equal(after.nodes.T1.title, "T1-multi");
-    assert.equal(after.nodes.T2.revision, 9);
+    assert.equal(after.nodes.T2.revision, 8);
     assert.equal(after.nodes.T2.title, "T2-multi");
     assert.equal(after.log.length, 1, "single multi-update emit");
     assert.equal(after.log[0].action, "task.multi_update");
@@ -127,7 +127,7 @@ test("kernel.mutate: if_revisions (multi) mismatch throws on the offending node 
           action: "task.multi_update",
           actor: "alice",
           input: {},
-          if_revision: { kind: "multi", values: { T1: 8, T2: 99 } },
+          if_revision: { kind: "multi", values: { T1: 3, T2: 99 } },
         },
         provider,
       });
@@ -135,7 +135,7 @@ test("kernel.mutate: if_revisions (multi) mismatch throws on the offending node 
     assert.equal(caught.code, "REVISION_CONFLICT");
     assert.equal(caught.details.id, "T2");
     assert.equal(caught.details.expected, 99);
-    assert.equal(caught.details.current, 8);
+    assert.equal(caught.details.current, 7);
     const after = await readStateHelper(dir);
     assert.deepEqual(after.nodes.T1, base.nodes.T1, "no T1 partial mutation");
     assert.deepEqual(after.nodes.T2, base.nodes.T2, "no T2 partial mutation");

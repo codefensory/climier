@@ -14,7 +14,7 @@ export async function executeMutation({ projectDir, lockContext, request, provid
     return executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId });
   }
   if (stateOperation !== undefined) {
-    return executeStateMutation({ projectDir, lockContext, request, stateOperation, policyAction, pluginId });
+    return executeStateMutation({ projectDir, request, stateOperation, policyAction, pluginId });
   }
   return executeProviderMutation({ projectDir, lockContext, request, provider, policyAction, pluginId, commandName });
 }

@@ -198,24 +198,6 @@ test("createSnapshot: throws when the source state file is missing", async () =>
   }
 });
 
-test("createSnapshot: preserves raw bytes verbatim for non-JSON content", async () => {
-  const { createSnapshot } = await importFresh("./storage/state.ts");
-  const dir = await createTempProject();
-  try {
-
-    const { default: init } = await importFresh("./cli/commands/init.ts");
-    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
-    const file = stateFilePath(dir);
-    const garbage = "{ this is not JSON but it's raw and we keep it verbatim\n";
-    await fs.writeFile(file, garbage);
-    const meta = await createSnapshot(dir, "corrupt-recovery");
-    const rawBytes = await rawReadback(dir, meta.id);
-    assert.equal(rawBytes.toString("utf8"), garbage);
-  } finally {
-    await rmTempProject(dir);
-  }
-});
-
 test("two snapshots taken back-to-back have different ids (random suffix)", async () => {
   const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
@@ -387,54 +369,24 @@ test("init --force on existing v4 state: snapshot reason=force-init, raw preserv
   }
 });
 
-test("init --force on existing valid v4 state: snapshot reason=force-init, raw preserves bytes verbatim", async () => {
+test("init --force on existing SQLite state snapshots its logical state", async () => {
   const { default: init } = await importFresh("./cli/commands/init.ts");
   const { readState, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
-    // Bootstrap the project first so stateFile() resolves, then install the
-    // pre-existing fixture through the canonical lane.
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
-    const file = stateFilePath(dir);
     await writeCanonicalState(dir, { nodes: { T1: { id: "T1", title: "existing" } }, edges: [], initiatives: {}, log: [] });
     const before = await readState(dir);
-    const existingRaw = await fs.readFile(file, "utf8");
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const after = await readState(dir);
     assert.equal(after.version, 1);
-    assert.ok(after.revision > before.revision,
-      "force-init over a ledger keeps the high-water monotonic (Decision 11)");
+    assert.ok(after.revision > before.revision, "force-init advances the state revision");
     assert.deepEqual(after.nodes, {});
     const snaps = await listSnapshots(dir);
     assert.equal(snaps.length, 1);
     assert.equal(snaps[0].reason, "force-init");
     const snapRaw = await rawReadback(dir, snaps[0].id);
-    assert.equal(snapRaw.toString("utf8"), existingRaw,
-      "snapshot raw must preserve the exact existing state bytes");
-  } finally {
-    await rmTempProject(dir);
-  }
-});
-
-test("init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recovery, raw preserves garbage", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.ts");
-  const { readState, listSnapshots } = await importFresh("./storage/state.ts");
-  const dir = await createTempProject();
-  try {
-    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
-    const file = stateFilePath(dir);
-    const corruptRaw = "{ this is not JSON\n";
-    await fs.writeFile(file, corruptRaw);
-    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
-    const after = await readState(dir);
-    assert.equal(after.version, 1);
-    assert.ok(after.revision >= 1, "corrupt recovery keeps the ledger high-water");
-    assert.deepEqual(after.nodes, {});
-    const snaps = await listSnapshots(dir);
-    assert.equal(snaps.length, 1);
-    assert.equal(snaps[0].reason, "corrupt-recovery");
-    const snapRaw = await rawReadback(dir, snaps[0].id);
-    assert.equal(snapRaw.toString("utf8"), corruptRaw);
+    assert.deepEqual(JSON.parse(snapRaw.toString("utf8")), before);
   } finally {
     await rmTempProject(dir);
   }

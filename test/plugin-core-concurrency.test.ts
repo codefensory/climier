@@ -30,7 +30,7 @@ import {
   createTempProject,
   rmTempProject,
   runCli,
-  stateFilePath,
+  readState,
 } from "./helpers.ts";
 
 const REPO_ROOT = path.resolve(".");
@@ -295,7 +295,7 @@ async function runConcurrency({ projectDir }) {
   await setupConcurrencyProject(projectDir);
   const [pluginResult, ...cliResults] = await runConcurrentWriters(projectDir);
   const pluginOut = assertSuccessfulWriters(pluginResult, cliResults);
-  const finalState = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+  const finalState = await readState(projectDir);
   const pluginIds = new Set<string>(pluginOut.created as string[]);
   assertPluginNodes(finalState, pluginIds);
   const cliLogs = finalState.log.filter((entry) => entry.agent === "cli-bob");

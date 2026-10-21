@@ -14,7 +14,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { createTempProject, rmTempProject, importFresh, writeCanonicalState as writeStateHelper, readState as readStateHelper } from "./helpers.ts";
-import { bootstrapFencedState } from "../src/storage/ledger.ts";
 
 async function importKernel() {
   return importFresh("./kernel/mutate.ts");
@@ -30,7 +29,7 @@ function errorLike(error: unknown): ErrorLike {
 // Fixture: two independent nodes in the same project
 
 async function bootstrap(dir: string): Promise<FencedState> {
-  await writeStateHelper(dir, {
+  return await writeStateHelper(dir, {
     version: 1,
     nodes: {
       T1: { id: "T1", kind: "resolvable", subkind: "task", title: "T1-title", initiative: "kernel", status: "open", revision: 3 },
@@ -39,8 +38,7 @@ async function bootstrap(dir: string): Promise<FencedState> {
     edges: [],
     initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
-  });
-  return await bootstrapFencedState(dir) as FencedState;
+  }) as unknown as FencedState;
 }
 
 // updateProvider — a simple per-node title update. Different ids in the
@@ -110,8 +108,8 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
     assert.equal(after.nodes.T2.title, "T2-after-1", "T2 update persisted");
     assert.deepEqual(
       [after.nodes.T1.revision, after.nodes.T2.revision].toSorted((a, b) => a - b),
-      [5, 6],
-      "both disjoint updates receive consecutive global revisions above the seed high-water",
+      [4, 5],
+      "both disjoint updates receive consecutive revisions above the seeded nodes",
     );
     assert.equal(after.log.length, 2, "both writes persisted in order (serialised by withLock)");
     // Both log entries carry the matching action / node / revision.
@@ -120,7 +118,7 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
     const nodes = after.log.map((e) => e.node).toSorted();
     assert.deepEqual(nodes, ["T1", "T2"]);
     const revisions = after.log.map((e) => e.revision).toSorted((a, b) => a - b);
-    assert.deepEqual(revisions, [5, 6], "log revisions preserve the global high-water sequence");
+    assert.deepEqual(revisions, [4, 5], "log revisions preserve the global revision sequence");
   } finally {
     await rmTempProject(dir);
   }
@@ -138,8 +136,8 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
     for (let i = 0; i < 6; i += 1) {
       base.nodes[`Tn-${i}`] = { id: `Tn-${i}`, kind: "resolvable", subkind: "task", title: `Tn-${i}-orig`, initiative: "kernel", status: "open", revision: 1 };
     }
-    await writeStateHelper(dir, base);
-    const fenced = await bootstrapFencedState(dir) as FencedState;
+    const seeded = await writeStateHelper(dir, base) as unknown as FencedState;
+    const fenced = seeded;
 
     const reqs: Promise<unknown>[] = [];
     for (let i = 0; i < 6; i += 1) {
@@ -167,7 +165,7 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
       assert.equal(after.nodes[`Tn-${i}`].title, `Tn-${i}-after`, `Tn-${i} update persisted`);
     }
     const revisions = Array.from({ length: 6 }, (_, i) => after.nodes[`Tn-${i}`].revision).toSorted((a, b) => a - b);
-    assert.deepEqual(revisions, [3, 4, 5, 6, 7, 8], "disjoint writes receive globally increasing revisions");
+    assert.deepEqual(revisions, [2, 3, 4, 5, 6, 7], "disjoint writes receive globally increasing revisions");
     assert.equal(after.log.length, 6, "all 6 writes persisted");
   } finally {
     await rmTempProject(dir);
@@ -216,11 +214,11 @@ test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is r
     assert.match(errorLike(innerCaught).message ?? "", /nested kernel\.mutate/i);
     const after = await readStateHelper(dir);
     assert.equal(after.nodes.T1.title, "T1-outer-done", "outer apply did mutate T1");
-    assert.equal(after.nodes.T1.revision, fenced.revision + 1, "T1 revision bumped once by the outer mutate");
+    assert.equal(after.nodes.T1.revision, fenced.nodes.T1.revision + 1, "T1 revision bumped once by the outer mutate");
     assert.equal(after.nodes.T2.title, "T2-title", "inner was rejected, T2 untouched");
     assert.equal(after.log.length, 1, "only the outer write reached writeState");
     assert.equal(after.log[0].node, "T1");
-    assert.equal(after.log[0].revision, fenced.revision + 1);
+    assert.equal(after.log[0].revision, fenced.nodes.T1.revision + 1);
   } finally {
     await rmTempProject(dir);
   }

@@ -4,9 +4,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, lockFilePath, stateFilePath, writeCanonicalState } from "./helpers.ts";
-import { commitFencedStateUnderLock, readFencedStateUnderLock } from "../src/storage/ledger.ts";
+import { readState, writeState } from "../src/storage/state.ts";
 
-type FencedState = { version: number; revision: number; log: Array<{ action: string }> };
+type StoredState = { version: number; revision: number; log: Array<{ action: string }> };
 
 test("withLock acquires and releases on success", async () => {
   const { withLock } = await importFresh("./storage/lock.ts");
@@ -163,20 +163,18 @@ test("stale lock recovery requires verified manual removal before schema-1 opera
     await fs.access(lockPath);
 
     await fs.rm(lockPath);
-    await withLock(dir, async (lockContext) => {
-      const current = await readFencedStateUnderLock(lockContext, { projectDir: dir }) as FencedState;
+    await withLock(dir, async () => {
+      const current = await readState(dir) as StoredState;
       assert.equal(current.version, 1);
       const next = {
         ...current,
         revision: current.revision + 1,
         log: [...current.log, { action: "stale-lock-recovery-test" }],
       };
-      await commitFencedStateUnderLock(lockContext, next, { projectDir: dir });
+      await writeState(dir, next);
     });
 
-    const recovered = await withLock(dir, async (lockContext) => (
-      readFencedStateUnderLock(lockContext, { projectDir: dir }) as Promise<FencedState>
-    ));
+    const recovered = await readState(dir) as StoredState;
     assert.equal(recovered.version, 1);
     const last = recovered.log.at(-1);
     assert.ok(last);

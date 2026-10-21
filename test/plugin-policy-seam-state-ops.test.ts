@@ -381,18 +381,20 @@ test("seam-init: plain init needs no actor and never invokes the policy (deny in
   });
 });
 
-test("seam-init: corrupt-recovery (no --force) needs no actor and never invokes the policy", async () => {
+test("seam-init: tasks.json-only projects require explicit migration without invoking policy", async () => {
   await withFreshEnv(async ({ projectDir, home }) => {
     await initAndSeed({ projectDir, mode: "deny" });
     const stateDir = path.join(process.env.CLIMIER_HOME!, "projects", PROJECT_ID);
-    await fs.writeFile(path.join(stateDir, "tasks.json"), "{ not json", "utf8");
+    await fs.rm(path.join(stateDir, "state.sqlite"));
+    const jsonFile = path.join(stateDir, "tasks.json");
+    const legacy = JSON.stringify({ version: 1, nodes: {}, edges: [], initiatives: {}, log: [] });
+    await fs.writeFile(jsonFile, legacy, "utf8");
     await installPolicyFixture(projectDir);
     try {
-      const out = await cli(["--project", projectDir, "init"]);
-      assert.equal(out.ok, true);
-      const s = await readState(projectDir);
-      assert.deepEqual(s.nodes, {});
-      assert.deepEqual(await reasons(projectDir), ["corrupt-recovery"]);
+      const error = await cliFail(["--project", projectDir, "init"]);
+      assert.equal(error.code, "CLIMIER_SQLITE_MIGRATION_REQUIRED");
+      assert.match(error.message, /climier state migrate/);
+      assert.equal(await fs.readFile(jsonFile, "utf8"), legacy);
       await assertPolicyDidNotRun(home);
     } finally { await uninstallPolicyFixture(projectDir); }
   });

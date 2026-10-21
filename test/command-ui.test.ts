@@ -189,17 +189,10 @@ test("climier ui keeps an unreadable project in the catalog and fails when it is
 
   const catalog = await (await fetch(`${started.url}/v1/projects`)).json();
   const legacy = (catalog as CatalogBody).projects.find((entry) => entry.project_id === "legacy");
-  assert.deepEqual(legacy!, {
-    project_id: "legacy",
-    name: "legacy",
-    revision: 0,
-    node_count: 0,
-    updated_at: legacy!.updated_at,
-  });
+  assert.equal(legacy, undefined, "tasks.json-only projects are not canonical local projects");
 
   const opened = await fetch(`${started.url}/v1/projects/legacy/ui/snapshot`);
-  assert.equal(opened.status, 400);
-  assert.equal((await opened.json() as ErrorBody).error.code, "CLIMIER_LEDGER_MISSING");
+  assert.equal(opened.status, 404);
 });
 
 test("uiCommand starts the stdlib local server and reports the loopback URL", async (t) => {
@@ -224,7 +217,7 @@ test("uiCommand starts the stdlib local server and reports the loopback URL", as
   t.after(() => fs.rm(root, { recursive: true, force: true }));
 });
 
-test("ui keeps corrupt-state errors before starting the local server", async () => {
+test("ui rejects a tasks.json-only project before starting the local server", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-ui-state-"));
   const home = path.join(root, "home");
   await fs.writeFile(path.join(root, ".climier.json"), `${JSON.stringify({ version: 1, project_id: "ui-state-project" })}\n`);
@@ -243,7 +236,7 @@ test("ui keeps corrupt-state errors before starting the local server", async () 
         projectConfig: { version: 1, project_id: "ui-state-project" },
         flags: { open: false },
       }),
-      (error) => (error as { code?: string }).code === "CLIMIER_CORRUPT_STATE",
+      (error) => (error as { code?: string }).code === "CLIMIER_SQLITE_MIGRATION_REQUIRED",
     );
   } finally {
     if (oldHome === undefined) delete process.env.CLIMIER_HOME;

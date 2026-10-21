@@ -61,13 +61,13 @@ test("kernel.mutate persists node plugin data as a node revisioned, redacted mut
     const out = await runMutation(dir, pluginDataNodeSetProvider, "plugin-data-set", {
       id: "T1",
       value: secret,
-      if_revision: 5,
+      if_revision: 4,
     });
 
     assert.equal(out.idempotent, false);
     assert.equal(out.diff.updated.length, 1);
     assert.equal(out.diff.updated[0].id, "T1");
-    assert.equal(out.diff.updated[0].node.revision, 6);
+    assert.equal(out.diff.updated[0].node.revision, 5);
     assert.equal(out.log_entry.action, "plugin-data-set");
     assert.equal(out.log_entry.plugin_id, PLUGIN);
     assert.deepEqual(out.log_entry, {
@@ -116,7 +116,7 @@ test("kernel.mutate persists project plugin data without losing node/root metada
       metadata: { keep: "project" },
     });
     assert.deepEqual(state.plugins.other, baseState().plugins.other);
-    assert.equal(state.nodes.T1.revision, 5, "project plugin writes preserve the fenced node revision");
+    assert.equal(state.nodes.T1.revision, 4, "project plugin writes preserve the node revision");
     assert.deepEqual(state.nodes.T1.plugins, baseState().nodes.T1.plugins);
 
     const second = await runMutation(dir, pluginDataProjectSetProvider, "plugin-data-set", {
