@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTempProject, readState, rmTempProject, writeCanonicalState, writeState } from "./helpers.ts";
+import { createTempProject, readState, rmTempProject, stateFilePath, writeCanonicalState, writeState } from "./helpers.ts";
 import { readMutationSnapshot } from "../src/kernel/mutation/execute/shared.ts";
 import { createBuiltinOperationRegistry } from "../src/application/operations/builtins.ts";
 import { buildRegistry } from "../src/application/operations/registry.ts";
@@ -32,6 +32,8 @@ const stateFixture = {
   log: [{ action: "seed", node: "T0" }],
 };
 
+const SQLITE_MODULE = "bun:sqlite";
+
 const coveredOperations = [
   "task.create", "task.update", "note.add", "task.take", "task.submit", "task.accept",
   "task.reject", "task.release", "task.reopen", "task.cancel",
@@ -41,6 +43,112 @@ test("built-in task and note operations declare an explicit mutation closure", (
   const registry = createBuiltinOperationRegistry();
   for (const operation of coveredOperations) {
     assert.ok(registry.lookup(operation)?.snapshotClosure, `${operation} has a closure declaration`);
+  }
+});
+
+test("closure mutations reject globally duplicated stored edges", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeCanonicalState(dir, {
+      version: 1,
+      revision: 1,
+      nodes: {
+        A: { id: "A", kind: "resolvable", subkind: "task", title: "A", initiative: "core", status: "open", revision: 1 },
+        B: { id: "B", kind: "resolvable", subkind: "task", title: "B", initiative: "core", status: "open", revision: 1 },
+        C: { id: "C", kind: "resolvable", subkind: "task", title: "C", initiative: "core", status: "open", revision: 1 },
+      },
+      edges: [{ from: "A", to: "B", type: "BLOCKS" }],
+      initiatives: { core: { desc: "core" } },
+      log: [],
+    });
+    const { Database } = await import(SQLITE_MODULE);
+    const database = new Database(stateFilePath(dir));
+    try {
+      database.query("INSERT INTO edges (position, data, from_id, to_id, edge_type) VALUES (?, ?, ?, ?, ?)")
+        .run(1, JSON.stringify({ from: "A", to: "B", type: "BLOCKS" }), "A", "B", "BLOCKS");
+    } finally {
+      database.close();
+    }
+
+    await assert.rejects(executeOperation({
+      projectDir: dir,
+      actor: "alice",
+      operation: "note.add",
+      input: { id: "C", text: "note", if_revision: 1 },
+      source: { registry: createBuiltinOperationRegistry(), mutate },
+    }), (error: { code?: string }) => error.code === "DUPLICATE_EDGE");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("closure mutations reject globally dangling stored edges", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeCanonicalState(dir, {
+      version: 1,
+      revision: 1,
+      nodes: {
+        A: { id: "A", kind: "resolvable", subkind: "task", title: "A", initiative: "core", status: "open", revision: 1 },
+        C: { id: "C", kind: "resolvable", subkind: "task", title: "C", initiative: "core", status: "open", revision: 1 },
+      },
+      edges: [],
+      initiatives: { core: { desc: "core" } },
+      log: [],
+    });
+    const { Database } = await import(SQLITE_MODULE);
+    const database = new Database(stateFilePath(dir));
+    try {
+      database.query("INSERT INTO edges (position, data, from_id, to_id, edge_type) VALUES (?, ?, ?, ?, ?)")
+        .run(0, JSON.stringify({ from: "A", to: "MISSING", type: "BLOCKS" }), "A", "MISSING", "BLOCKS");
+    } finally {
+      database.close();
+    }
+
+    await assert.rejects(executeOperation({
+      projectDir: dir,
+      actor: "alice",
+      operation: "note.add",
+      input: { id: "C", text: "note", if_revision: 1 },
+      source: { registry: createBuiltinOperationRegistry(), mutate },
+    }), (error: { code?: string }) => error.code === "INVALID_EDGE_TARGET");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("closure mutations validate edge kinds for loaded endpoint nodes", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeCanonicalState(dir, {
+      version: 1,
+      revision: 1,
+      nodes: {
+        A: { id: "A", kind: "resolvable", subkind: "task", title: "A", initiative: "core", status: "open", revision: 1 },
+        K: { id: "K", kind: "knowledge", title: "knowledge", initiative: "core", status: "active" },
+      },
+      edges: [],
+      initiatives: { core: { desc: "core" } },
+      log: [],
+    });
+    const { Database } = await import(SQLITE_MODULE);
+    const database = new Database(stateFilePath(dir));
+    try {
+      database.query("INSERT INTO edges (position, data, from_id, to_id, edge_type) VALUES (?, ?, ?, ?, ?)")
+        .run(0, JSON.stringify({ from: "A", to: "K", type: "BLOCKS" }), "A", "K", "BLOCKS");
+    } finally {
+      database.close();
+    }
+
+    await assert.rejects(executeOperation({
+      projectDir: dir,
+      actor: "alice",
+      operation: "note.add",
+      input: { id: "A", text: "note", if_revision: 1 },
+      source: { registry: createBuiltinOperationRegistry(), mutate },
+    }), (error: { code?: string }) => error.code === "INVALID_EDGE_KIND");
+  } finally {
+    await rmTempProject(dir);
   }
 });
 

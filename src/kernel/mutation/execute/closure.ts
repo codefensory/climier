@@ -1,4 +1,5 @@
 import { sqliteStateFile } from "../../../storage/state.ts";
+import { validateStateInvariants } from "../../../contracts/state-invariants.ts";
 import {
   readSqliteInitiativeNames,
   readSqliteInitiativesByNames,
@@ -190,8 +191,10 @@ export async function readDeclaredMutationSnapshot(projectDir: string, closure: 
     initiatives,
     log: [],
   };
+  const state = snapshotInStoredOrder(metadata, values);
+  validateStateInvariants(state, "readState");
   return {
-    state: snapshotInStoredOrder(metadata, values),
+    state,
     raw: null,
     closure: { previousRevision: metadata.revision, maximumNodeRevision: metadata.maximumNodeRevision },
   };

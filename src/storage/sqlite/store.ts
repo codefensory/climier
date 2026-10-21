@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { asCaughtError, codedError } from "../../contracts/errors.ts";
-import { validateStateInvariants } from "../../contracts/state-invariants.ts";
+import { asCaughtError, codedError, throwV2 } from "../../contracts/errors.ts";
+import { validateEdge, validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { SQLITE_INDEXES, SQLITE_PRAGMAS, SQLITE_SCHEMA, SQLITE_SCHEMA_VERSION } from "./schema.ts";
 import { bodyHash, createStateDelta, makeStoredLogAppendRows, makeStoredLogRows, nodeWithoutBodyText, readDeltaFloor, readSqliteChangesInTransaction, writeDeltaFloor } from "./delta.ts";
 
@@ -511,12 +511,58 @@ export async function readSqliteNode(file: string, id: string): Promise<Record<s
   });
 }
 
+function validateSqliteMutationStructure(database) {
+  const invalidEdge = database.query(`
+    SELECT e.position, e.data, e.from_id, e.to_id,
+      f.data AS from_node_data, t.data AS to_node_data
+    FROM edges AS e
+    LEFT JOIN nodes AS f ON f.id = e.from_id
+    LEFT JOIN nodes AS t ON t.id = e.to_id
+    WHERE e.from_id IS NULL OR e.to_id IS NULL OR f.id IS NULL OR t.id IS NULL
+    ORDER BY e.position
+    LIMIT 1
+  `).get();
+
+  const duplicateEdge = database.query(`
+    WITH duplicates AS (
+      SELECT from_id, to_id, edge_type, MIN(position) AS first_position
+      FROM edges
+      GROUP BY from_id, to_id, edge_type
+      HAVING COUNT(*) > 1
+    )
+    SELECT e.position, e.data
+    FROM edges AS e
+    JOIN duplicates AS d
+      ON e.from_id IS d.from_id AND e.to_id IS d.to_id AND e.edge_type IS d.edge_type
+      AND e.position > d.first_position
+    ORDER BY e.position
+    LIMIT 1
+  `).get();
+
+  if (invalidEdge && (!duplicateEdge || invalidEdge.position <= duplicateEdge.position)) {
+    const edge = JSON.parse(invalidEdge.data);
+    const nodes = {};
+    if (invalidEdge.from_node_data !== null) { nodes[edge.from] = JSON.parse(invalidEdge.from_node_data); }
+    if (invalidEdge.to_node_data !== null) { nodes[edge.to] = JSON.parse(invalidEdge.to_node_data); }
+    validateEdge({ nodes }, edge, "readState");
+  }
+  if (duplicateEdge) {
+    const edge = JSON.parse(duplicateEdge.data);
+    throwV2(
+      "DUPLICATE_EDGE",
+      `readState: edge ${edge.type} ${edge.from} -> ${edge.to} is duplicated`,
+      { from: edge.from, to: edge.to, type: edge.type },
+    );
+  }
+}
+
 export async function readSqliteMutationMetadata(file: string) {
   return withReadTransaction(file, null, (database) => {
     const rows = database.query("SELECT key, value FROM meta WHERE key IN ('version', 'revision', ?)").all(ROOT_ORDER_KEY);
     const metadata = Object.fromEntries(rows.map(({ key, value }) => [key, JSON.parse(value)]));
     if (metadata.version === undefined) { return null; }
     if (metadata.version !== 1) { throw new Error("storage: SQLite store requires canonical schema-1 state"); }
+    validateSqliteMutationStructure(database);
     if (!Number.isInteger(metadata.revision) || metadata.revision < 0) {
       throw new Error("readState: state revision must be a non-negative integer");
     }
