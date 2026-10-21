@@ -8,6 +8,7 @@ import {
   readSqliteMutationIncidentEdges,
   readSqliteMutationMetadata,
   readSqliteNodesByIds,
+  withSqliteReadTransaction,
 } from "../../../storage/sqlite/store.ts";
 import type { SnapshotClosure } from "../../../contracts/operations.ts";
 
@@ -66,7 +67,7 @@ function knowledgeTargets(operation: SnapshotClosure, input: MutationInput, node
     !targets.slice(0, index).some((previous) => JSON.stringify(previous) === JSON.stringify(candidate)));
 }
 
-export async function readDeclaredMutationSnapshot(projectDir: string, closure: SnapshotClosure, request: Record<string, unknown>) {
+async function readDeclaredMutationSnapshotContents(projectDir: string, closure: SnapshotClosure, request: Record<string, unknown>) {
   const input = isRecord(request.input) ? request.input : {};
   const id = typeof input.id === "string" && input.id.length > 0 ? input.id : null;
   const actionMatchesClosure = closure === "task.create"
@@ -198,4 +199,20 @@ export async function readDeclaredMutationSnapshot(projectDir: string, closure: 
     raw: null,
     closure: { previousRevision: metadata.revision, maximumNodeRevision: metadata.maximumNodeRevision },
   };
+}
+
+export async function readDeclaredMutationSnapshot(projectDir: string, closure: SnapshotClosure, request: Record<string, unknown>) {
+  const input = isRecord(request.input) ? request.input : {};
+  const id = typeof input.id === "string" && input.id.length > 0 ? input.id : null;
+  const actionMatchesClosure = closure === "task.create"
+    ? request.action === "task.create"
+    : closure === "task.accept"
+      ? request.action === "task.accept"
+      : closure === "task" && TASK_CLOSURE_ACTIONS.has(String(request.action));
+  if (!id || !actionMatchesClosure) { return undefined; }
+
+  const file = sqliteStateFile(projectDir);
+  const snapshot = await withSqliteReadTransaction(file, () =>
+    readDeclaredMutationSnapshotContents(projectDir, closure, request));
+  return snapshot ?? { state: null, raw: null, closure: null };
 }

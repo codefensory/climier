@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS sync_state (key TEXT PRIMARY KEY, value INTEGER NOT N
 export const SQLITE_INDEXES = `
 CREATE INDEX IF NOT EXISTS idx_edges_from_type_position ON edges (from_id, edge_type, position);
 CREATE INDEX IF NOT EXISTS idx_edges_to_type_position ON edges (to_id, edge_type, position);
+CREATE INDEX IF NOT EXISTS idx_edges_identity ON edges (from_id, to_id, edge_type);
 CREATE INDEX IF NOT EXISTS idx_log_state_revision_position ON log (state_revision, position);
 CREATE INDEX IF NOT EXISTS idx_nodes_count_fields_position ON nodes (json_extract(data, '$.kind'), json_extract(data, '$.subkind'), json_extract(data, '$.status'), position);
 CREATE INDEX IF NOT EXISTS idx_nodes_count_subkind_position ON nodes (json_extract(data, '$.subkind'), position);

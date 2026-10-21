@@ -10,6 +10,7 @@ const SQLITE_MODULE = "bun:sqlite";
 const COLLECTIONS = new Set(["nodes", "edges", "initiatives", "log"]);
 const META_FIELDS = new Set(["version", "revision"]);
 const ROOT_ORDER_KEY = "__root_order";
+const MAX_NODE_REVISION_KEY = "__maximum_node_revision";
 const SQLITE_HEADER = Buffer.from("SQLite format 3\0");
 const sqliteTransaction = new AsyncLocalStorage<{ file: string; database: any }>();
 const sqliteQueues = new Map<string, Promise<void>>();
@@ -145,6 +146,7 @@ async function openDatabase(file: string) {
     }
     if (schemaVersion === SQLITE_SCHEMA_VERSION && hasBodyHashColumn(database) && hasLogDeltaColumns(database) && hasEdgeLookupColumns(database) && hasIndexes(database, [
       "idx_nodes_count_fields_position",
+      "idx_edges_identity",
       "idx_nodes_count_subkind_position",
       "idx_nodes_count_status_position",
       "idx_nodes_count_subkind_status_position",
@@ -339,6 +341,15 @@ function replaceNodes(database, nodes: Record<string, unknown>) {
   database.exec("DELETE FROM node_body WHERE hash NOT IN (SELECT body_hash FROM nodes WHERE body_hash IS NOT NULL)");
 }
 
+function maximumNodeRevision(nodes: Record<string, unknown>): number {
+  let maximum = 0;
+  for (const node of Object.values(nodes)) {
+    const revision = node && typeof node === "object" ? (node as Record<string, unknown>).revision : undefined;
+    if (Number.isInteger(revision) && (revision as number) > maximum) { maximum = revision as number; }
+  }
+  return maximum;
+}
+
 function replaceMetadata(database, state: SqliteState) {
   const insert = database.prepare("INSERT INTO meta (key, value) VALUES (?, ?)");
   const extras = Object.fromEntries(Object.entries(state).filter(([key]) => !META_FIELDS.has(key) && !COLLECTIONS.has(key)));
@@ -347,6 +358,7 @@ function replaceMetadata(database, state: SqliteState) {
     revision: state.revision,
     extras,
     [ROOT_ORDER_KEY]: Object.keys(state),
+    [MAX_NODE_REVISION_KEY]: maximumNodeRevision(state.nodes),
   })) { insert.run(key, JSON.stringify(value)); }
 }
 
@@ -408,11 +420,12 @@ function applyStateDelta(database, state: SqliteState, previous: SqliteState, de
     revision: state.revision,
     extras,
     [ROOT_ORDER_KEY]: Object.keys(state),
+    [MAX_NODE_REVISION_KEY]: maximumNodeRevision(state.nodes),
   })) {
     const encoded = JSON.stringify(value);
     if (findMetadata.get(key)?.value !== encoded) { upsertMetadata.run(key, encoded); }
   }
-  database.query("DELETE FROM meta WHERE key NOT IN ('version', 'revision', 'extras', ?)").run(ROOT_ORDER_KEY);
+  database.query("DELETE FROM meta WHERE key NOT IN ('version', 'revision', 'extras', ?, ?)").run(ROOT_ORDER_KEY, MAX_NODE_REVISION_KEY);
 
   const changedNodeIds = [...Object.keys(delta.nodes.upsert), ...delta.nodes.remove];
   const existingNodes = new Map<string, { position: number; body_hash: string | null }>();
@@ -519,6 +532,8 @@ function validateSqliteMutationStructure(database) {
     LEFT JOIN nodes AS f ON f.id = e.from_id
     LEFT JOIN nodes AS t ON t.id = e.to_id
     WHERE e.from_id IS NULL OR e.to_id IS NULL OR f.id IS NULL OR t.id IS NULL
+      OR e.from_id = e.to_id
+      OR e.edge_type IS NULL OR e.edge_type NOT IN ('BLOCKS', 'SUPERSEDES', 'DERIVED_FROM')
     ORDER BY e.position
     LIMIT 1
   `).get();
@@ -554,11 +569,33 @@ function validateSqliteMutationStructure(database) {
       { from: edge.from, to: edge.to, type: edge.type },
     );
   }
+
+  // Every directed cycle must contain an edge against the node-position order.
+  const cycle = database.query(`
+    WITH RECURSIVE reachable(start_id, node_id) AS (
+      SELECT e.from_id, e.to_id
+      FROM edges AS e
+      JOIN nodes AS source ON source.id = e.from_id
+      JOIN nodes AS target ON target.id = e.to_id
+      WHERE e.edge_type = 'BLOCKS' AND source.position >= target.position
+      UNION
+      SELECT reachable.start_id, e.to_id
+      FROM reachable
+      JOIN edges AS e ON e.from_id = reachable.node_id AND e.edge_type = 'BLOCKS'
+      WHERE e.to_id IS NOT NULL
+    )
+    SELECT start_id FROM reachable WHERE start_id = node_id LIMIT 1
+  `).get();
+  if (cycle) {
+    readStateInTransaction(database);
+    const from = cycle.start_id;
+    throwV2("CYCLE_DETECTED", "readState: BLOCKS cycle detected", { from, to: from, type: "BLOCKS", cycle: [from, from] });
+  }
 }
 
 export async function readSqliteMutationMetadata(file: string) {
   return withReadTransaction(file, null, (database) => {
-    const rows = database.query("SELECT key, value FROM meta WHERE key IN ('version', 'revision', ?)").all(ROOT_ORDER_KEY);
+    const rows = database.query("SELECT key, value FROM meta WHERE key IN ('version', 'revision', ?, ?)").all(ROOT_ORDER_KEY, MAX_NODE_REVISION_KEY);
     const metadata = Object.fromEntries(rows.map(({ key, value }) => [key, JSON.parse(value)]));
     if (metadata.version === undefined) { return null; }
     if (metadata.version !== 1) { throw new Error("storage: SQLite store requires canonical schema-1 state"); }
@@ -566,9 +603,11 @@ export async function readSqliteMutationMetadata(file: string) {
     if (!Number.isInteger(metadata.revision) || metadata.revision < 0) {
       throw new Error("readState: state revision must be a non-negative integer");
     }
-    const maximumNodeRevision = database.query(
-      "SELECT COALESCE(MAX(CASE WHEN json_type(data, '$.revision') = 'integer' THEN json_extract(data, '$.revision') ELSE 0 END), 0) AS revision FROM nodes",
-    ).get().revision;
+    const maximumNodeRevision = Number.isInteger(metadata[MAX_NODE_REVISION_KEY])
+      ? metadata[MAX_NODE_REVISION_KEY]
+      : database.query(
+        "SELECT COALESCE(MAX(CASE WHEN json_type(data, '$.revision') = 'integer' THEN json_extract(data, '$.revision') ELSE 0 END), 0) AS revision FROM nodes",
+      ).get().revision;
     return {
       version: metadata.version,
       revision: metadata.revision,
@@ -894,6 +933,11 @@ export async function writeSqliteMutation(file: string, mutation: {
   if (!Number.isSafeInteger(mutation.revision) || mutation.revision <= mutation.previousRevision) {
     throw new Error("storage: mutation revision must advance the canonical state revision");
   }
+  const priorMaximumNodeRevision = Number.isInteger(metadata[MAX_NODE_REVISION_KEY])
+    ? metadata[MAX_NODE_REVISION_KEY]
+    : database.query(
+      "SELECT COALESCE(MAX(CASE WHEN json_type(data, '$.revision') = 'integer' THEN json_extract(data, '$.revision') ELSE 0 END), 0) AS revision FROM nodes",
+    ).get().revision;
 
   const nodeUpserts = mutation.nodes.upsert || {};
   const nodeRemovals = mutation.nodes.remove || [];
@@ -923,6 +967,11 @@ export async function writeSqliteMutation(file: string, mutation: {
   for (const { body_hash: hash } of oldNodeRows.values()) {
     if (typeof hash === "string") { deleteBody.run(hash, hash); }
   }
+  const maximumNodeRevisionAfterMutation = nodeRemovals.length > 0
+    ? database.query(
+      "SELECT COALESCE(MAX(CASE WHEN json_type(data, '$.revision') = 'integer' THEN json_extract(data, '$.revision') ELSE 0 END), 0) AS revision FROM nodes",
+    ).get().revision
+    : Math.max(priorMaximumNodeRevision, maximumNodeRevision(nodeUpserts));
 
   const edgeAdds = mutation.edges.add || [];
   const edgeRemoves = mutation.edges.remove || [];
@@ -959,6 +1008,8 @@ export async function writeSqliteMutation(file: string, mutation: {
 
   database.query("INSERT INTO meta (key, value) VALUES ('revision', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
     .run(JSON.stringify(mutation.revision));
+  database.query("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(MAX_NODE_REVISION_KEY, JSON.stringify(maximumNodeRevisionAfterMutation));
 
   const delta: Record<string, unknown> = {
     from_revision: mutation.previousRevision,

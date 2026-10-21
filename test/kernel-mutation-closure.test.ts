@@ -82,6 +82,86 @@ test("closure mutations reject globally duplicated stored edges", async () => {
   }
 });
 
+test("closure mutations reject unrelated self-edges, invalid edge types, and BLOCKS cycles", async (t) => {
+  const cases = [
+    { name: "self-edge", edges: [{ from: "A", to: "A", type: "BLOCKS" }], code: "SELF_EDGE" },
+    { name: "invalid edge type", edges: [{ from: "A", to: "B", type: "INVALID" }], code: "INVALID_EDGE_TYPE" },
+    {
+      name: "BLOCKS cycle",
+      edges: [{ from: "A", to: "B", type: "BLOCKS" }, { from: "B", to: "A", type: "BLOCKS" }],
+      code: "CYCLE_DETECTED",
+    },
+  ];
+  for (const example of cases) {
+    await t.test(example.name, async () => {
+      const dir = await createTempProject();
+      try {
+        await writeCanonicalState(dir, {
+          version: 1,
+          revision: 1,
+          nodes: {
+            A: { id: "A", kind: "resolvable", subkind: "task", title: "A", initiative: "core", status: "open", revision: 1 },
+            B: { id: "B", kind: "resolvable", subkind: "task", title: "B", initiative: "core", status: "open", revision: 1 },
+            C: { id: "C", kind: "resolvable", subkind: "task", title: "C", initiative: "core", status: "open", revision: 1 },
+          },
+          edges: [],
+          initiatives: { core: { desc: "core" } },
+          log: [],
+        });
+        const { Database } = await import(SQLITE_MODULE);
+        const database = new Database(stateFilePath(dir));
+        try {
+          const insert = database.query("INSERT INTO edges (position, data, from_id, to_id, edge_type) VALUES (?, ?, ?, ?, ?)");
+          for (const [position, edge] of example.edges.entries()) {
+            insert.run(position, JSON.stringify(edge), edge.from, edge.to, edge.type);
+          }
+        } finally {
+          database.close();
+        }
+
+        await assert.rejects(readState(dir), (error: { code?: string }) => error.code === example.code);
+        await assert.rejects(executeOperation({
+          projectDir: dir,
+          actor: "alice",
+          operation: "note.add",
+          input: { id: "C", text: "note", if_revision: 1 },
+          source: { registry: createBuiltinOperationRegistry(), mutate },
+        }), (error: { code?: string }) => error.code === example.code);
+      } finally {
+        await rmTempProject(dir);
+      }
+    });
+  }
+});
+
+test("closure mutations do not reject a healthy unrelated BLOCKS graph", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeCanonicalState(dir, {
+      version: 1,
+      revision: 1,
+      nodes: {
+        A: { id: "A", kind: "resolvable", subkind: "task", title: "A", initiative: "core", status: "open", revision: 1 },
+        B: { id: "B", kind: "resolvable", subkind: "task", title: "B", initiative: "core", status: "open", revision: 1 },
+        C: { id: "C", kind: "resolvable", subkind: "task", title: "C", initiative: "core", status: "open", revision: 1 },
+      },
+      edges: [{ from: "A", to: "B", type: "BLOCKS" }],
+      initiatives: { core: { desc: "core" } },
+      log: [],
+    });
+    await executeOperation({
+      projectDir: dir,
+      actor: "alice",
+      operation: "note.add",
+      input: { id: "C", text: "note", if_revision: 1 },
+      source: { registry: createBuiltinOperationRegistry(), mutate },
+    });
+    assert.equal((await readState(dir)).nodes.C.notes?.length, 1);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("closure mutations reject globally dangling stored edges", async () => {
   const dir = await createTempProject();
   try {
