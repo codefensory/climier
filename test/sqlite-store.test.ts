@@ -40,12 +40,12 @@ async function assertSqliteDatabase(file) {
   const database = new Database(file);
   try {
     assert.equal(database.query("PRAGMA journal_mode").get().journal_mode, "wal");
-    assert.equal(database.query("PRAGMA user_version").get().user_version, 2);
+    assert.equal(database.query("PRAGMA user_version").get().user_version, 3);
     const { SQLITE_PRAGMAS } = await import("../src/storage/sqlite/schema.ts");
     assert.match(SQLITE_PRAGMAS, /PRAGMA synchronous = NORMAL/i);
     assert.match(SQLITE_PRAGMAS, /PRAGMA busy_timeout = 5000/i);
     const tables = database.query("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(({ name }) => name);
-    for (const table of ["meta", "nodes", "node_body", "edges", "initiatives", "log"]) { assert.ok(tables.includes(table), table); }
+    for (const table of ["meta", "nodes", "node_body", "edges", "initiatives", "log", "sync_state"]) { assert.ok(tables.includes(table), table); }
   } finally { database.close(); }
 }
 
@@ -203,6 +203,50 @@ async function seedInlineSchemaOneDatabase(file, state) {
   } finally { database.close(); }
 }
 
+async function seedSchemaTwoDatabase(file, state) {
+  const { Database } = await import(SQLITE_MODULE);
+  const database = new Database(file, { create: true });
+  try {
+    database.exec(`
+      CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE nodes (id TEXT PRIMARY KEY, position INTEGER NOT NULL UNIQUE, data TEXT NOT NULL, body_hash TEXT);
+      CREATE TABLE node_body (hash TEXT PRIMARY KEY, body TEXT NOT NULL);
+      CREATE TABLE edges (position INTEGER PRIMARY KEY, data TEXT NOT NULL);
+      CREATE TABLE initiatives (name TEXT PRIMARY KEY, position INTEGER NOT NULL UNIQUE, data TEXT NOT NULL);
+      CREATE TABLE log (position INTEGER PRIMARY KEY, data TEXT NOT NULL);
+      PRAGMA user_version = 2;
+    `);
+    const insertMeta = database.prepare("INSERT INTO meta (key, value) VALUES (?, ?)");
+    for (const [key, value] of Object.entries({
+      version: state.version,
+      revision: state.revision,
+      extras: {},
+      __root_order: Object.keys(state),
+    })) { insertMeta.run(key, JSON.stringify(value)); }
+    database.prepare("INSERT INTO log (position, data) VALUES (0, ?)").run(JSON.stringify(state.log[0]));
+  } finally { database.close(); }
+}
+
+test("SQLite v2 migration preserves state and requires a fresh snapshot for old history", async () => {
+  const dir = await createTempProject();
+  const initial = { ...canonicalState(), revision: 42, log: [{ action: "before-sync" }] };
+  try {
+    const { readState, stateFile } = await import("../src/storage/state.ts");
+    const { readSqliteChangesSince, writeSqliteState } = await import("../src/storage/sqlite/store.ts");
+    const file = stateFile(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await seedSchemaTwoDatabase(file, initial);
+    assert.deepEqual(await readState(dir), initial);
+    assert.equal((await readSqliteChangesSince(file, 41)).reset_required, true);
+
+    const event = { action: "after-sync", agent: "alice" };
+    await writeSqliteState(file, { ...initial, revision: 43, log: [...initial.log, event] });
+    const changes = await readSqliteChangesSince(file, 42);
+    assert.equal(changes.reset_required, false);
+    assert.deepEqual(changes.changes.map(({ entry }) => entry), [event]);
+  } finally { await rmTempProject(dir); }
+});
+
 test("SQLite upgrades inline schema-1 bodies without changing the exported state", async () => {
   const dir = await createTempProject();
   const body = "legacy inline body";
@@ -219,7 +263,7 @@ test("SQLite upgrades inline schema-1 bodies without changing the exported state
     const { Database } = await import(SQLITE_MODULE);
     const database = new Database(file);
     try {
-      assert.equal(database.query("PRAGMA user_version").get().user_version, 2);
+      assert.equal(database.query("PRAGMA user_version").get().user_version, 3);
       const row = database.query("SELECT data, body_hash FROM nodes WHERE id = ?").get("T-legacy");
       assert.equal(JSON.parse(row.data).body, null);
       assert.equal(database.query("SELECT body FROM node_body WHERE hash = ?").get(row.body_hash).body, body);

@@ -44,6 +44,28 @@ test("backend-remote-reads: readLog rejects an option outside the accepted set",
   );
 });
 
+test("backend-remote-reads: readChanges sends the requested revision to the delta endpoint", async () => {
+  const { request, routes } = captureRoutes();
+  await createRemoteReadMethods(request).readChanges({ since: 12 });
+  assert.deepEqual(routes, ["read/changes?since=12"]);
+});
+
+test("backend-remote-reads: readChanges requires a non-negative safe integer revision", async () => {
+  const { request } = captureRoutes();
+  const reads = createRemoteReadMethods(request);
+  for (const since of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, "12"]) {
+    await assert.rejects(
+      async () => { await reads.readChanges({ since: since as number }); },
+      (error: unknown) => {
+        const coded = error as { code?: string; details?: { field?: string } };
+        assert.equal(coded.code, "INVALID_REQUEST");
+        assert.equal(coded.details?.field, "since");
+        return true;
+      },
+    );
+  }
+});
+
 test("backend-remote-reads: readLog rejects the pre-canonical task option the server does not accept", async () => {
   const { request } = captureRoutes();
   await assert.rejects(

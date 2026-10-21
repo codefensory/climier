@@ -25,6 +25,7 @@ import { createHttpReads } from "./http/reads.ts";
 import { executeTransferRequest, validateTransferRequest } from "./http/transfers.ts";
 import * as readModel from "../read-model/index.ts";
 import { readState, stateFile } from "../storage/state.ts";
+import { readSqliteChangesSince } from "../storage/sqlite/store.ts";
 import { initState } from "../kernel/state-operations.ts";
 import { withAuthorizedProject } from "./auth/project-scope.ts";
 import { createLoginRateLimiter, loginClientAddress } from "./auth/login-rate-limiter.ts";
@@ -318,6 +319,20 @@ async function operationSource(dependencies) {
   return dependencies.getOperationSource();
 }
 
+async function sendChangesResult(response, project: Project, since: number) {
+  const changes = await readSqliteChangesSince(stateFile(project.projectDir), since);
+  if (!changes) {
+    throw httpError("STATE_NOT_INITIALIZED", "server http: project state is not initialized", undefined, 409);
+  }
+  if (since > changes.revision) {
+    throw httpError("REVISION_AHEAD", "server http: requested revision is ahead of the current project revision", {
+      requested: since,
+      current: changes.revision,
+    }, 409);
+  }
+  send(response, 200, { ok: true, result: changes });
+}
+
 async function sendRouteResult({ response, route, matched, body, query, project, dependencies, request }) {
   if (matched.projectsRoute) {
     await authorizeUiRequest(request, dependencies.authStore);
@@ -391,6 +406,10 @@ async function sendRouteResult({ response, route, matched, body, query, project,
     });
     const result = matched.transferRoute === "transfer/export" ? installed : { revision: (installed as { revision: number }).revision };
     send(response, 200, { ok: true, result });
+    return;
+  }
+  if ((matched.read as { kind?: string } | null)?.kind === "changes") {
+    await sendChangesResult(response, project, query.since);
     return;
   }
   const snapshot = await readState(project.projectDir);

@@ -152,8 +152,8 @@ function createPersistedState({ snapshot, draftView, diff, request, pluginId, ta
   return { persistedState, logEntry };
 }
 
-async function persistMutation({ projectDir, persistedState }) {
-  await writeSqliteState(sqliteStateFile(projectDir), persistedState);
+async function persistMutation({ projectDir, persistedState, previousState }) {
+  await writeSqliteState(sqliteStateFile(projectDir), persistedState, previousState);
 }
 
 async function commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, plan }) {
@@ -166,7 +166,7 @@ async function commitMutation({ projectDir, snapshot, draftView, diff, request, 
     pluginId,
     targetNextRevision,
   });
-  await persistMutation({ projectDir, persistedState });
+  await persistMutation({ projectDir, persistedState, previousState: snapshot });
   return logEntry;
 }
 

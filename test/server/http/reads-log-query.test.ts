@@ -15,6 +15,7 @@ const READ_ROUTES = [
   "read/search",
   "read/initiatives",
   "read/log",
+  "read/changes",
   "read/state",
   "read/nodes/T-1",
 ];
@@ -37,6 +38,15 @@ test("server read routes: the codec and the read handler agree on kind, id and a
   const { codec, reads } = createReads();
   for (const route of READ_ROUTES) {
     assert.deepEqual(reads.matchReadRoute(route), codec.readRoute(route), `route ${route}`);
+  }
+});
+
+test("server changes read requires one non-negative safe integer revision", () => {
+  const { reads } = createReads();
+  const matched = reads.matchReadRoute("read/changes");
+  assert.deepEqual(reads.parseReadQuery(new URL("http://localhost/read/changes?since=42"), matched), { since: 42 });
+  for (const query of ["", "?since=", "?since=1.5", "?since=1&since=2"]) {
+    assert.throws(() => reads.parseReadQuery(new URL(`http://localhost/read/changes${query}`), matched), { code: "INVALID_QUERY" });
   }
 });
 

@@ -222,7 +222,7 @@ export async function executeBatchMutation({ projectDir, request, batch, policyA
   const revisionAfter = diff.changed ? deriveNextStateRevision(snapshot, diff.nextNodes) : snapshot.revision;
   if (diff.changed) {
     const persistedState = buildPersistedBatchState({ snapshot, draftView, diff, results, plans, request, pluginId, revisionAfter });
-    await writeSqliteState(sqliteStateFile(projectDir), persistedState);
+    await writeSqliteState(sqliteStateFile(projectDir), persistedState, snapshot);
   }
   return { ok: true, revision_before: revisionBefore, revision_after: revisionAfter, results };
 }

@@ -32,7 +32,7 @@ export async function append(projectDir, entry) {
       revision: state.revision + 1,
       log: [...(Array.isArray(state.log) ? state.log : []), preparedEntry],
     };
-    return writeSqliteState(sqliteStateFile(projectDir), next);
+    return writeSqliteState(sqliteStateFile(projectDir), next, state);
   });
 }
 

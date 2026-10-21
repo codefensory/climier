@@ -1,10 +1,10 @@
-import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { asCaughtError, codedError } from "../../contracts/errors.ts";
 import { validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { SQLITE_PRAGMAS, SQLITE_SCHEMA, SQLITE_SCHEMA_VERSION } from "./schema.ts";
+import { bodyHash, makeStoredLogRows, nodeWithoutBodyText, readSqliteChangesInTransaction } from "./delta.ts";
 
 const SQLITE_MODULE = "bun:sqlite";
 const COLLECTIONS = new Set(["nodes", "edges", "initiatives", "log"]);
@@ -23,15 +23,6 @@ type SqliteState = Record<string, unknown> & {
   log: unknown[];
 };
 
-function bodyHash(body: string): string {
-  return crypto.createHash("sha256").update(body).digest("hex");
-}
-
-function nodeWithoutBodyText(node: Record<string, unknown>) {
-  // Keep the key in place so hydrated schema-1 JSON retains its original property order.
-  return { ...node, body: null };
-}
-
 function storeBody(database, hash: string, body: string, knownBodies: Map<string, string>) {
   if (knownBodies.has(hash)) {
     if (knownBodies.get(hash) !== body) { throw new Error(`storage: body hash collision for ${hash}`); }
@@ -45,6 +36,39 @@ function storeBody(database, hash: string, body: string, knownBodies: Map<string
 
 function hasBodyHashColumn(database): boolean {
   return database.query("PRAGMA table_info(nodes)").all().some(({ name }) => name === "body_hash");
+}
+
+function hasLogDeltaColumns(database): boolean {
+  const columns = new Set(database.query("PRAGMA table_info(log)").all().map(({ name }) => name));
+  return ["from_revision", "state_revision", "delta"].every((name) => columns.has(name));
+}
+
+function supportsSchemaVersion(version: number): boolean {
+  return version === 0 || version === 1 || version === 2 || version === SQLITE_SCHEMA_VERSION;
+}
+
+function addMissingSchemaColumns(database) {
+  if (!hasBodyHashColumn(database)) { database.exec("ALTER TABLE nodes ADD COLUMN body_hash TEXT"); }
+  if (hasLogDeltaColumns(database)) { return; }
+  const columns = new Set(database.query("PRAGMA table_info(log)").all().map(({ name }) => name));
+  if (!columns.has("from_revision")) { database.exec("ALTER TABLE log ADD COLUMN from_revision INTEGER"); }
+  if (!columns.has("state_revision")) { database.exec("ALTER TABLE log ADD COLUMN state_revision INTEGER"); }
+  if (!columns.has("delta")) { database.exec("ALTER TABLE log ADD COLUMN delta TEXT"); }
+}
+
+function initializeDeltaFloor(database, schemaVersion: number) {
+  if (schemaVersion === 0) { return; }
+  const storedRevision = database.query("SELECT value FROM meta WHERE key = 'revision'").get();
+  const revision = storedRevision ? JSON.parse(storedRevision.value) : 0;
+  database.query("INSERT OR IGNORE INTO sync_state (key, value) VALUES ('delta_floor', ?)").run(revision);
+}
+
+function upgradeDatabase(database, schemaVersion: number) {
+  database.exec(SQLITE_SCHEMA);
+  addMissingSchemaColumns(database);
+  if (schemaVersion < SQLITE_SCHEMA_VERSION) { migrateInlineBodies(database); }
+  initializeDeltaFloor(database, schemaVersion);
+  database.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`);
 }
 
 function migrateInlineBodies(database) {
@@ -87,16 +111,11 @@ async function openDatabase(file: string) {
   try {
     database.exec(SQLITE_PRAGMAS);
     const { user_version: schemaVersion } = database.query("PRAGMA user_version").get();
-    if (schemaVersion !== 0 && schemaVersion !== 1 && schemaVersion !== SQLITE_SCHEMA_VERSION) {
+    if (!supportsSchemaVersion(schemaVersion)) {
       throw new Error(`storage: unsupported SQLite schema version ${schemaVersion}`);
     }
-    if (schemaVersion === SQLITE_SCHEMA_VERSION && hasBodyHashColumn(database)) { return database; }
-    database.transaction(() => {
-      database.exec(SQLITE_SCHEMA);
-      if (!hasBodyHashColumn(database)) { database.exec("ALTER TABLE nodes ADD COLUMN body_hash TEXT"); }
-      if (schemaVersion < SQLITE_SCHEMA_VERSION) { migrateInlineBodies(database); }
-      database.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`);
-    })();
+    if (schemaVersion === SQLITE_SCHEMA_VERSION && hasBodyHashColumn(database) && hasLogDeltaColumns(database)) { return database; }
+    database.transaction(() => upgradeDatabase(database, schemaVersion))();
     return database;
   } catch (error) {
     database.close();
@@ -241,7 +260,11 @@ function replaceMetadata(database, state: SqliteState) {
   })) { insert.run(key, JSON.stringify(value)); }
 }
 
-function replaceRows(database, state: SqliteState) {
+function replaceRows(database, state: SqliteState, previousState?: Record<string, unknown> | null) {
+  const previous = (previousState === undefined ? readStateInTransaction(database, { includeBodies: false }) : previousState) as SqliteState | null;
+  const previousBodyHashes = new Map<string, string | null>(database.query("SELECT id, body_hash FROM nodes").all()
+    .map(({ id, body_hash }) => [id, body_hash as string | null]));
+  const storedLogRows = makeStoredLogRows(database, state, previous, previousBodyHashes);
   database.exec("DELETE FROM meta; DELETE FROM nodes; DELETE FROM edges; DELETE FROM initiatives; DELETE FROM log;");
   replaceMetadata(database, state);
   replaceNodes(database, state.nodes);
@@ -249,8 +272,10 @@ function replaceRows(database, state: SqliteState) {
   state.edges.forEach((edge, position) => insertEdge.run(position, JSON.stringify(edge)));
   const insertInitiative = database.prepare("INSERT INTO initiatives (name, position, data) VALUES (?, ?, ?)");
   Object.entries(state.initiatives).forEach(([name, initiative], position) => insertInitiative.run(name, position, JSON.stringify(initiative)));
-  const insertLog = database.prepare("INSERT INTO log (position, data) VALUES (?, ?)");
-  state.log.forEach((entry, position) => insertLog.run(position, JSON.stringify(entry)));
+  const insertLog = database.prepare("INSERT INTO log (position, data, from_revision, state_revision, delta) VALUES (?, ?, ?, ?, ?)");
+  for (const row of storedLogRows) {
+    insertLog.run(row.position, row.data, row.from_revision, row.state_revision, row.delta);
+  }
 }
 
 export async function readSqliteState(file: string, options: { includeBodies?: boolean } = {}) {
@@ -271,14 +296,33 @@ export async function readSqliteState(file: string, options: { includeBodies?: b
   }
 }
 
-export async function writeSqliteState(file: string, state: unknown) {
+export async function readSqliteChangesSince(file: string, since: number) {
+  if (!Number.isSafeInteger(since) || since < 0) { throw new TypeError("storage: since must be a non-negative safe integer"); }
+  const active = activeDatabase(file);
+  if (active) { return readSqliteChangesInTransaction(active, since); }
+  try {
+    await fs.access(file);
+  } catch (rawCaughtValue: unknown) {
+    const error = asCaughtError(rawCaughtValue);
+    if (error.code === "ENOENT") { return null; }
+    throw error;
+  }
+  const database = await openDatabase(file);
+  try {
+    return database.transaction(() => readSqliteChangesInTransaction(database, since))();
+  } finally {
+    database.close();
+  }
+}
+
+export async function writeSqliteState(file: string, state: unknown, previousState?: Record<string, unknown> | null) {
   assertCanonicalState(state, "writeState");
   const active = activeDatabase(file);
   if (active) {
-    replaceRows(active, state);
+    replaceRows(active, state, previousState);
     return state;
   }
-  return withSqliteTransaction(file, async () => writeSqliteState(file, state));
+  return withSqliteTransaction(file, async () => writeSqliteState(file, state, previousState));
 }
 
 export async function updateSqliteState(file: string, mutator: (state: Record<string, unknown>) => Record<string, unknown>) {
@@ -295,6 +339,6 @@ export async function updateSqliteState(file: string, mutator: (state: Record<st
   const next = mutator({ ...current });
   if (next === undefined) { throw new Error("updateState mutator must return the new state object"); }
   assertCanonicalState(next, "state.update");
-  replaceRows(active, next);
+  replaceRows(active, next, current);
   return next;
 }

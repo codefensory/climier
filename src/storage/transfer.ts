@@ -142,7 +142,7 @@ export async function installTransferDestination(projectDir: string, payload: un
       }
     }
     const next = destinationState(payload, current, actor, direction);
-    await writeSqliteState(sqliteStateFile(projectDir), next);
+    await writeSqliteState(sqliteStateFile(projectDir), next, current);
     return next;
   });
 }

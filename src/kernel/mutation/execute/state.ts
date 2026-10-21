@@ -109,7 +109,7 @@ function createNextState({ applied, currentState, snapshot, plan, request, plugi
 
 async function finishStateMutation({ plan, projectDir, applied, snapshotMeta, currentState, snapshot, request, pluginId }) {
   const { nextState, logEntry } = createNextState({ applied, currentState, snapshot, plan, request, pluginId });
-  await writeSqliteState(sqliteStateFile(projectDir), nextState);
+  await writeSqliteState(sqliteStateFile(projectDir), nextState, currentState);
   const result = resultWithSnapshot(applied.result === undefined ? null : applied.result, snapshotMeta);
   return stateMutationResult({ applied, logEntry, result });
 }

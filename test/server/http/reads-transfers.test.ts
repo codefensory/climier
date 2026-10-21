@@ -6,6 +6,9 @@ import { createHttpCodec } from "../../../src/server/http/codec.ts";
 import { PROTOCOL_VERSION } from "../../../src/server/http.ts";
 import * as readModel from "../../../src/read-model/index.ts";
 import { readState, runCli, writeCanonicalState } from "../../helpers.ts";
+import { stateFile } from "../../../src/storage/state.ts";
+import { writeSqliteState } from "../../../src/storage/sqlite/store.ts";
+import { applyRemoteChanges } from "../../../src/application/operations/index.ts";
 import { authHeaders, operation, withApi } from "./fixtures.ts";
 
 type TestState = {
@@ -156,6 +159,59 @@ test("HTTP typed read routes match the CLI output from the same state snapshot",
       assert.equal(response.status, 200, `${route}: ${JSON.stringify(await response.clone().json())}`);
       assert.deepEqual((await response.json() as ReadBody).result, await cliCommand(projectDirs[0], command, query, positional), route);
     }
+  });
+});
+
+test("HTTP delta reads return only revisions after since without changing full-state reads", async () => {
+  await withApi(async ({ baseUrl, projectDirs }) => {
+    const projectDir = projectDirs[0];
+    const file = stateFile(projectDir);
+    const initial = { ...readApiState(), version: 1 };
+    await writeCanonicalState(projectDir, initial);
+    const first = { action: "task.create", agent: "alice", node: "T-delta-1" };
+    await writeSqliteState(file, { ...initial, revision: initial.revision + 1, log: [...initial.log, first] });
+    const second = { action: "task.create", agent: "alice", node: "T-delta-2" };
+    await writeSqliteState(file, {
+      ...initial,
+      revision: initial.revision + 2,
+      nodes: { ...initial.nodes, "T-delta-2": { id: "T-delta-2", kind: "resolvable", subkind: "task", title: "Delta", status: "open" } },
+      log: [...initial.log, first, second],
+    });
+
+    const response = await fetch(`${baseUrl}/v1/projects/project-a/read/changes?since=42`, { headers: authHeaders() });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
+    const body = await response.json() as { result: { revision: number; reset_required: boolean; changes: Array<{ revision: number; entry: unknown }> } };
+    assert.equal(body.result.revision, 43);
+    assert.equal(body.result.reset_required, false);
+    assert.deepEqual(body.result.changes.map(({ revision }) => revision), [43]);
+    assert.deepEqual(body.result.changes.map(({ entry }) => entry), [second]);
+
+    const unchangedSnapshot = await fetch(`${baseUrl}/v1/projects/project-a/read/state`, { headers: authHeaders() });
+    assert.equal(unchangedSnapshot.status, 200);
+    assert.deepEqual((await unchangedSnapshot.json() as ReadBody).result, await cliCommand(projectDir, "state"));
+    const ahead = await fetch(`${baseUrl}/v1/projects/project-a/read/changes?since=44`, { headers: authHeaders() });
+    assert.equal(ahead.status, 409);
+    assert.equal((await ahead.json() as { error: { code: string } }).error.code, "REVISION_AHEAD");
+    for (const query of ["", "?since=", "?since=1.5", "?since=1&since=2"]) {
+      const invalid = await fetch(`${baseUrl}/v1/projects/project-a/read/changes${query}`, { headers: authHeaders() });
+      assert.equal(invalid.status, 400, query);
+      assert.equal((await invalid.json() as { error: { code: string } }).error.code, "INVALID_QUERY", query);
+    }
+  });
+});
+
+test("HTTP delta sync replays a committed kernel mutation to the full state", async () => {
+  await withApi(async ({ baseUrl, projectDirs }) => {
+    const base = await readState(projectDirs[0]);
+    const created = await operation(baseUrl, "project-a", "initiative.create", { name: "delta-replay" });
+    assert.equal(created.status, 200);
+    const response = await fetch(`${baseUrl}/v1/projects/project-a/read/changes?since=${base.revision}`, { headers: authHeaders() });
+    assert.equal(response.status, 200);
+    const changes = (await response.json() as ReadBody).result as { revision: number; reset_required: boolean; changes: unknown[] };
+    assert.equal(changes.reset_required, false);
+    assert.equal(changes.changes.length, 1);
+    assert.deepEqual(applyRemoteChanges(base, changes), await readState(projectDirs[0]));
   });
 });
 
