@@ -47,9 +47,10 @@ recursiva de SQLite), y todo motor nativo que rompa `bun build --compile` de los
 4. **Los bodies se guardan aparte y se deduplican por hash.** `status`, la
    derivación de readiness y el grafo nunca leen prosa; `show`/`context` la leen
    por hash.
-5. **El log se retiene con checkpoint**: se conservan las últimas N entradas más
-   un resumen, con política explícita y comando de compactación. Deja de crecer
-   sin límite dentro del estado caliente.
+5. **El log se retiene con checkpoint**: `state compact` conserva las últimas
+   1.000 entradas previas (o `--keep N`) y agrega las anteriores en un resumen
+   por nodo con cantidad, primera/última fecha, acciones y agentes. `history`
+   expone ese resumen; la propia compactación se registra en la misma transacción.
 6. **Migración explícita, nunca implícita.** `climier state migrate` convierte
    schema-1 JSON a la base, escribe un backup verificado y exige confirmación;
    ningún lector convierte al vuelo. `climier state export` produce el JSON

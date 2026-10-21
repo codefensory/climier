@@ -2,17 +2,10 @@
 import { readState } from "../../storage/state.ts";
 import type { CommandContext } from "./contracts.ts";
 import type { ReadModelSnapshot } from "../../read-model/types.ts";
+import { logEntriesForNode } from "../../read-model/history.ts";
 
 export const knownFlags = ["limit"];
-
 export const REFERENCE_FIELDS = ["node"];
-
-function entryReferencesId(entry, id) {
-  if (!entry || !id) {return false;}
-  if (REFERENCE_FIELDS.some((field) => entry[field] === id)) {return true;}
-
-  return typeof entry.note === "string" && entry.note.split(/\s+/).includes(id);
-}
 
 function parseLimit(value) {
   if (value === undefined || value === true) {return null;}
@@ -33,7 +26,7 @@ async function readHistory({ statePath, id, limit, backendClient }) {
   }
   const snapshot = await readState(statePath) as ReadModelSnapshot | null;
   if (!snapshot) {return { id, entries: [] };}
-  return { id, entries: applyLimit((snapshot.log || []).filter((entry) => entryReferencesId(entry, id)), limit) };
+  return { id, entries: applyLimit(logEntriesForNode(snapshot, id), limit) };
 }
 
 export default async function history({ statePath, flags, positional, backendClient }: CommandContext) {

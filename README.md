@@ -413,6 +413,7 @@ Claims are serialized under the project lock. `release`, `reopen`, and
 | `resolve <id> [--choice "<text>"] [--rationale "<text>"] --as <agent>` | Resolve an open gate. Both flags are required for a `resolution_mode` of `choice` (the default) and rejected for any other mode, which resolves without a recorded decision. |
 | `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open` for correction, subject to policy. |
 | `restore <snapshot-id> --as <agent>` | Replace the live state with a validated schema-1 snapshot under the recovery path and a pre-restore snapshot. A policy plugin may restrict the actor; invalid or incomplete snapshots fail without mutating state. |
+| `state compact [--keep N] --as <agent>` | Keep the newest 1000 prior entries by default (or `N` when supplied); older events become per-node summaries with action/actor counts and first/last timestamps. The compact operation is itself logged atomically. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |
 | `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | Execute several operations atomically. |
 | `link <origin> [--replace=true] [--name "<name>"]` | Select a Remote v1 origin while preserving the checkout project ID; does not copy a DAG. `--name` also sets the project's display name. |

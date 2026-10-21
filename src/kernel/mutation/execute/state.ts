@@ -79,6 +79,15 @@ async function prepareApplyStateMutation({ stateOperation, projectDir, snapshot,
   return { plan, applied };
 }
 
+function nodeRevisions(nodes: Record<string, Record<string, unknown>>, highWaterRevision: number, preserve: boolean) {
+  if (preserve) { return nodes; }
+  return Object.fromEntries(Object.entries(nodes).map(([id, node]) => {
+    const cleanNode = { ...node };
+    delete cleanNode.revision;
+    return [id, { ...cleanNode, revision: highWaterRevision }];
+  }));
+}
+
 function createNextState({ applied, currentState, snapshot, plan, request, pluginId }) {
   const nextState = { ...applied.state };
   let logEntry = null;
@@ -93,11 +102,7 @@ function createNextState({ applied, currentState, snapshot, plan, request, plugi
     ...Object.values(nodes).map((node) => Number.isInteger(node?.revision) ? node.revision as number : 0),
   ) + 1;
   nextState.revision = highWaterRevision;
-  nextState.nodes = Object.fromEntries(Object.entries(nodes).map(([id, node]) => {
-    const cleanNode = { ...node };
-    delete cleanNode.revision;
-    return [id, { ...cleanNode, revision: highWaterRevision }];
-  }));
+  nextState.nodes = nodeRevisions(nodes, highWaterRevision, plan.preserveNodeRevisions === true);
   if (!snapshot.plugins && !nextState.plugins) { delete nextState.plugins; }
   return { nextState, logEntry };
 }

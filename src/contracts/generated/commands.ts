@@ -196,7 +196,8 @@ export const GENERATED_COMMAND_FLAGS = {
   "snapshots": [],
   "state": [
     "as",
-    "yes"
+    "yes",
+    "keep"
   ],
   "status": [
     "initiative",

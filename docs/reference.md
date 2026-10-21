@@ -881,8 +881,21 @@ convert an existing project. For a pre-cut project, use the ordered import in
 
 ### `state`
 
-Returns the deterministic current core projection. It is read-only and does not
-inspect historical snapshots.
+`state` returns the deterministic current core projection. `state export` returns
+the complete canonical schema-1 state, including the log and checkpoint records;
+export and `restore` preserve compacted history.
+
+`state compact [--keep N] --as <agent>` is a local, transactional log mutation.
+It retains the newest 1000 ordinary log entries by default; `--keep N` overrides
+that count (including `0`). Older entries are replaced by one
+`checkpoint.summary` per node, containing event count, first/last timestamps,
+action counts, and actor counts. Unattributed events are retained in an
+unattributed checkpoint summary. `history <id>` returns the node's summary before
+its retained entries. The compaction itself is appended as a `state.compact` log
+event in the same SQLite transaction; compaction does not change node revisions.
+
+`state migrate --as <agent> --yes` remains the explicit local import from the
+verified legacy JSON backup.
 
 ### `batch` and edge removal
 
