@@ -4,7 +4,7 @@
 // transaction, lock, persistence, log, command, registry or adapter imports.
 
 
-import { incoming, type GraphProjection } from "../../kernel/graph.ts";
+import { createGraphIndexes, incoming, outgoing, type GraphProjection } from "../../kernel/graph.ts";
 
 const NON_OPEN_TASK_STATUSES = new Set(["in_progress", "submitted", "done", "archived", "canceled"]);
 const SATISFIED_TASK_STATUSES = new Set(["done", "archived"]);
@@ -119,6 +119,33 @@ export function collectReadyTasks(state, graph?: GraphProjection) {
     }
   }
   return ready;
+}
+
+export function newlyReadyTasks(before, after, changedId: string) {
+  const indexes = createGraphIndexes(before);
+  const affectedBlockers = new Set([changedId]);
+  const pending = [changedId];
+  while (pending.length > 0) {
+    const id = pending.pop()!;
+    for (const edge of outgoing(before, id, "SUPERSEDES", indexes)) {
+      if (!affectedBlockers.has(edge.to)) {
+        affectedBlockers.add(edge.to);
+        pending.push(edge.to);
+      }
+    }
+  }
+
+  const candidates = new Set<string>();
+  for (const id of affectedBlockers) {
+    for (const edge of outgoing(before, id, "BLOCKS", indexes)) {
+      candidates.add(edge.to);
+    }
+  }
+  const beforeGraph = { indexes, satisfactionMemo: new Map<string, boolean>() };
+  const afterGraph = { indexes, satisfactionMemo: new Map<string, boolean>() };
+  return [...candidates]
+    .filter((id) => !isTaskReady(before, id, beforeGraph) && isTaskReady(after, id, afterGraph))
+    .toSorted();
 }
 
 function collectOpenGate(id, node, status, openGates) {

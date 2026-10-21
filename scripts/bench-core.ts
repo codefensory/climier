@@ -18,6 +18,7 @@ import { validateStateInvariants } from "../src/contracts/state-invariants.ts";
 import { createTransaction } from "../src/kernel/transaction.ts";
 import { projectStatusView, projectContextView } from "../src/read-model/index.ts";
 import { createBuiltinOperationRegistry } from "../src/application/operations/builtins.ts";
+import { newlyReadyTasks } from "../src/providers/task/derivation.ts";
 import { runCliInProcess } from "../test/cli-harness.ts";
 
 const options = new Map<string, string>();
@@ -129,6 +130,17 @@ async function timeAsync(fn: () => unknown, runs: number): Promise<number> {
   return median(samples);
 }
 
+async function timeResettableAsync(fn: () => Promise<unknown>, reset: () => Promise<void>, runs: number): Promise<number> {
+  const samples: number[] = [];
+  for (let i = 0; i < runs; i += 1) {
+    await reset();
+    const started = performance.now();
+    await fn();
+    samples.push(performance.now() - started);
+  }
+  return median(samples);
+}
+
 function timeSync(fn: () => unknown, runs: number): number {
   const samples: number[] = [];
   for (let i = 0; i < runs; i += 1) {
@@ -186,6 +198,24 @@ async function measure(fixture: Fixture, iterations: number) {
   const workspace = makeWorkspace(fixture);
   const snapshot = await readSqliteState(workspace.sqliteFile) as Record<string, any>;
   const probeId = Object.keys(snapshot.nodes ?? {})[Math.min(5, Object.keys(snapshot.nodes ?? {}).length - 1)];
+  const acceptState = structuredClone(snapshot);
+  const acceptTarget = (Object.values(acceptState.nodes ?? {}) as Array<Record<string, any>>).find((node) =>
+    node.kind === "resolvable" && node.subkind === "task",
+  );
+  if (!acceptTarget) throw new Error(`no task available to benchmark accept in ${fixture.label}`);
+  const acceptTargetId = acceptTarget.id as string;
+  Object.assign(acceptTarget, {
+    status: "submitted",
+    submitted_by: "bench",
+    submitted_at: new Date().toISOString(),
+    claim: null,
+  });
+  const acceptedState = structuredClone(acceptState);
+  acceptedState.nodes[acceptTargetId].status = "done";
+  const acceptFixtureFile = path.join(workspace.root, "accept-fixture.json");
+  fs.writeFileSync(acceptFixtureFile, JSON.stringify(acceptState));
+  const acceptWorkspace = makeWorkspace({ ...fixture, file: acceptFixtureFile });
+  const resetAcceptDatabase = () => writeSqliteState(acceptWorkspace.sqliteFile, acceptState);
   const rawNodes = JSON.stringify(snapshot.nodes);
   const rawLog = JSON.stringify(snapshot.log);
   const copy = path.join(workspace.root, "write-probe.sqlite");
@@ -218,6 +248,14 @@ async function measure(fixture: Fixture, iterations: number) {
     if (!result.ok) { mutationOk = false; mutationError = result.out.slice(0, 200); }
   }
   e2e["add-note"] = median(mutationSamples);
+  const acceptSamples: number[] = [];
+  for (let i = 0; i < Math.max(3, Math.min(iterations, 5)); i += 1) {
+    await resetAcceptDatabase();
+    const result = acceptWorkspace.run(["accept", acceptTargetId, "--as", "bench"]);
+    acceptSamples.push(result.ms);
+    if (!result.ok) throw new Error(`accept benchmark failed: ${result.out.slice(0, 300)}`);
+  }
+  e2e.accept = median(acceptSamples);
 
   const layers: Record<string, number> = {
     "read (sin bodies)": await timeAsync(() => readSqliteState(workspace.sqliteFile, { includeBodies: false }), iterations),
@@ -229,11 +267,16 @@ async function measure(fixture: Fixture, iterations: number) {
     "createTransaction": timeSync(() => createTransaction(snapshot), iterations),
     "structuredClone(state)": timeSync(() => structuredClone(snapshot), iterations),
     "status view": timeSync(() => projectStatusView({ snapshot, filters: {}, now: Date.now() }), iterations),
+    "accept readiness delta": timeSync(() => newlyReadyTasks(acceptState, acceptedState, acceptTargetId), iterations),
     "readiness prototype (adjacency)": timeSync(() => readinessPrototype(snapshot), iterations),
     "context view": timeSync(() => projectContextView({ snapshot, id: probeId, agent: "bench", now: Date.now() }), iterations),
     "write replace total": await timeAsync(() => writeSqliteState(copy, snapshot, snapshot), 3),
     "update no-op": await timeAsync(() => updateSqliteState(copy, (state: any) => state), 3),
     "status in-process": await timeAsync(() => runCliInProcess(["status"], { cwd: workspace.projectDir, env: workspace.env }), iterations),
+    "accept in-process": await timeResettableAsync(async () => {
+      const result = await runCliInProcess(["accept", acceptTargetId, "--as", "bench"], { cwd: acceptWorkspace.projectDir, env: acceptWorkspace.env });
+      if (result.code !== 0) throw new Error(`accept in-process benchmark failed: ${result.stdout.slice(0, 300)}`);
+    }, resetAcceptDatabase, Math.max(3, Math.min(iterations, 5))),
     "add-note in-process": await timeAsync(() => runCliInProcess(["add-note", probeId, "ip", "--as", "bench"], { cwd: workspace.projectDir, env: workspace.env }), 3),
   };
   const report = {
@@ -246,6 +289,7 @@ async function measure(fixture: Fixture, iterations: number) {
     e2e,
     layers,
   };
+  fs.rmSync(acceptWorkspace.root, { recursive: true, force: true });
   fs.rmSync(workspace.root, { recursive: true, force: true });
   return report;
 }
