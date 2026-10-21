@@ -1,0 +1,206 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
+import test from "node:test";
+import { rmTempProject, createTempProject, writeCanonicalState } from "./helpers.ts";
+
+const SQLITE_MODULE = "bun:sqlite";
+
+function syntheticState(nodeCount: number) {
+  const nodes: Record<string, Record<string, unknown>> = {};
+  const edges: Array<Record<string, string>> = [];
+  const log: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < nodeCount; i += 1) {
+    const id = `T-point-${i}`;
+    nodes[id] = {
+      id, kind: "resolvable", subkind: "task", title: `Task ${i}`,
+      ...(i === 4 || i === 42 ? { body: "first line\nexact body 🌱\n" } : {}),
+      status: i % 2 ? "open" : "done", revision: i + 1,
+    };
+    if (i > 0) { edges.push({ from: `T-point-${i - 1}`, to: id, type: i % 2 ? "BLOCKS" : "DERIVED_FROM" }); }
+    log.push({ action: "task.update", node: id, revision: i + 1 });
+  }
+  return {
+    version: 1,
+    revision: nodeCount,
+    nodes,
+    edges,
+    initiatives: { core: { desc: "Point store", created_at: "2026-10-21T00:00:00.000Z" } },
+    log,
+  };
+}
+
+function expectedCounts(nodes: Record<string, Record<string, unknown>>, filters: Record<string, string> = {}) {
+  const counts = { total: 0, byKind: {} as Record<string, number>, bySubkind: {} as Record<string, number>, byStatus: {} as Record<string, number> };
+  for (const node of Object.values(nodes)) {
+    if (Object.entries(filters).some(([key, value]) => node[key] !== value)) { continue; }
+    counts.total += 1;
+    for (const [field, target] of [["kind", counts.byKind], ["subkind", counts.bySubkind], ["status", counts.byStatus]] as const) {
+      const value = node[field];
+      if (typeof value === "string") { target[value] = (target[value] ?? 0) + 1; }
+    }
+  }
+  return counts;
+}
+
+async function countRowsRead(run: () => Promise<unknown>) {
+  const { Database } = await import(SQLITE_MODULE);
+  const originalQuery = Database.prototype.query;
+  let rowsRead = 0;
+  Database.prototype.query = function (sql, ...args) {
+    const statement = originalQuery.call(this, sql, ...args);
+    if (!/^\s*(SELECT|PRAGMA)\b/i.test(sql)) { return statement; }
+    const originalGet = statement.get;
+    const originalAll = statement.all;
+    statement.get = function (...queryArgs) {
+      const row = originalGet.apply(this, queryArgs);
+      if (row !== null && row !== undefined) { rowsRead += 1; }
+      return row;
+    };
+    statement.all = function (...queryArgs) {
+      const rows = originalAll.apply(this, queryArgs);
+      rowsRead += rows.length;
+      return rows;
+    };
+    return statement;
+  };
+  try { await run(); return rowsRead; }
+  finally { Database.prototype.query = originalQuery; }
+}
+
+test("point reads match complete SQLite state and preserve node property order", async () => {
+  const projectDir = await createTempProject();
+  try {
+    const state = syntheticState(6);
+    await writeCanonicalState(projectDir, state);
+    const { stateFile } = await import("../src/storage/state.ts");
+    const { readSqliteState, readSqliteNode, readSqliteNodesByIds, readSqliteEdgesOf, readSqliteLogSince, readSqliteCounts, readSqliteRevision, withSqliteTransaction } = await import("../src/storage/sqlite/store.ts");
+    const file = stateFile(projectDir);
+    const complete = await readSqliteState(file);
+    assert.ok(complete);
+    const targetId = "T-point-4";
+    assert.equal(JSON.stringify(await readSqliteNode(file, targetId)), JSON.stringify(complete.nodes[targetId]));
+    const ids = ["T-point-4", "T-point-1", "missing", "T-point-4"];
+    const expectedNodes = Object.fromEntries(Object.entries(complete.nodes).filter(([id]) => ids.includes(id)));
+    assert.equal(JSON.stringify(await readSqliteNodesByIds(file, ids)), JSON.stringify(expectedNodes));
+    const idSet = new Set(ids);
+    for (const type of [undefined, "BLOCKS"]) {
+      const expected = complete.edges.filter((edge: any) => (idSet.has(edge.from) || idSet.has(edge.to)) && (!type || edge.type === type));
+      assert.equal(JSON.stringify(await readSqliteEdgesOf(file, ids, type ? { type } : {})), JSON.stringify(expected));
+    }
+    assert.equal(JSON.stringify(await readSqliteLogSince(file, 3)), JSON.stringify([]));
+    assert.deepEqual(await readSqliteCounts(file), expectedCounts(complete.nodes as Record<string, Record<string, unknown>>));
+    assert.deepEqual(await readSqliteCounts(file, { kind: "resolvable", subkind: "task", status: "open" }), expectedCounts(complete.nodes as Record<string, Record<string, unknown>>, { kind: "resolvable", subkind: "task", status: "open" }));
+    assert.equal(await readSqliteRevision(file), complete.revision);
+    assert.deepEqual(await readSqliteNodesByIds(file, []), {});
+    assert.deepEqual(await readSqliteEdgesOf(file, []), []);
+    await withSqliteTransaction(file, async () => {
+      assert.equal(JSON.stringify(await readSqliteNode(file, targetId)), JSON.stringify(complete.nodes[targetId]));
+      assert.equal(await readSqliteRevision(file), complete.revision);
+      assert.deepEqual(await readSqliteNodesByIds(file, []), {});
+      await assert.rejects(readSqliteEdgesOf(`${file}.other`, []), /cannot access another SQLite project/);
+    });
+    assert.equal(await readSqliteNode(file, "missing"), null);
+  } finally { await rmTempProject(projectDir); }
+});
+
+test("v3 SQLite databases migrate edge lookup columns and indexes", async () => {
+  const projectDir = await createTempProject();
+  try {
+    const { stateFile } = await import("../src/storage/state.ts");
+    const file = stateFile(projectDir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    const { Database } = await import(SQLITE_MODULE);
+    const database = new Database(file, { create: true });
+    try {
+      database.exec(`
+        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        CREATE TABLE nodes (id TEXT PRIMARY KEY, position INTEGER NOT NULL UNIQUE, data TEXT NOT NULL, body_hash TEXT);
+        CREATE TABLE node_body (hash TEXT PRIMARY KEY, body TEXT NOT NULL);
+        CREATE TABLE edges (position INTEGER PRIMARY KEY, data TEXT NOT NULL);
+        CREATE TABLE initiatives (name TEXT PRIMARY KEY, position INTEGER NOT NULL UNIQUE, data TEXT NOT NULL);
+        CREATE TABLE log (position INTEGER PRIMARY KEY, data TEXT NOT NULL, from_revision INTEGER, state_revision INTEGER, delta TEXT);
+        CREATE TABLE sync_state (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
+        INSERT INTO meta VALUES ('version', '1'), ('revision', '0'), ('extras', '{}'), ('__root_order', '["version","revision","nodes","edges","initiatives","log"]');
+        INSERT INTO nodes VALUES ('T-old', 0, '{"id":"T-old","kind":"resolvable","subkind":"task","title":"Old","status":"open"}', NULL);
+        INSERT INTO nodes VALUES ('T-new', 1, '{"id":"T-new","kind":"resolvable","subkind":"task","title":"New","status":"open"}', NULL);
+        INSERT INTO edges VALUES (0, '{"from":"T-old","to":"T-new","type":"BLOCKS"}');
+        PRAGMA user_version = 3;
+      `);
+    } finally { database.close(); }
+    const { readSqliteEdgesOf, readSqliteState } = await import("../src/storage/sqlite/store.ts");
+    assert.deepEqual(await readSqliteEdgesOf(file, ["T-new"]), [{ from: "T-old", to: "T-new", type: "BLOCKS" }]);
+    assert.deepEqual((await readSqliteState(file))?.nodes["T-old"], { id: "T-old", kind: "resolvable", subkind: "task", title: "Old", status: "open" });
+    const migrated = new Database(file);
+    try {
+      assert.equal(migrated.query("PRAGMA user_version").get().user_version, 4);
+      assert.deepEqual(migrated.query("SELECT from_id, to_id, edge_type FROM edges").get(), { from_id: "T-old", to_id: "T-new", edge_type: "BLOCKS" });
+      const indexes = migrated.query("SELECT name FROM sqlite_master WHERE type = 'index'").all().map(({ name }) => name);
+      for (const index of ["idx_edges_from_type_position", "idx_edges_to_type_position", "idx_log_state_revision_position"]) { assert.ok(indexes.includes(index), index); }
+    } finally { migrated.close(); }
+  } finally { await rmTempProject(projectDir); }
+});
+
+test("10,000-node point reads use indexed bounded work and match full-state projections", async () => {
+  const projectDir = await createTempProject();
+  try {
+    const state = syntheticState(10_000);
+    await writeCanonicalState(projectDir, state);
+    const { stateFile } = await import("../src/storage/state.ts");
+    const { Database } = await import(SQLITE_MODULE);
+    const { readSqliteState, readSqliteNode, readSqliteNodesByIds, readSqliteEdgesOf, readSqliteLogSince, readSqliteCounts, readSqliteRevision } = await import("../src/storage/sqlite/store.ts");
+    const file = stateFile(projectDir);
+    const db = new Database(file);
+    try { db.query("UPDATE log SET state_revision = position + 1").run(); }
+    finally { db.close(); }
+    const complete = await readSqliteState(file);
+    assert.ok(complete);
+    const oneNodeRows = await countRowsRead(() => readSqliteNode(file, "T-point-42"));
+    assert.ok(oneNodeRows <= 20, `readSqliteNode read ${oneNodeRows} rows`);
+    const started = performance.now();
+    const node = await readSqliteNode(file, "T-point-42");
+    const elapsedMs = performance.now() - started;
+    assert.ok(elapsedMs <= 2, `readSqliteNode took ${elapsedMs.toFixed(3)} ms`);
+    assert.equal(JSON.stringify(node), JSON.stringify(complete.nodes["T-point-42"]));
+
+    const ids = ["T-point-42", "T-point-43", "T-point-9999", "missing"];
+    const idSet = new Set(ids);
+    const boundedReads = [
+      ["readSqliteNodesByIds", () => readSqliteNodesByIds(file, ids), 24],
+      ["readSqliteEdgesOf", () => readSqliteEdgesOf(file, ids), 24],
+      ["readSqliteLogSince", () => readSqliteLogSince(file, 9_990), 32],
+      ["readSqliteCounts", () => readSqliteCounts(file), 24],
+      ["readSqliteRevision", () => readSqliteRevision(file), 24],
+    ] as const;
+    for (const [operation, run, budget] of boundedReads) {
+      const rowsRead = await countRowsRead(run);
+      assert.ok(rowsRead <= budget, `${operation} read ${rowsRead} rows (budget ${budget})`);
+    }
+    const expectedNodes = Object.fromEntries(Object.entries(complete.nodes).filter(([id]) => idSet.has(id)));
+    assert.equal(JSON.stringify(await readSqliteNodesByIds(file, ids)), JSON.stringify(expectedNodes));
+    const expectedEdges = complete.edges.filter((edge: any) => idSet.has(edge.from) || idSet.has(edge.to));
+    assert.equal(JSON.stringify(await readSqliteEdgesOf(file, ids)), JSON.stringify(expectedEdges));
+    assert.equal(JSON.stringify(await readSqliteEdgesOf(file, ids, { type: "BLOCKS" })), JSON.stringify(expectedEdges.filter((edge: any) => edge.type === "BLOCKS")));
+    assert.equal(JSON.stringify(await readSqliteLogSince(file, 9_990)), JSON.stringify(complete.log.filter((_, index) => index + 1 > 9_990)));
+    assert.deepEqual(await readSqliteCounts(file), expectedCounts(complete.nodes as Record<string, Record<string, unknown>>));
+    assert.equal(await readSqliteRevision(file), complete.revision);
+
+    const plans = await Promise.all([
+      dbPlan(file, "SELECT id, data, body_hash FROM nodes WHERE id = ?", ["T-point-42"]),
+      dbPlan(file, "SELECT data FROM log INDEXED BY idx_log_state_revision_position WHERE state_revision > ? ORDER BY position", [9_990]),
+      dbPlan(file, "SELECT position, data FROM edges WHERE from_id IN (?) OR to_id IN (?) ORDER BY position", ["T-point-42", "T-point-42"]),
+      dbPlan(file, "SELECT data FROM edges WHERE (from_id IN (?) OR to_id IN (?)) AND edge_type = ? ORDER BY position", ["T-point-42", "T-point-42", "BLOCKS"]),
+      dbPlan(file, "SELECT id, data, body_hash FROM nodes WHERE id IN (?, ?) ORDER BY position", ["T-point-42", "T-point-43"]),
+    ]);
+    for (const [table, plan] of [["nodes", plans[0]], ["log", plans[1]], ["edges", plans[2]], ["edges", plans[3]], ["nodes", plans[4]]] as const) {
+      assert.ok(!plan.some((detail) => new RegExp(`\\bSCAN\\s+${table}\\b`, "i").test(detail)), `${table} query plan scanned the table: ${plan.join("; ")}`);
+    }
+  } finally { await rmTempProject(projectDir); }
+});
+
+async function dbPlan(file: string, sql: string, args: unknown[]) {
+  const { Database } = await import(SQLITE_MODULE);
+  const database = new Database(file);
+  try { return database.query(`EXPLAIN QUERY PLAN ${sql}`).all(...args).map(({ detail }) => detail as string); }
+  finally { database.close(); }
+}

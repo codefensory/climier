@@ -40,7 +40,7 @@ async function assertSqliteDatabase(file) {
   const database = new Database(file);
   try {
     assert.equal(database.query("PRAGMA journal_mode").get().journal_mode, "wal");
-    assert.equal(database.query("PRAGMA user_version").get().user_version, 3);
+    assert.equal(database.query("PRAGMA user_version").get().user_version, 4);
     const { SQLITE_PRAGMAS } = await import("../src/storage/sqlite/schema.ts");
     assert.match(SQLITE_PRAGMAS, /PRAGMA synchronous = NORMAL/i);
     assert.match(SQLITE_PRAGMAS, /PRAGMA busy_timeout = 5000/i);
@@ -285,7 +285,7 @@ test("SQLite upgrades inline schema-1 bodies without changing the exported state
     const { Database } = await import(SQLITE_MODULE);
     const database = new Database(file);
     try {
-      assert.equal(database.query("PRAGMA user_version").get().user_version, 3);
+      assert.equal(database.query("PRAGMA user_version").get().user_version, 4);
       const row = database.query("SELECT data, body_hash FROM nodes WHERE id = ?").get("T-legacy");
       assert.equal(JSON.parse(row.data).body, null);
       assert.equal(database.query("SELECT body FROM node_body WHERE hash = ?").get(row.body_hash).body, body);
