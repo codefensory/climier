@@ -1,7 +1,8 @@
 
-import { readState } from "../../storage/state.ts";
+import { sqliteStateExists, stateFile } from "../../storage/state.ts";
+import { readSqliteLogForNode } from "../../storage/sqlite/store.ts";
 import type { CommandContext } from "./contracts.ts";
-import type { ReadModelSnapshot } from "../../read-model/types.ts";
+import type { ReadModelLogEntry } from "../../read-model/types.ts";
 import { logEntriesForNode } from "../../read-model/history.ts";
 
 export const knownFlags = ["limit"];
@@ -24,9 +25,12 @@ async function readHistory({ statePath, id, limit, backendClient }) {
   if (backendClient?.type === "remote") {
     return backendClient.readHistory({ id, limit: limit === null ? undefined : limit });
   }
-  const snapshot = await readState(statePath) as ReadModelSnapshot | null;
-  if (!snapshot) {return { id, entries: [] };}
-  return { id, entries: applyLimit(logEntriesForNode(snapshot, id), limit) };
+  const entries = await readSqliteLogForNode(stateFile(statePath), id) as ReadModelLogEntry[] | null;
+  if (!entries) {
+    await sqliteStateExists(statePath);
+    return { id, entries: [] };
+  }
+  return { id, entries: applyLimit(logEntriesForNode({ log: entries }, id), limit) };
 }
 
 export default async function history({ statePath, flags, positional, backendClient }: CommandContext) {

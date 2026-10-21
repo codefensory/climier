@@ -1,4 +1,5 @@
-import { assertReadableState, readState } from "../../storage/state.ts";
+import { sqliteStateExists, stateFile } from "../../storage/state.ts";
+import { readSqliteSearchCandidates } from "../../storage/sqlite/store.ts";
 import { projectSearchView } from "../../read-model/index.ts";
 import type { CommandContext } from "./contracts.ts";
 
@@ -6,11 +7,13 @@ export const knownFlags = ["all"];
 
 async function readLocalSearch(statePath, query, flags) {
   if (!query) {return { matches: [], count: 0 };}
-  const snapshot = await readState(statePath) as import("../../read-model/types.ts").ReadModelSnapshot | null;
-  if (!snapshot) {throw new Error("search: state file missing");}
-  assertReadableState(snapshot, "search");
   const all = flags.all === true || flags.all === "true";
-  return projectSearchView({ snapshot, query, all });
+  const nodes = await readSqliteSearchCandidates(stateFile(statePath), query, all);
+  if (!nodes) {
+    await sqliteStateExists(statePath);
+    throw new Error("search: state file missing");
+  }
+  return projectSearchView({ snapshot: { nodes: nodes as import("../../read-model/types.ts").ReadModelSnapshot["nodes"] }, query, all });
 }
 
 export default async function search({ statePath, positional, flags, backendClient }: CommandContext) {

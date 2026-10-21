@@ -262,6 +262,13 @@ async function assertExplicitMigrationRequired(projectDir) {
   return assertExplicitMigrationRequiredForFile(jsonStateFile(projectDir));
 }
 
+export async function sqliteStateExists(projectDir: string) {
+  const { readSqliteHasState } = await import("./sqlite/store.ts");
+  const exists = await readSqliteHasState(stateFile(projectDir));
+  if (!exists) { await assertExplicitMigrationRequired(projectDir); }
+  return exists;
+}
+
 export async function readState(projectDir, options: { includeBodies?: boolean; includeLog?: boolean } = {}) {
   const { readSqliteState } = await import("./sqlite/store.ts");
   const state = await readSqliteState(stateFile(projectDir), options);

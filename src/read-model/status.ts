@@ -1,4 +1,4 @@
-import { createProjectionGraph, derive, statusOf, unsatisfiedBlockerIdsForNode } from "./core.ts";
+import { createProjectionGraph, derive, statusOf, unsatisfiedBlockerIdsForNode } from "./status-core.ts";
 import type { GraphProjection as ProjectionGraph } from "../kernel/graph.ts";
 import type { ReadModelNode, ReadModelSnapshot } from "./types.ts";
 
@@ -406,9 +406,16 @@ interface ProjectStatusArgs {
   snapshot?: ReadModelSnapshot;
   filters?: RawStatusFilters;
   now?: number;
+  knowledgeCount?: number;
 }
 
-export function projectStatusView({ snapshot = {}, filters = {}, now }: ProjectStatusArgs = {}) {
+function applyKnowledgeCount(result: StatusResult, count: number | undefined, options: StatusFilters): void {
+  if (count !== undefined && !options.initiative && (!options.kind || options.kind === "knowledge")) {
+    result.knowledge_count = count;
+  }
+}
+
+export function projectStatusView({ snapshot = {}, filters = {}, now, knowledgeCount }: ProjectStatusArgs = {}) {
   requireNow(now);
   const nodes = snapshot?.nodes || {};
   const options = statusFilters(filters);
@@ -417,5 +424,6 @@ export function projectStatusView({ snapshot = {}, filters = {}, now }: ProjectS
   const pools = selectStatusPools(nodes, derived, options);
   const tasks = taskLists({ snapshot, nodes, pools, filters: options, derived, graph });
   const result = createStatusResult({ nodes, pools, tasks, snapshot, graph });
+  applyKnowledgeCount(result, knowledgeCount, options);
   return applyStatusOptions({ result, pools, nodes, filters: options, now });
 }

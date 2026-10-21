@@ -1,8 +1,9 @@
 
-import { readState } from "../../storage/state.ts";
+import { sqliteStateExists, stateFile } from "../../storage/state.ts";
+import { readSqliteCounts, readSqliteEdges, readSqliteNodeMetadata, withSqliteReadTransaction } from "../../storage/sqlite/store.ts";
 import { projectStatusView } from "../../read-model/status.ts";
 import type { CommandContext } from "./contracts.ts";
-import type { ReadModelSnapshot } from "../../read-model/types.ts";
+import type { ReadModelEdge, ReadModelNode, ReadModelSnapshot } from "../../read-model/types.ts";
 
 export const knownFlags = [
   "initiative",
@@ -81,19 +82,32 @@ async function readRemoteStatus(flags, backendClient) {
 }
 
 async function readLocalStatus(statePath, flags) {
-  const snapshot = await readState(statePath, { includeBodies: false, includeLog: false }) as ReadModelSnapshot | null;
-  if (!snapshot) {return emptyResult();}
-  const filters = {
-    initiative: flags.initiative || undefined,
-    kind: flags.kind || undefined,
-    status: flags.status || undefined,
-    domain: flags.domain || undefined,
-    "claimed-by": flags["claimed-by"] || undefined,
-    "stale-ms": parseStaleMs(flags),
-    limit: parseLimit(flags),
-    all: flags.all === true,
-  };
-  return projectStatusView({ snapshot, filters, now: Date.now() });
+  const file = stateFile(statePath);
+  const result = await withSqliteReadTransaction(file, async () => {
+    const nodes = await readSqliteNodeMetadata(file, {
+      omit: ["body", "notes", "note", "acceptance"],
+    }) as Record<string, ReadModelNode> | null;
+    if (!nodes) {return null;}
+    const edges = await readSqliteEdges(file) as ReadModelEdge[];
+    const filters = {
+      initiative: flags.initiative || undefined,
+      kind: flags.kind || undefined,
+      status: flags.status || undefined,
+      domain: flags.domain || undefined,
+      "claimed-by": flags["claimed-by"] || undefined,
+      "stale-ms": parseStaleMs(flags),
+      limit: parseLimit(flags),
+      all: flags.all === true,
+    };
+    const knowledgeCounts = await readSqliteCounts(file, { kind: "knowledge" });
+    const snapshot: ReadModelSnapshot = { nodes, edges };
+    return projectStatusView({ snapshot, filters, now: Date.now(), knowledgeCount: knowledgeCounts.total });
+  });
+  if (!result) {
+    await sqliteStateExists(statePath);
+    return emptyResult();
+  }
+  return result;
 }
 
 export default async function statusV2({ statePath, flags, backendClient }: CommandContext) {
