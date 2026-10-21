@@ -8,6 +8,7 @@ import { executeOperation } from "../src/application/operations/execute.ts";
 import { mutate } from "../src/kernel/mutate.ts";
 import { applyRemoteChanges } from "../src/application/backend-remote-reads.ts";
 import { readSqliteChangesSince } from "../src/storage/sqlite/store.ts";
+import type { StateSnapshot } from "../src/contracts/domain.ts";
 
 const stateFixture = {
   version: 1,
@@ -443,6 +444,40 @@ test("task.create closure preserves the complete missing-initiative error detail
       assert.deepEqual(error.details?.existing, ["core", "other"]);
       return true;
     });
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("a selected policy evaluates declared-closure mutations against the complete snapshot", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeCanonicalState(dir, stateFixture);
+    const before = await readState(dir);
+    let observedSnapshot: StateSnapshot | null = null;
+    let decision: "allow" | "deny" | null = null;
+    await executeOperation({
+      projectDir: dir,
+      actor: "alice",
+      operation: "note.add",
+      input: { id: "T0", text: "policy-checked note", if_revision: 12 },
+      source: {
+        registry: createBuiltinOperationRegistry(),
+        mutate,
+        selectPolicy: async () => ({ pluginId: "policy-fixture" }),
+        authorizeAction: async ({ snapshot }: { snapshot: StateSnapshot }) => {
+          observedSnapshot = snapshot;
+          decision = snapshot.nodes.T4?.title === "unrelated" && snapshot.edges.length === before.edges.length
+            ? "allow"
+            : "deny";
+          return { decision };
+        },
+      },
+    });
+
+    assert.deepEqual(observedSnapshot, before);
+    assert.equal(decision, "allow");
+    assert.equal((await readState(dir)).nodes.T0.notes?.[0].text, "policy-checked note");
   } finally {
     await rmTempProject(dir);
   }
