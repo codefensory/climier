@@ -209,7 +209,16 @@ export async function withSqliteTransaction<T>(file: string, operation: () => Pr
   });
 }
 
-function readStateInTransaction(database, { includeBodies = true }: { includeBodies?: boolean } = {}): SqliteState | null {
+function readLog(database, includeLog: boolean) {
+  if (includeLog) {
+    return readRows(database, "log", "position").map(({ data }) => JSON.parse(data));
+  }
+  const invalid = database.query("SELECT data FROM log WHERE json_valid(data) = 0 ORDER BY position LIMIT 1").get();
+  if (invalid) { JSON.parse(invalid.data); }
+  return [];
+}
+
+function readStateInTransaction(database, { includeBodies = true, includeLog = true }: { includeBodies?: boolean; includeLog?: boolean } = {}): SqliteState | null {
   const metadata = Object.fromEntries(database.query("SELECT key, value FROM meta").all()
     .map(({ key, value }) => [key, JSON.parse(value)]));
   if (metadata.version === undefined) { return null; }
@@ -221,7 +230,7 @@ function readStateInTransaction(database, { includeBodies = true }: { includeBod
     nodes: readNodes(database, includeBodies),
     edges: readRows(database, "edges", "position").map(({ data }) => JSON.parse(data)),
     initiatives: Object.fromEntries(readRows(database, "initiatives", "name").map(({ name, data }) => [name, JSON.parse(data)])),
-    log: readRows(database, "log", "position").map(({ data }) => JSON.parse(data)),
+    log: readLog(database, includeLog),
   };
   const state = Object.fromEntries((metadata[ROOT_ORDER_KEY] || Object.keys(values))
     .filter((key) => Object.hasOwn(values, key))
@@ -278,7 +287,7 @@ function replaceRows(database, state: SqliteState, previousState?: Record<string
   }
 }
 
-export async function readSqliteState(file: string, options: { includeBodies?: boolean } = {}) {
+export async function readSqliteState(file: string, options: { includeBodies?: boolean; includeLog?: boolean } = {}) {
   const active = activeDatabase(file);
   if (active) { return readStateInTransaction(active, options); }
   try {

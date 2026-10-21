@@ -117,6 +117,7 @@ test("CLI: --help prints help and exits 0", async () => {
   try {
     const r = await runCli(["--project", dir, "--help"]);
     assert.equal(r.code, 0, r.stderr);
+    assert.equal(r.stdout.trimEnd(), dispatchModule.HELP_TEXT);
     assert.match(r.stdout, /climier/i);
     assert.match(r.stdout, /take/);
     assert.match(r.stdout, /context/);

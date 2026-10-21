@@ -262,7 +262,7 @@ async function assertExplicitMigrationRequired(projectDir) {
   return assertExplicitMigrationRequiredForFile(jsonStateFile(projectDir));
 }
 
-export async function readState(projectDir, options: { includeBodies?: boolean } = {}) {
+export async function readState(projectDir, options: { includeBodies?: boolean; includeLog?: boolean } = {}) {
   const { readSqliteState } = await import("./sqlite/store.ts");
   const state = await readSqliteState(stateFile(projectDir), options);
   if (state === null) { await assertExplicitMigrationRequired(projectDir); }

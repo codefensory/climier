@@ -1,6 +1,6 @@
 
 import { readState } from "../../storage/state.ts";
-import { projectStatusView } from "../../read-model/index.ts";
+import { projectStatusView } from "../../read-model/status.ts";
 import type { CommandContext } from "./contracts.ts";
 import type { ReadModelSnapshot } from "../../read-model/types.ts";
 
@@ -81,7 +81,7 @@ async function readRemoteStatus(flags, backendClient) {
 }
 
 async function readLocalStatus(statePath, flags) {
-  const snapshot = await readState(statePath, { includeBodies: false }) as ReadModelSnapshot | null;
+  const snapshot = await readState(statePath, { includeBodies: false, includeLog: false }) as ReadModelSnapshot | null;
   if (!snapshot) {return emptyResult();}
   const filters = {
     initiative: flags.initiative || undefined,

@@ -62,6 +62,28 @@ test("SQLite state store creates, mutates, and reads canonical state", async () 
   } finally { await rmTempProject(dir); }
 });
 
+test("SQLite readState can skip audit rows for projections that do not consume them", async () => {
+  const { readState, writeState } = await import("../src/storage/state.ts");
+  const dir = await createTempProject();
+  const state = {
+    ...canonicalState(),
+    revision: 1,
+    nodes: { "T-sqlite": { id: "T-sqlite", kind: "resolvable", subkind: "task", title: "SQLite", status: "open" } },
+    log: [{ action: "created", node: "T-sqlite" }],
+  };
+  try {
+    await writeState(dir, state);
+    const projection = await readState(dir, { includeBodies: false, includeLog: false });
+    assert.deepEqual(projection, { ...state, log: [] });
+    const { stateFile } = await import("../src/storage/state.ts");
+    const { Database } = await import(SQLITE_MODULE);
+    const database = new Database(stateFile(dir));
+    try { database.query("UPDATE log SET data = ?").run("{"); }
+    finally { database.close(); }
+    await assert.rejects(readState(dir, { includeBodies: false, includeLog: false }), SyntaxError);
+  } finally { await rmTempProject(dir); }
+});
+
 test("state export returns complete schema-1 state from the SQLite database", async () => {
   const dir = await createTempProject();
   const state = {
