@@ -81,7 +81,8 @@ function representativeState(nodeCount: number) {
   };
 }
 
-async function countRowsRead(run: () => Promise<unknown>) {
+// Counts rows returned to JavaScript; it does not measure rows SQLite scans.
+async function countResultRows(run: () => Promise<unknown>) {
   const { Database } = await import(SQLITE_MODULE);
   const originalQuery = Database.prototype.query;
   let rowsRead = 0;
@@ -197,7 +198,30 @@ test("v3 SQLite databases migrate edge lookup columns and indexes", async () => 
       assert.equal(migrated.query("PRAGMA user_version").get().user_version, 4);
       assert.deepEqual(migrated.query("SELECT from_id, to_id, edge_type FROM edges").get(), { from_id: "T-old", to_id: "T-new", edge_type: "BLOCKS" });
       const indexes = migrated.query("SELECT name FROM sqlite_master WHERE type = 'index'").all().map(({ name }) => name);
-      for (const index of ["idx_edges_from_type_position", "idx_edges_to_type_position", "idx_log_state_revision_position"]) { assert.ok(indexes.includes(index), index); }
+      for (const index of ["idx_edges_from_type_position", "idx_edges_to_type_position", "idx_log_state_revision_position", "idx_nodes_count_fields_position"]) { assert.ok(indexes.includes(index), index); }
+    } finally { migrated.close(); }
+  } finally { await rmTempProject(projectDir); }
+});
+
+test("v4 databases acquire the count index without changing the schema version", async () => {
+  const projectDir = await createTempProject();
+  try {
+    await writeCanonicalState(projectDir, representativeState(4));
+    const { stateFile } = await import("../src/storage/state.ts");
+    const { Database } = await import(SQLITE_MODULE);
+    const file = stateFile(projectDir);
+    const database = new Database(file);
+    try {
+      assert.equal(database.query("PRAGMA user_version").get().user_version, 4);
+      database.exec("DROP INDEX idx_nodes_count_fields_position");
+    } finally { database.close(); }
+
+    const { readSqliteCounts } = await import("../src/storage/sqlite/store.ts");
+    assert.equal((await readSqliteCounts(file, { kind: "resolvable", subkind: "task", status: "done" })).total, 1);
+    const migrated = new Database(file);
+    try {
+      assert.equal(migrated.query("PRAGMA user_version").get().user_version, 4);
+      assert.ok(migrated.query("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?").get("idx_nodes_count_fields_position"));
     } finally { migrated.close(); }
   } finally { await rmTempProject(projectDir); }
 });
@@ -250,7 +274,7 @@ test("10,000-node point reads use indexed bounded work and match full-state proj
     finally { db.close(); }
     const complete = await readSqliteState(file);
     assert.ok(complete);
-    const oneNodeRows = await countRowsRead(() => readSqliteNode(file, "T-point-42"));
+    const oneNodeRows = await countResultRows(() => readSqliteNode(file, "T-point-42"));
     assert.ok(oneNodeRows <= 20, `readSqliteNode read ${oneNodeRows} rows`);
     const started = performance.now();
     const node = await readSqliteNode(file, "T-point-42");
@@ -268,7 +292,7 @@ test("10,000-node point reads use indexed bounded work and match full-state proj
       ["readSqliteRevision", () => readSqliteRevision(file), 24],
     ] as const;
     for (const [operation, run, budget] of boundedReads) {
-      const rowsRead = await countRowsRead(run);
+      const rowsRead = await countResultRows(run);
       assert.ok(rowsRead <= budget, `${operation} read ${rowsRead} rows (budget ${budget})`);
     }
     const expectedNodes = Object.fromEntries(Object.entries(complete.nodes).filter(([id]) => idSet.has(id)));
@@ -286,8 +310,10 @@ test("10,000-node point reads use indexed bounded work and match full-state proj
       dbPlan(file, "SELECT position, data FROM edges WHERE from_id IN (?) OR to_id IN (?) ORDER BY position", ["T-point-42", "T-point-42"]),
       dbPlan(file, "SELECT data FROM edges WHERE (from_id IN (?) OR to_id IN (?)) AND edge_type = ? ORDER BY position", ["T-point-42", "T-point-42", "BLOCKS"]),
       dbPlan(file, "SELECT id, data, body_hash FROM nodes WHERE id IN (?, ?) ORDER BY position", ["T-point-42", "T-point-43"]),
+      dbPlan(file, "SELECT json_extract(data, '$.kind') AS kind, json_extract(data, '$.subkind') AS subkind, json_extract(data, '$.status') AS status, COUNT(*) AS count FROM nodes WHERE json_extract(data, '$.kind') = ? AND json_extract(data, '$.subkind') = ? AND json_extract(data, '$.status') = ? GROUP BY kind, subkind, status ORDER BY MIN(position)", ["resolvable", "task", "open"]),
     ]);
-    for (const [table, plan] of [["nodes", plans[0]], ["log", plans[1]], ["edges", plans[2]], ["edges", plans[3]], ["nodes", plans[4]]] as const) {
+    for (const [table, plan] of [["nodes", plans[0]], ["log", plans[1]], ["edges", plans[2]], ["edges", plans[3]], ["nodes", plans[4]], ["nodes", plans[5]]] as const) {
+      assert.ok(plan.some((detail) => /\bSEARCH\b/i.test(detail)), `${table} query plan did not search an index: ${plan.join("; ")}`);
       assert.ok(!plan.some((detail) => new RegExp(`\\bSCAN\\s+${table}\\b`, "i").test(detail)), `${table} query plan scanned the table: ${plan.join("; ")}`);
     }
   } finally { await rmTempProject(projectDir); }

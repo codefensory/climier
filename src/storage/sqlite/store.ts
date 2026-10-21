@@ -48,6 +48,10 @@ function hasEdgeLookupColumns(database): boolean {
   return ["from_id", "to_id", "edge_type"].every((name) => columns.has(name));
 }
 
+function hasIndex(database, name: string): boolean {
+  return database.query("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?").get(name) !== null;
+}
+
 function supportsSchemaVersion(version: number): boolean {
   return version === 0 || version === 1 || version === 2 || version === 3 || version === SQLITE_SCHEMA_VERSION;
 }
@@ -135,7 +139,7 @@ async function openDatabase(file: string) {
     if (!supportsSchemaVersion(schemaVersion)) {
       throw new Error(`storage: unsupported SQLite schema version ${schemaVersion}`);
     }
-    if (schemaVersion === SQLITE_SCHEMA_VERSION && hasBodyHashColumn(database) && hasLogDeltaColumns(database) && hasEdgeLookupColumns(database)) { return database; }
+    if (schemaVersion === SQLITE_SCHEMA_VERSION && hasBodyHashColumn(database) && hasLogDeltaColumns(database) && hasEdgeLookupColumns(database) && hasIndex(database, "idx_nodes_count_fields_position")) { return database; }
     database.transaction(() => upgradeDatabase(database, schemaVersion))();
     return database;
   } catch (error) {
