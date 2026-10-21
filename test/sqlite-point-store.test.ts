@@ -222,26 +222,53 @@ test("v3 SQLite databases migrate edge lookup columns and indexes", async () => 
   } finally { await rmTempProject(projectDir); }
 });
 
-test("v4 databases acquire the count index without changing the schema version", async () => {
+test("v4 databases acquire count indexes and filtered counts search them without changing the schema version", async () => {
   const projectDir = await createTempProject();
   try {
-    await writeCanonicalState(projectDir, representativeState(4));
+    await writeCanonicalState(projectDir, representativeState(240));
     const { stateFile } = await import("../src/storage/state.ts");
     const { Database } = await import(SQLITE_MODULE);
     const file = stateFile(projectDir);
     const database = new Database(file);
+    const indexNames = [
+      "idx_nodes_count_fields_position",
+      "idx_nodes_count_subkind_position",
+      "idx_nodes_count_status_position",
+      "idx_nodes_count_subkind_status_position",
+    ];
     try {
       assert.equal(database.query("PRAGMA user_version").get().user_version, 4);
-      database.exec("DROP INDEX idx_nodes_count_fields_position");
+      for (const index of indexNames.slice(1)) { database.exec(`DROP INDEX IF EXISTS ${index}`); }
     } finally { database.close(); }
 
     const { readSqliteCounts } = await import("../src/storage/sqlite/store.ts");
-    assert.equal((await readSqliteCounts(file, { kind: "resolvable", subkind: "task", status: "done" })).total, 1);
+    const cases = [
+      { filters: { status: "done" }, args: ["done"] },
+      { filters: { subkind: "task" }, args: ["task"] },
+      { filters: { kind: "resolvable" }, args: ["resolvable"] },
+      { filters: { kind: "resolvable", subkind: "task" }, args: ["resolvable", "task"] },
+      { filters: { kind: "resolvable", status: "done" }, args: ["resolvable", "done"] },
+      { filters: { subkind: "task", status: "done" }, args: ["task", "done"] },
+      { filters: { kind: "resolvable", subkind: "task", status: "done" }, args: ["resolvable", "task", "done"] },
+    ];
+    for (const { filters } of cases) { await readSqliteCounts(file, filters); }
     const migrated = new Database(file);
     try {
       assert.equal(migrated.query("PRAGMA user_version").get().user_version, 4);
-      assert.ok(migrated.query("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?").get("idx_nodes_count_fields_position"));
+      for (const index of indexNames) {
+        assert.ok(migrated.query("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?").get(index), index);
+      }
     } finally { migrated.close(); }
+
+    for (const { filters, args } of cases) {
+      const where = Object.entries(filters).map(([field]) => `json_extract(data, '$.${field}') = ?`).join(" AND ");
+      const plan = await dbPlan(file,
+        `SELECT json_extract(data, '$.kind') AS kind, json_extract(data, '$.subkind') AS subkind, json_extract(data, '$.status') AS status, COUNT(*) AS count FROM nodes WHERE ${where} GROUP BY kind, subkind, status ORDER BY MIN(position)`,
+        args,
+      );
+      assert.ok(plan.some((detail) => /\bSEARCH\s+nodes\b/i.test(detail)), `${JSON.stringify(filters)} did not search an index: ${plan.join("; ")}`);
+      assert.ok(!plan.some((detail) => /\bSCAN\s+nodes\b/i.test(detail)), `${JSON.stringify(filters)} scanned nodes: ${plan.join("; ")}`);
+    }
   } finally { await rmTempProject(projectDir); }
 });
 

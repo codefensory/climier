@@ -48,8 +48,12 @@ function hasEdgeLookupColumns(database): boolean {
   return ["from_id", "to_id", "edge_type"].every((name) => columns.has(name));
 }
 
-function hasIndex(database, name: string): boolean {
-  return database.query("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?").get(name) !== null;
+function hasIndexes(database, names: string[]): boolean {
+  const placeholders = names.map(() => "?").join(",");
+  const { count } = database.query(
+    `SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'index' AND name IN (${placeholders})`,
+  ).get(...names);
+  return count === names.length;
 }
 
 function supportsSchemaVersion(version: number): boolean {
@@ -139,7 +143,12 @@ async function openDatabase(file: string) {
     if (!supportsSchemaVersion(schemaVersion)) {
       throw new Error(`storage: unsupported SQLite schema version ${schemaVersion}`);
     }
-    if (schemaVersion === SQLITE_SCHEMA_VERSION && hasBodyHashColumn(database) && hasLogDeltaColumns(database) && hasEdgeLookupColumns(database) && hasIndex(database, "idx_nodes_count_fields_position")) { return database; }
+    if (schemaVersion === SQLITE_SCHEMA_VERSION && hasBodyHashColumn(database) && hasLogDeltaColumns(database) && hasEdgeLookupColumns(database) && hasIndexes(database, [
+      "idx_nodes_count_fields_position",
+      "idx_nodes_count_subkind_position",
+      "idx_nodes_count_status_position",
+      "idx_nodes_count_subkind_status_position",
+    ])) { return database; }
     database.transaction(() => upgradeDatabase(database, schemaVersion))();
     return database;
   } catch (error) {
