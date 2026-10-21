@@ -277,7 +277,7 @@ test("10,000-node point reads use indexed bounded work and match full-state proj
     assert.equal(JSON.stringify(await readSqliteEdgesOf(file, ids)), JSON.stringify(expectedEdges));
     assert.equal(JSON.stringify(await readSqliteEdgesOf(file, ids, { type: "BLOCKS" })), JSON.stringify(expectedEdges.filter((edge: any) => edge.type === "BLOCKS")));
     assert.equal(JSON.stringify(await readSqliteLogSince(file, 9_990)), JSON.stringify(complete.log.filter((_, index) => index + 1 > 9_990)));
-    assert.deepEqual(await readSqliteCounts(file), expectedCounts(complete.nodes as Record<string, Record<string, unknown>>));
+    assertCountsMatch(await readSqliteCounts(file), expectedCounts(complete.nodes as Record<string, Record<string, unknown>>));
     assert.equal(await readSqliteRevision(file), complete.revision);
 
     const plans = await Promise.all([
