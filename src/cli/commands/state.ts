@@ -17,9 +17,29 @@ function assertAllowedFlags(flags: CommandContext["flags"], allowed: string[], c
   if (invalid) { throw new Error(`${command}: --${invalid} is not valid here`); }
 }
 
+function isCanonicalState(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) { return false; }
+  const state = value as Record<string, unknown>;
+  return state.version === 1
+    && Number.isInteger(state.revision) && (state.revision as number) >= 0
+    && Boolean(state.initiatives) && typeof state.initiatives === "object" && !Array.isArray(state.initiatives)
+    && Boolean(state.nodes) && typeof state.nodes === "object" && !Array.isArray(state.nodes)
+    && Array.isArray(state.edges)
+    && Array.isArray(state.log);
+}
+
 async function exportState({ statePath, backendClient, flags = {} }: CommandContext) {
   assertAllowedFlags(flags, [], "state export");
-  if (backendClient?.type === "remote") { throw new Error("state export: only local storage backends can export schema-1 state"); }
+  if (backendClient?.type === "remote") {
+    if (typeof backendClient.readState !== "function") {
+      throw new Error("state export: remote backend cannot read canonical schema-1 state");
+    }
+    const state = await backendClient.readState();
+    if (!isCanonicalState(state)) {
+      throw new Error("state export: remote backend did not return canonical schema-1 state");
+    }
+    return state;
+  }
   return readState(statePath);
 }
 
@@ -77,8 +97,9 @@ async function compactStateCommand({ projectDir, statePath, backendClient, flags
 
 async function readProjection({ statePath, backendClient, flags = {} }: CommandContext) {
   assertAllowedFlags(flags, [], "state");
-  if (backendClient?.type === "remote") { return backendClient.readState(); }
-  const snapshot = await readState(statePath) as import("../../read-model/types.ts").ReadModelSnapshot | null;
+  const snapshot = backendClient?.type === "remote"
+    ? await backendClient.readState() as import("../../read-model/types.ts").ReadModelSnapshot | null
+    : await readState(statePath) as import("../../read-model/types.ts").ReadModelSnapshot | null;
   return projectSnapshot({ snapshot: snapshot || undefined });
 }
 
