@@ -4,7 +4,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { asCaughtError, codedError } from "../../contracts/errors.ts";
 import { validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { SQLITE_INDEXES, SQLITE_PRAGMAS, SQLITE_SCHEMA, SQLITE_SCHEMA_VERSION } from "./schema.ts";
-import { bodyHash, makeStoredLogRows, nodeWithoutBodyText, readSqliteChangesInTransaction } from "./delta.ts";
+import { bodyHash, createStateDelta, makeStoredLogAppendRows, makeStoredLogRows, nodeWithoutBodyText, readSqliteChangesInTransaction } from "./delta.ts";
 
 const SQLITE_MODULE = "bun:sqlite";
 const COLLECTIONS = new Set(["nodes", "edges", "initiatives", "log"]);
@@ -350,6 +350,7 @@ function replaceMetadata(database, state: SqliteState) {
   })) { insert.run(key, JSON.stringify(value)); }
 }
 
+// Full rewrites are for migration/restore and the safe fallback when no trustworthy incremental delta exists.
 function replaceRows(database, state: SqliteState, previousState?: Record<string, unknown> | null) {
   const previous = (previousState === undefined ? readStateInTransaction(database, { includeBodies: false }) : previousState) as SqliteState | null;
   const previousBodyHashes = new Map<string, string | null>(database.query("SELECT id, body_hash FROM nodes").all()
@@ -365,6 +366,113 @@ function replaceRows(database, state: SqliteState, previousState?: Record<string
   const insertLog = database.prepare("INSERT INTO log (position, data, from_revision, state_revision, delta) VALUES (?, ?, ?, ?, ?)");
   for (const row of storedLogRows) {
     insertLog.run(row.position, row.data, row.from_revision, row.state_revision, row.delta);
+  }
+}
+
+function appendCompatibleOrder(previous: Record<string, unknown>, next: Record<string, unknown>): boolean {
+  const surviving = Object.keys(previous).filter((key) => Object.hasOwn(next, key));
+  const nextKeys = Object.keys(next);
+  return surviving.every((key, index) => nextKeys[index] === key);
+}
+
+function hasUnversionedRows(database): boolean {
+  return Boolean(database.query(`
+    SELECT 1 FROM nodes UNION ALL SELECT 1 FROM edges UNION ALL SELECT 1 FROM initiatives UNION ALL SELECT 1 FROM log LIMIT 1
+  `).get());
+}
+
+function isDeltaState(value: unknown): value is SqliteState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) { return false; }
+  const candidate = value as Record<string, unknown>;
+  return candidate.version === 1 && Number.isSafeInteger(candidate.revision)
+    && Boolean(candidate.nodes && typeof candidate.nodes === "object" && !Array.isArray(candidate.nodes))
+    && Array.isArray(candidate.edges)
+    && Boolean(candidate.initiatives && typeof candidate.initiatives === "object" && !Array.isArray(candidate.initiatives))
+    && Array.isArray(candidate.log);
+}
+
+function canApplyStateDelta(database, previous: SqliteState | null, state: SqliteState, delta: Record<string, any>): boolean {
+  if (!previous || state.revision < previous.revision || !Object.hasOwn(delta.log, "append")) { return false; }
+  if (!appendCompatibleOrder(previous.nodes, state.nodes) || !appendCompatibleOrder(previous.initiatives, state.initiatives)) { return false; }
+  const storedRevision = database.query("SELECT value FROM meta WHERE key = 'revision'").get();
+  if (storedRevision) { return JSON.parse(storedRevision.value) === previous.revision; }
+  return previous.revision === 0 && !hasUnversionedRows(database);
+}
+
+function applyStateDelta(database, state: SqliteState, previous: SqliteState, delta: Record<string, any>) {
+  const extras = Object.fromEntries(Object.entries(state).filter(([key]) => !META_FIELDS.has(key) && !COLLECTIONS.has(key)));
+  const findMetadata = database.query("SELECT value FROM meta WHERE key = ?");
+  const upsertMetadata = database.query("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+  for (const [key, value] of Object.entries({
+    version: state.version,
+    revision: state.revision,
+    extras,
+    [ROOT_ORDER_KEY]: Object.keys(state),
+  })) {
+    const encoded = JSON.stringify(value);
+    if (findMetadata.get(key)?.value !== encoded) { upsertMetadata.run(key, encoded); }
+  }
+  database.query("DELETE FROM meta WHERE key NOT IN ('version', 'revision', 'extras', ?)").run(ROOT_ORDER_KEY);
+
+  const changedNodeIds = [...Object.keys(delta.nodes.upsert), ...delta.nodes.remove];
+  const existingNodes = new Map<string, { position: number; body_hash: string | null }>();
+  const findNode = database.query("SELECT position, body_hash FROM nodes WHERE id = ?");
+  for (const id of changedNodeIds) {
+    const row = findNode.get(id);
+    if (row) { existingNodes.set(id, row); }
+  }
+  let nextNodePosition: number | undefined;
+  const insertNode = database.query("INSERT INTO nodes (id, position, data, body_hash) VALUES (?, ?, ?, ?)");
+  const updateNode = database.query("UPDATE nodes SET data = ?, body_hash = ? WHERE id = ?");
+  const knownBodies = new Map<string, string>();
+  for (const [id, value] of Object.entries(delta.nodes.upsert) as Array<[string, unknown]>) {
+    const { data, hash } = contentAddressedNode(database, value, knownBodies);
+    const existing = existingNodes.get(id);
+    if (existing) { updateNode.run(JSON.stringify(data), hash, id); }
+    else {
+      if (nextNodePosition === undefined) { nextNodePosition = (database.query("SELECT COALESCE(MAX(position), -1) AS position FROM nodes").get().position as number) + 1; }
+      insertNode.run(id, nextNodePosition++, JSON.stringify(data), hash);
+    }
+  }
+  const deleteNode = database.query("DELETE FROM nodes WHERE id = ?");
+  for (const id of delta.nodes.remove as string[]) { deleteNode.run(id); }
+  const obsoleteBodyHashes = new Set([...existingNodes.values()].map(({ body_hash }) => body_hash).filter((hash): hash is string => typeof hash === "string"));
+  const deleteBody = database.query("DELETE FROM node_body WHERE hash = ? AND NOT EXISTS (SELECT 1 FROM nodes WHERE body_hash = ?)");
+  for (const hash of obsoleteBodyHashes) { deleteBody.run(hash, hash); }
+
+  const changedInitiativeNames = [...Object.keys(delta.initiatives.upsert), ...delta.initiatives.remove];
+  const existingInitiatives = new Map<string, number>();
+  const findInitiative = database.query("SELECT position FROM initiatives WHERE name = ?");
+  for (const name of changedInitiativeNames) {
+    const row = findInitiative.get(name);
+    if (row) { existingInitiatives.set(name, row.position); }
+  }
+  let nextInitiativePosition: number | undefined;
+  const insertInitiative = database.query("INSERT INTO initiatives (name, position, data) VALUES (?, ?, ?)");
+  const updateInitiative = database.query("UPDATE initiatives SET data = ? WHERE name = ?");
+  for (const [name, value] of Object.entries(delta.initiatives.upsert)) {
+    const existing = existingInitiatives.get(name);
+    if (existing !== undefined) { updateInitiative.run(JSON.stringify(value), name); }
+    else {
+      if (nextInitiativePosition === undefined) { nextInitiativePosition = (database.query("SELECT COALESCE(MAX(position), -1) AS position FROM initiatives").get().position as number) + 1; }
+      insertInitiative.run(name, nextInitiativePosition++, JSON.stringify(value));
+    }
+  }
+  const deleteInitiative = database.query("DELETE FROM initiatives WHERE name = ?");
+  for (const name of delta.initiatives.remove as string[]) { deleteInitiative.run(name); }
+
+  if (Object.hasOwn(delta, "edges")) {
+    database.exec("DELETE FROM edges");
+    const insertEdge = database.query("INSERT INTO edges (position, data, from_id, to_id, edge_type) VALUES (?, ?, ?, ?, ?)");
+    state.edges.forEach((edge: any, position) => insertEdge.run(position, JSON.stringify(edge), edge?.from ?? null, edge?.to ?? null, edge?.type ?? null));
+  }
+
+  const appendedLogRows = makeStoredLogAppendRows(database, state, previous, delta);
+  const insertLog = database.query("INSERT INTO log (position, data, from_revision, state_revision, delta) VALUES (?, ?, ?, ?, ?)");
+  const updateLogDelta = database.query("UPDATE log SET from_revision = ?, state_revision = ?, delta = ? WHERE position = ?");
+  for (const row of appendedLogRows) {
+    if (row.existing) { updateLogDelta.run(row.from_revision, row.state_revision, row.delta, row.position); }
+    else { insertLog.run(row.position, row.data, row.from_revision, row.state_revision, row.delta); }
   }
 }
 
@@ -665,7 +773,24 @@ export async function writeSqliteState(file: string, state: unknown, previousSta
   assertCanonicalState(state, "writeState");
   const active = activeDatabase(file);
   if (active) {
-    replaceRows(active, state, previousState);
+    let previous: SqliteState | null;
+    if (previousState === undefined) {
+      previous = readStateInTransaction(active);
+    } else {
+      previous = isDeltaState(previousState) ? previousState : null;
+    }
+    const delta = previous ? createStateDelta(previous, state, new Map()) : null;
+    if (delta && canApplyStateDelta(active, previous, state, delta)) { applyStateDelta(active, state, previous!, delta); }
+    else {
+      let replacementPrevious = previous;
+      const storedRevision = active.query("SELECT value FROM meta WHERE key = 'revision'").get();
+      if (previous && storedRevision && JSON.parse(storedRevision.value) !== previous.revision) {
+        replacementPrevious = readStateInTransaction(active);
+      } else if (previous && !storedRevision && hasUnversionedRows(active)) {
+        replacementPrevious = null;
+      }
+      replaceRows(active, state, replacementPrevious);
+    }
     return state;
   }
   return withSqliteTransaction(file, async () => writeSqliteState(file, state, previousState));
@@ -682,9 +807,9 @@ export async function updateSqliteState(file: string, mutator: (state: Record<st
     initiatives: {},
     log: [],
   };
-  const next = mutator({ ...current });
+  const draft = { ...current };
+  const next = mutator(draft);
   if (next === undefined) { throw new Error("updateState mutator must return the new state object"); }
-  assertCanonicalState(next, "state.update");
-  replaceRows(active, next, current);
+  await writeSqliteState(file, next, current);
   return next;
 }

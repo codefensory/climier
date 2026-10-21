@@ -19,10 +19,11 @@ export function nodeWithoutBodyText(node: Record<string, unknown>) {
 }
 
 export function isStateLogPrefix(previous: unknown[], next: unknown[]): boolean {
-  return previous.length <= next.length && previous.every((entry, index) => structurallyEqual(entry, next[index]));
+  return previous === next || (previous.length <= next.length && previous.every((entry, index) => structurallyEqual(entry, next[index])));
 }
 
 function changedMap(previous: Record<string, unknown>, next: Record<string, unknown>) {
+  if (previous === next) { return { upsert: {}, remove: [] as string[] }; }
   const upsert: Record<string, unknown> = {};
   const remove = Object.keys(previous).filter((key) => !Object.hasOwn(next, key));
   for (const [key, value] of Object.entries(next)) {
@@ -40,6 +41,7 @@ function nodeUnchanged(previous: unknown, next: unknown, storedBodyHash: string 
 }
 
 function changedNodes(previous: Record<string, unknown>, next: Record<string, unknown>, previousBodyHashes: Map<string, string | null>) {
+  if (previous === next) { return { upsert: {}, remove: [] as string[] }; }
   const upsert: Record<string, unknown> = {};
   const remove = Object.keys(previous).filter((key) => !Object.hasOwn(next, key));
   for (const [id, value] of Object.entries(next)) {
@@ -55,7 +57,7 @@ export function createStateDelta(previous: DeltaState, next: DeltaState, previou
   for (const key of new Set([...Object.keys(previous), ...Object.keys(next)])) {
     if (coreFields.has(key)) { continue; }
     if (!Object.hasOwn(next, key)) { remove.push(key); }
-    else if (!Object.hasOwn(previous, key) || !structurallyEqual(previous[key], next[key])) { set[key] = next[key]; }
+    else if (!Object.hasOwn(previous, key) || (previous[key] !== next[key] && !structurallyEqual(previous[key], next[key]))) { set[key] = next[key]; }
   }
   const delta: Record<string, unknown> = {
     from_revision: previous.revision,
@@ -97,6 +99,34 @@ function updateDeltaHistoryFloor(database, { previous, state, appendOnly, hasNew
 function retainedLogMetadata(appendOnly: boolean, old, data: string) {
   if (!appendOnly || !old || old.data !== data) { return null; }
   return { from_revision: old.from_revision, state_revision: old.state_revision, delta: old.delta };
+}
+
+export function makeStoredLogAppendRows(database, state: DeltaState, previous: DeltaState, delta: Record<string, any>) {
+  const hasNewLogEntry = state.log.length > previous.log.length;
+  updateDeltaHistoryFloor(database, { previous, state, appendOnly: true, hasNewLogEntry });
+  const markedPosition = state.revision > previous.revision && state.log.length > 0 ? state.log.length - 1 : -1;
+  const rows: Array<{ position: number; data: string; from_revision: number | null; state_revision: number | null; delta: string | null; existing: boolean }> = state.log.slice(previous.log.length).map((entry, index) => {
+    const position = previous.log.length + index;
+    return {
+      position,
+      data: JSON.stringify(entry),
+      from_revision: position === markedPosition ? previous.revision : null,
+      state_revision: position === markedPosition ? state.revision : null,
+      delta: position === markedPosition ? JSON.stringify(delta) : null,
+      existing: false,
+    };
+  });
+  if (markedPosition >= 0 && markedPosition < previous.log.length) {
+    rows.push({
+      position: markedPosition,
+      data: "",
+      from_revision: previous.revision,
+      state_revision: state.revision,
+      delta: JSON.stringify(delta),
+      existing: true,
+    });
+  }
+  return rows;
 }
 
 export function makeStoredLogRows(database, state: DeltaState, previous: DeltaState | null, previousBodyHashes: Map<string, string | null>) {

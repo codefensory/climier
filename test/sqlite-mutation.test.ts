@@ -6,6 +6,7 @@ import path from "node:path";
 import { createTempProject, jsonStateFilePath, rmTempProject, runCli, runCliSpawn } from "./helpers.ts";
 
 type State = { version: number; revision: number; nodes: Record<string, any>; edges: unknown[]; initiatives: Record<string, unknown>; log: any[] };
+const SQLITE_MODULE = "bun:sqlite";
 const emptyState = (): State => ({ version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] });
 
 async function sourceFiles(directory: string): Promise<string[]> {
@@ -164,6 +165,7 @@ test("20 SIGKILLs during SQLite mutations retain confirmed commits without parti
       initiatives: { core: { desc: "crash test", created_at: "2026-10-20T00:00:00.000Z" } },
     };
     await writeSqliteState(file, initial);
+    const { Database } = await import(SQLITE_MODULE);
     for (let iteration = 0; iteration < 20; iteration += 1) {
       const confirmed = await runCli(["--project", projectDir, "add-note", "T-crash", `confirmed-${iteration}`, "--as", "worker"]);
       assert.equal(confirmed.code, 0, confirmed.stdout);
@@ -171,6 +173,9 @@ test("20 SIGKILLs during SQLite mutations retain confirmed commits without parti
       await killDuringSqliteMutation(projectDir);
       const actual = await readState(projectDir);
       assert.deepEqual(actual, committed, `partial state or lost confirmed commit after SIGKILL ${iteration + 1}`);
+      const database = new Database(file);
+      try { assert.equal(database.query("PRAGMA integrity_check").get().integrity_check, "ok"); }
+      finally { database.close(); }
     }
     await fs.access(file);
     const jsonFile = jsonStateFilePath(projectDir);
