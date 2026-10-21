@@ -35,7 +35,7 @@ import {
   createTempProject,
   rmTempProject,
   runCli,
-  stateFilePath,
+  readState,
 } from "./helpers.ts";
 
 const FIXTURE_DIR = path.resolve("test/fixtures/sample-plugin");
@@ -262,7 +262,7 @@ async function assertUninstallAndReinstall(projectDir, installedDir, nodeValue, 
   assert.equal(uninstallRes.plugin.id, FIXTURE_ID);
   assert.equal(uninstallRes.plugin.uninstalled, true);
   await assert.rejects(fs.access(installedDir));
-  const stateAfterUninstall = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+  const stateAfterUninstall = await readState(projectDir);
   assert.ok(stateAfterUninstall.plugins[FIXTURE_ID]);
   assert.ok(stateAfterUninstall.nodes["T-fixture-target"].plugins[FIXTURE_ID]);
   const reinstall = await cli(["--project", projectDir, "install", FIXTURE_DIR]);
@@ -285,7 +285,7 @@ async function runIntegration({ home, projectDir }) {
   const installedDir = await initializePluginProject({ home, projectDir });
   await assertQueryCommands(projectDir);
   const { nodeSecret, nodeValue, projectSecret } = await assertDataRoundTrips(projectDir);
-  const state = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+  const state = await readState(projectDir);
   assert.ok(state.plugins && state.plugins[FIXTURE_ID], "root plugins[sample.plugin] exists");
   assert.deepEqual(state.plugins[FIXTURE_ID].data, { greeting: projectSecret });
   assert.ok(state.nodes["T-fixture-target"].plugins?.[FIXTURE_ID]);

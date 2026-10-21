@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { structurallyEqual } from "../src/contracts/structural-equality.ts";
 import { deepEqualNodes } from "../src/kernel/mutation/revisions.ts";
-import { assertSchemaMigrationDestination } from "../src/storage/ledger/stages.ts";
 
 test("structural equality matches JSON omission and array-null behavior", () => {
   const equivalentPairs = [
@@ -29,30 +28,3 @@ test("node equality preserves primitive comparison and ignores undefined-valued 
   assert.equal(deepEqualNodes({ id: "T1", value: null }, { id: "T1", value: Number.NaN }), false);
 });
 
-test("schema migration verification compares nested state structurally", () => {
-  const source = {
-    version: 5,
-    fence_generation: 1,
-    revision: 2,
-    nodes: {},
-    edges: [],
-    initiatives: { work: { desc: "work", optional: undefined } },
-    extensions: { nested: { values: ["keep", undefined] } },
-    log: [{ action: "prior", optional: undefined }],
-  };
-  const destination = {
-    ...source,
-    version: 1,
-    revision: 3,
-    initiatives: { work: { desc: "work" } },
-    extensions: { nested: { values: ["keep", null] } },
-    log: [{ action: "prior" }, { action: "migrate", agent: "migrate", from_version: 5, to_version: 1 }],
-  };
-
-  assert.equal(assertSchemaMigrationDestination(
-    source,
-    destination,
-    { fence_generation: 1, high_water_revision: 2 },
-    { fence_generation: 1, high_water_revision: 3 },
-  ), destination);
-});

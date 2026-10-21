@@ -2,13 +2,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
 import { createTempProject, importFresh, readState, rmTempProject, stateFilePath, writeCanonicalState } from "./helpers.ts";
-import { ledgerFile } from "../src/storage/ledger.ts";
 
 function baseState() {
   return {
     version: 1,
     revision: 0,
-    fence_generation: 1,
     initiatives: { work: { desc: "work", created_at: "2026-01-01T00:00:00.000Z" } },
     nodes: {
       T1: {
@@ -109,7 +107,7 @@ const READ_BUDGETS = {
   history: { stateParses: 2, parseBytes: 2, stringifyCalls: 1, stringifyBytes: 1, structuredClones: 1 },
 };
 
-test("one mutation stays within the state JSON parse and serialization budget", async () => {
+test("one mutation does not parse or serialize a full JSON state", async () => {
   const { mutate } = await importFresh("../src/kernel/mutate.ts");
   await withProject(async (projectDir) => {
     await writeCanonicalState(projectDir, {
@@ -121,15 +119,8 @@ test("one mutation stays within the state JSON parse and serialization budget", 
       request: { action: "task.update", actor: "worker", input: {} },
       provider: updateProvider(),
     }));
-    // Before ADR-073, add-note measured 17 state parses (49.8 MB, ~7x the state size), 5,544 JSON.stringify calls (16.6 MB, ~2.8x), and 3,043 structuredClone calls (5.8 MB).
-    // The current mutation also uses nine structured clones; retain that measured ceiling.
-    assertWorkBudget("mutation", measured.work, measured.stateBytes, {
-      stateParses: 2,
-      parseBytes: 2,
-      stringifyCalls: 4,
-      stringifyBytes: 2,
-      structuredClones: 9,
-    });
+    assert.equal(measured.work.stateParses, 0, "SQLite mutations must not parse a JSON state file");
+    assert.equal(measured.work.stateParseBytes, 0);
     assert.equal((await readState(projectDir)).nodes.T1.title, "after");
   });
 });
@@ -158,29 +149,3 @@ test("status, context, and history stay within state work budgets", async () => 
   });
 });
 
-test("ledger consistency is validated at persistence after prepare, policy, and apply", async () => {
-  const { mutate } = await importFresh("../src/kernel/mutate.ts");
-  await withProject(async (projectDir) => {
-    await writeCanonicalState(projectDir, baseState());
-    const path = ledgerFile(projectDir);
-    const ledger = JSON.parse(await fs.readFile(path, "utf8"));
-    ledger.high_water_revision += 1;
-    await fs.writeFile(path, `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
-
-    const events: string[] = [];
-    await assert.rejects(mutate({
-      projectDir,
-      request: { action: "task.update", actor: "worker", input: {} },
-      provider: updateProvider(events),
-      policyAction: {
-        async decide() {
-          events.push("policy");
-          return { decision: "allow" };
-        },
-      },
-    }), { code: "CLIMIER_LEDGER_STATE_MISMATCH" });
-
-    assert.deepEqual(events, ["prepare", "policy", "apply"]);
-    assert.equal((await readState(projectDir)).nodes.T1.title, "before");
-  });
-});

@@ -11,7 +11,6 @@ test("init: creates an empty canonical state by default", async () => {
     await init({ statePath: dir, positional: [], projectDir: dir });
     const s = await readState(dir);
     assert.equal(s.version, 1);
-    assert.equal(s.fence_generation, 1);
     assert.equal(s.revision, 1);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
@@ -351,7 +350,7 @@ test("context: returns blockers, informing edges, and scoped knowledge for a tas
   const dir = await createTempProject();
   try {
     await writeFencedState(dir, {
-      version: 5,
+      version: 1,
       revision: 0,
       nodes: {
         "T-auth-1": {

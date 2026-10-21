@@ -7,12 +7,6 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BIN, runCli } from "./cli-harness.ts";
-import { withLock } from "../src/storage/lock.ts";
-import {
-  bootstrapFencedStateUnderLock,
-  readFencedStateUnderLock,
-  replaceFencedStateUnderLock,
-} from "../src/storage/ledger.ts";
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = path.resolve(testDirectory, "..", "src");
@@ -20,7 +14,6 @@ type DynamicModule = ReturnType<typeof JSON.parse>;
 type CanonicalState = {
   version: number;
   revision: number;
-  fence_generation?: number;
   nodes: Record<string, Record<string, unknown>>;
   edges: Array<Record<string, unknown>>;
   initiatives: Record<string, unknown>;
@@ -115,7 +108,11 @@ export function stateFilePath(dir: string): string {
   if (climierHome === undefined) {
     throw new Error("stateFilePath: CLIMIER_HOME is not configured");
   }
-  return path.join(climierHome, "projects", projectId, "tasks.json");
+  return path.join(climierHome, "projects", projectId, "state.sqlite");
+}
+
+export function jsonStateFilePath(dir: string): string {
+  return path.join(path.dirname(stateFilePath(dir)), "tasks.json");
 }
 
 export function lockFilePath(dir: string): string {
@@ -131,60 +128,37 @@ export async function rmTempProject(dir: string): Promise<void> {
 }
 
 export async function writeState(dir, state) {
-  const file = stateFilePath(dir);
-  await fsp.mkdir(path.dirname(file), { recursive: true });
-  await fsp.writeFile(file, JSON.stringify(state, null, 2) + "\n", "utf8");
+  const { writeState: writeCanonical } = await import("../src/storage/state.ts");
+  return writeCanonical(dir, state);
 }
 
-// Plant a fixture through the canonical ledger protocol. The input keeps the
+export async function writeLegacyJsonState(dir: string, state): Promise<void> {
+  const file = jsonStateFilePath(dir);
+  await fsp.mkdir(path.dirname(file), { recursive: true });
+  await fsp.writeFile(file, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+}
 
-// canonical-only there is no other writable form, and a fixture project must
-// never claim a schema the reader refuses. The name retires with the era
-// renames slice.
 export async function writeFencedState(dir: string, state): Promise<CanonicalState> {
-  if (!state || typeof state !== "object" || Array.isArray(state) || state.version !== 5) {
-    throw new TypeError("writeFencedState: expected a v5 state fixture");
-  }
   const { fence_generation: _fenceGeneration, ...content } = state;
   return writeCanonicalState(dir, content);
 }
 
-// Install a canonical fixture (version 1 plus its ledger) through the same
-// protocol the product uses, so a fixture project is never inconsistent with
-
 export async function writeCanonicalState(dir: string, state): Promise<CanonicalState> {
-  const initialState = {
-    ...state,
-    version: 4,
-    revision: Number.isInteger(state.revision) ? state.revision : 0,
-  };
-  delete initialState.fence_generation;
-
-  return withLock(dir, async (lockContext) => {
-    const current = await readFencedStateUnderLock(lockContext);
-    if (current && typeof current === "object" && !Array.isArray(current)
-      && "fence_generation" in current && "revision" in current) {
-      return replaceFencedStateUnderLock(lockContext, {
-        ...state,
-        version: 1,
-        fence_generation: current.fence_generation,
-        revision: Number.isInteger(current.revision) ? current.revision : 0,
-      });
-    }
-    return bootstrapFencedStateUnderLock(lockContext, initialState);
-  }) as Promise<CanonicalState>;
+  const nodeRevision = Math.max(0, ...Object.values(state.nodes || {}).map((node) => Number.isInteger(node?.revision) ? node.revision : 0));
+  const normalized = { ...state, version: 1, revision: Math.max(Number.isInteger(state.revision) ? state.revision : 0, nodeRevision) };
+  const { writeState: writeCanonical } = await import("../src/storage/state.ts");
+  await writeCanonical(dir, normalized);
+  return normalized as CanonicalState;
 }
 
 export async function readState(dir) {
-  const file = stateFilePath(dir);
-  const raw = await fsp.readFile(file, "utf8");
-  return JSON.parse(raw);
+  const { readState: readCanonical } = await import("../src/storage/state.ts");
+  return readCanonical(dir);
 }
 
 export async function stateExists(dir) {
   try {
-    await fsp.access(stateFilePath(dir));
-    return true;
+    return (await readState(dir)) !== null;
   } catch {
     return false;
   }

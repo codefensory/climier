@@ -33,20 +33,19 @@ function assertPolicyDenied(error, decidedWith, state, base) {
 }
 
 function assertSemanticSnapshot(snapshot, expectedRevision, expectedFields) {
-  assert.equal(Object.hasOwn(snapshot, "fence_generation"), false, "policy must not see the internal fence");
   assert.equal(snapshot.version, 1);
   assert.equal(snapshot.revision, expectedRevision, "policy sees the current semantic snapshot revision");
   assert.deepEqual(snapshot, expectedFields, "projection preserves every other semantic field");
 }
 
-async function setupFencedPolicyProject(dir, mutate, readFencedState) {
+async function setupPolicyProject(dir, mutate, readState) {
   await bootstrapProject(dir, addPluginFixture);
   await mutate({
     projectDir: dir,
     request: { action: "task.update", actor: "alice", input: {} },
     provider: updateNodeProvider({ id: "T1", newTitle: "fenced v5 baseline" }).provider,
   });
-  const initial = await readFencedState(dir);
+  const initial = await readState(dir);
   assert.equal(initial.version, 1, "test policy uses a canonical fixture");
   return initial;
 }
@@ -65,7 +64,7 @@ function capturePolicySnapshots(snapshots) {
     }),
     apply: async ({ tx }) => {
       applyCount += 1;
-      tx.updateNode("T1", { title: `policy snapshot fenced ${applyCount}` });
+      tx.updateNode("T1", { title: `policy snapshot ${applyCount}` });
       return { result: null };
     },
   };
@@ -97,14 +96,12 @@ function assertPolicySnapshots(snapshots, initial, beforeBatch) {
   assert.equal(snapshots.length, 2, "single and batch both reach policy");
   for (const [index, snapshot] of snapshots.entries()) {
     const expected = { ...(index === 0 ? policyFields(initial) : beforeBatch) };
-    delete expected.fence_generation;
     assertSemanticSnapshot(snapshot, index === 0 ? initial.revision : beforeBatch.revision, expected);
   }
 }
 
 function assertPersistedPolicyState(persisted, initial) {
   assert.equal(persisted.version, 1);
-  assert.equal(persisted.fence_generation, initial.fence_generation, "persisted state retains its fence generation");
   assert.equal(persisted.revision, initial.revision + 2);
   assert.deepEqual(persisted.plugins, initial.plugins);
 }
@@ -204,17 +201,17 @@ test("kernel.mutate: policyAction.decide runs against the FRESH snapshot under t
   }
 });
 
-test("kernel.mutate: policy receives fenced semantic snapshots without fence_generation for single and batch", async () => {
+test("kernel.mutate: policy receives semantic SQLite snapshots for single and batch", async () => {
   const { mutate } = await importKernel();
-  const { readFencedState } = await import("../../../src/storage/ledger.ts");
+  const readStoredState = readStateHelper;
   const dir = await createTempProject();
   try {
-    const initial = await setupFencedPolicyProject(dir, mutate, readFencedState);
+    const initial = await setupPolicyProject(dir, mutate, readStoredState);
     const snapshots: Array<Record<string, unknown>> = [];
     const { policyAction, provider } = capturePolicySnapshots(snapshots);
-    const beforeBatch = await runSingleAndBatchPolicyMutation({ dir, mutate, readFencedState, provider, policyAction });
+    const beforeBatch = await runSingleAndBatchPolicyMutation({ dir, mutate, readFencedState: readStoredState, provider, policyAction });
     assertPolicySnapshots(snapshots, initial, beforeBatch);
-    const persisted = await readFencedState(dir);
+    const persisted = await readStoredState(dir);
     assertPersistedPolicyState(persisted, initial);
   } finally {
     await rmTempProject(dir);

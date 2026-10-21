@@ -1,12 +1,7 @@
 import { asCaughtError } from "../../../contracts/errors.ts";
 
 
-import fs from "node:fs/promises";
-import path from "node:path";
-import { classifyStateShape, readState, stateFile } from "../../../storage/state.ts";
-import { stateBackend } from "../../../storage/paths.ts";
-import { readFencedStateUnderLock } from "../../../storage/ledger.ts";
-import { readJson } from "../../../storage/ledger/stages.ts";
+import { readState } from "../../../storage/state.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
 import {
   commandLabel,
@@ -152,9 +147,7 @@ export async function runPolicy({ policyAction, snapshot, plan, request, command
     return;
   }
   const context = policyContext(policyAction, request);
-  const policySnapshot = { ...snapshot };
-  delete policySnapshot.fence_generation;
-  const decision = await decidePolicy({ policyAction, policySnapshot, plan, request, action: context.action, commandName });
+  const decision = await decidePolicy({ policyAction, policySnapshot: { ...snapshot }, plan, request, action: context.action, commandName });
   rejectPolicyDecision({ decision, ...context, commandName });
 }
 
@@ -255,138 +248,6 @@ export function validateBatchOperation(raw, index) {
   return { op: raw.op, input: cloneBatchValue(raw.input) };
 }
 
-async function readRawState(projectDir) {
-  try {
-    return await fs.readFile(stateFile(projectDir));
-  } catch (rawCaughtValue: unknown) {
-  {
-    const error = asCaughtError(rawCaughtValue);
-    if (error.code === "ENOENT") {
-      return null;
-    }
-    throw error;
-
-  }}
-}
-
-async function hasRevisionLedger(statePath) {
-  const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
-  try {
-    await fs.access(ledgerPath);
-    return true;
-  } catch (rawCaughtValue: unknown) {
-  {
-    const error = asCaughtError(rawCaughtValue);
-    if (error.code === "ENOENT") {
-      return false;
-    }
-    throw error;
-
-  }}
-}
-
-function parseStateRaw(raw) {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function isInvalidStateJson(raw) {
-  try {
-    JSON.parse(raw);
-    return false;
-  } catch {
-    return true;
-  }
-}
-
-function assertLedgerStateValid(raw, hasLedger, statePath) {
-  if (!hasLedger || raw === null || !isInvalidStateJson(raw)) {
-    return;
-  }
-  const error = new Error(`state: file at ${statePath} is corrupt or not valid JSON`);
-  error.code = "CLIMIER_CORRUPT_STATE";
-  throw error;
-}
-
-function hasIncompatibleVersion(raw) {
-  return classifyStateShape(parseStateRaw(raw)).kind === "incompatible";
-}
-
-function isIncompatibleVersionError(error) {
-  return error.code === "CLIMIER_INCOMPATIBLE_VERSION"
-    || error.code === "PRE_RELEASE_STATE_UNSUPPORTED" || error.code === "CLIMIER_NONCANONICAL_STATE";
-}
-
-async function validateStateVersion(raw, projectDir) {
-  if (raw === null || !hasIncompatibleVersion(raw)) {
-    return;
-  }
-  try {
-    await readState(projectDir);
-  } catch (rawCaughtValue: unknown) {
-  {
-    const error = asCaughtError(rawCaughtValue);
-    if (isIncompatibleVersionError(error)) {
-      throw error;
-    }
-
-  }}
-}
-
-async function validateRawState(raw, hasLedger, projectDir, statePath) {
-  assertLedgerStateValid(raw, hasLedger, statePath);
-  await validateStateVersion(raw, projectDir);
-}
-
-async function readFencedState(lockContext, projectDir) {
-  try {
-    return await readFencedStateUnderLock(lockContext, { projectDir });
-  } catch (rawCaughtValue: unknown) {
-  {
-    const error = asCaughtError(rawCaughtValue);
-    if (error.code !== "CLIMIER_UNSUPPORTED_SOURCE_VERSION") {
-      throw error;
-    }
-    try {
-      await readState(projectDir);
-    } catch (stateCaughtValue: unknown) {
-  {
-    const stateError = asCaughtError(stateCaughtValue);
-      if (isIncompatibleVersionError(stateError)) {
-
-  }   throw stateError;
-      }
-
-  }}
-    throw asCaughtError(rawCaughtValue);
-  }
-}
-
-async function ledgerHasPendingOperation(statePath) {
-  const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
-  const ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
-  return ["bootstrap_pending", "commit_pending", "recovery_pending", "replace_pending", "last_recovery"]
-    .some((field) => Boolean(ledger?.[field]));
-}
-
-export async function readMutationSnapshotUnderLock(lockContext: object, projectDir: string) {
-  if (stateBackend() === "sqlite") {
-    return { state: await readState(projectDir), raw: null };
-  }
-  const statePath = stateFile(projectDir);
-  const rawBytes = await readRawState(projectDir);
-  const raw = rawBytes?.toString("utf8") ?? null;
-  const hasLedger = await hasRevisionLedger(statePath);
-  const state = parseStateRaw(raw);
-  if (rawBytes !== null && hasLedger && classifyStateShape(state).kind === "canonical") {
-    if (await ledgerHasPendingOperation(statePath)) {
-      return { state: await readFencedState(lockContext, projectDir), raw: null };
-    }
-    return { state, raw: rawBytes };
-  }
-  await validateRawState(raw, hasLedger, projectDir, statePath);
-  return { state: await readFencedState(lockContext, projectDir), raw: null };
+export async function readMutationSnapshotUnderLock(_lockContext: object | null, projectDir: string) {
+  return { state: await readState(projectDir), raw: null };
 }

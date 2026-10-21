@@ -1,11 +1,10 @@
 import { asCaughtError } from "../contracts/errors.ts";
-// lock.mjs: project serialization boundary (file lock for JSON, SQLite transaction for SQLite).
+// lock.mjs: project serialization boundary backed by SQLite transactions.
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { codedError } from "../contracts/errors.ts";
 import { sqliteStateFile, stateFile } from "./state.ts";
-import { stateBackend } from "./paths.ts";
 
 const RETRY_BASE_MS = 25;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -91,7 +90,7 @@ function lockPath(projectDir: string): string {
   return path.join(path.dirname(stateFile(projectDir)), ".lock");
 }
 
-async function ensureTasksDir(projectDir: string): Promise<void> {
+async function ensureStateDir(projectDir: string): Promise<void> {
   await fs.mkdir(path.dirname(stateFile(projectDir)), { recursive: true });
 }
 
@@ -189,15 +188,12 @@ export async function withProjectIdLock<T>(projectId: string, fn: LockCallback<T
   };
   await fs.mkdir(storageProjectDir, { recursive: true });
   await acquireLockFile(pathname, options);
-  return runWithLockContext(storageProjectDir, pathname, fn, path.join(storageProjectDir, "tasks.json"));
+  return runWithLockContext(storageProjectDir, pathname, fn, path.join(storageProjectDir, "state.sqlite"));
 }
 
-export async function withMutationBoundary<T>(projectDir: string, fn: (lockContext: object | null) => T | PromiseLike<T>, opts: LockOptions = {}): Promise<T> {
-  if (stateBackend() === "sqlite") {
-    const { withSqliteTransaction } = await import("./sqlite/store.ts");
-    return withSqliteTransaction(sqliteStateFile(projectDir), async () => await fn(null));
-  }
-  return withLock(projectDir, (lockContext) => fn(lockContext), opts);
+export async function withMutationBoundary<T>(projectDir: string, fn: (lockContext: object | null) => T | PromiseLike<T>, _opts: LockOptions = {}): Promise<T> {
+  const { withSqliteTransaction } = await import("./sqlite/store.ts");
+  return withSqliteTransaction(sqliteStateFile(projectDir), async () => await fn(null));
 }
 
 export async function withLock<T>(projectDir: string, fn: LockCallback<T>, opts: LockOptions = {}): Promise<T> {
@@ -211,7 +207,7 @@ export async function withLock<T>(projectDir: string, fn: LockCallback<T>, opts:
     retryEveryMs: opts.retryEveryMs ?? RETRY_BASE_MS,
   };
   const pathname = lockPath(projectDir);
-  await ensureTasksDir(projectDir);
+  await ensureStateDir(projectDir);
   await acquireLockFile(pathname, options);
   return runWithLockContext(resolvedProjectDir, pathname, fn);
 }

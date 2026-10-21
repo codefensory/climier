@@ -24,7 +24,6 @@ import { mutate } from "../kernel/mutate.ts";
 import { createHttpReads } from "./http/reads.ts";
 import { executeTransferRequest, validateTransferRequest } from "./http/transfers.ts";
 import * as readModel from "../read-model/index.ts";
-import { ledgerFile } from "../storage/ledger.ts";
 import { readState, stateFile } from "../storage/state.ts";
 import { initState } from "../kernel/state-operations.ts";
 import { withAuthorizedProject } from "./auth/project-scope.ts";
@@ -127,7 +126,7 @@ function createRemoteUiEvents(dependencies: BaseDependencies) {
     authorize: (request) => authorizeUiRequest(request as HttpRequest, dependencies.authStore),
     getProject: (projectId) => getUiProject(projectId, dependencies),
     readSnapshot: ({ projectDir }) => readState(projectDir),
-    resolveLedger: ({ projectDir }: { projectDir: string }) => ledgerFile(projectDir),
+    resolveState: ({ projectDir }: { projectDir: string }) => stateFile(projectDir),
     protocolVersion: PROTOCOL_VERSION,
   });
 }

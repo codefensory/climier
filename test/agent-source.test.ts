@@ -11,6 +11,7 @@
 // passing. These tests delete the env var to exercise the missing-agent path.
 
 import { test } from "node:test";
+import { readSqliteState } from "../src/storage/sqlite/store.ts";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.ts";
 
@@ -316,8 +317,8 @@ test("CLI: --as takes precedence over CLIMIER_AGENT in the log entry", async () 
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
     const climierHome = process.env.CLIMIER_HOME;
     assert.ok(climierHome);
-    const stateFile = path.join(climierHome, "projects", meta.project_id, "tasks.json");
-    const s = JSON.parse(await fs.readFile(stateFile, "utf8"));
+    const stateFile = path.join(climierHome, "projects", meta.project_id, "state.sqlite");
+    const s = await readSqliteState(stateFile);
     const last = s.log[s.log.length - 1];
     assert.equal(last.agent, "flag-agent");
   } finally { await rmTempProject(dir); }

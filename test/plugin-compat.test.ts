@@ -14,7 +14,6 @@ import {
   baseState,
   seedPluginData,
   assertPluginDataPreserved,
-  fsp_writeFile,
 } from "./plugin-compat-helpers.ts";
 
 test("writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on round-trip", async () => {
@@ -81,20 +80,15 @@ test("init --force on a state WITHOUT plugins writes emptyState() unchanged", as
   }
 });
 
-test("init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()", async () => {
+test("init --force fails closed on a corrupt SQLite database", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, { version: 4, nodes: {}, edges: [], initiatives: {}, log: [] });
-    // Corrupt the state file directly.
-    await fsp_writeFile(stateFilePath(dir), "{ not valid json");
+    await writeState(dir, { version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] });
     const { default: init } = await importFresh("./cli/commands/init.ts");
-    // Should not throw; init --force is allowed on a corrupt state file.
-    const out = await init({ statePath: dir, flags: { force: true }, projectDir: dir });
-    assert.equal(out.ok, true);
-    const after = await readState(dir);
-    assert.equal(after.version, 1);
-    assert.equal(after.revision, 1);
-    assert.equal(after.plugins, undefined);
+    const corrupt = Buffer.from("not a SQLite database");
+    await (await import("node:fs/promises")).writeFile(stateFilePath(dir), corrupt);
+    await assert.rejects(init({ statePath: dir, flags: { force: true }, projectDir: dir }));
+    assert.deepEqual(await (await import("node:fs/promises")).readFile(stateFilePath(dir)), corrupt);
   } finally {
     await rmTempProject(dir);
   }

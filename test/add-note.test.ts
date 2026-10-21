@@ -13,6 +13,7 @@ function seedTask(extra = {}) {
           kind: "resolvable",
           subkind: "task",
           title: "t",
+          revision: 1,
           ...extra,
         },
       },

@@ -5,7 +5,6 @@ type FixtureNode = Record<string, unknown> & { id: string };
 type FixtureState = {
   version: number;
   revision: number;
-  fence_generation?: number;
   nodes: Record<string, FixtureNode>;
   edges: Array<{ from: string; to: string; type: string }>;
   initiatives: Record<string, { desc: string; created_at?: string }>;
@@ -109,7 +108,7 @@ function baseNodes(): Record<string, FixtureNode> {
 
 export function baseState(): FixtureState {
   return {
-    version: 5,
+    version: 1,
     revision: 0,
     nodes: baseNodes(),
     edges: [{ from: "T1", to: "T2", type: "BLOCKS" }],
@@ -123,21 +122,8 @@ export async function seedState(dir: string, mutate?: SeedMutator): Promise<{ re
   if (typeof mutate === "function") {
     mutate(base);
   }
-  try {
-    const current = await readRawState(dir);
-    base.revision = current.revision;
-    base.fence_generation = current.fence_generation;
-  } catch (error) {
-    const isMissingState = typeof error === "object"
-      && error !== null
-      && "code" in error
-      && error.code === "ENOENT";
-    if (!isMissingState) {
-      throw error;
-    }
-    base.revision = 0;
-    delete base.fence_generation;
-  }
+  const current = await readRawState(dir);
+  base.revision = current?.revision ?? 0;
   return writeFencedState(dir, base);
 }
 

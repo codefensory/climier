@@ -66,7 +66,7 @@ test("batch CLI reads a JSON document from --file and returns the structured bat
     assert.equal(output.results[0].op, "initiative.create");
     assert.equal(output.results[1].op, "task.create");
 
-    const state = JSON.parse(await fs.readFile(stateFilePath(dir), "utf8"));
+    const state = await readState(dir);
     assert.ok(state.nodes["T-batch-cli"]);
     assert.equal(state.log.at(-1).action, "core.batch");
   } finally {

@@ -42,6 +42,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { readSqliteState, writeSqliteState } from "../src/storage/sqlite/store.ts";
 
 const ROOT = path.resolve(process.cwd());
 const BIN = path.join(ROOT, "bin", "climier.ts");
@@ -63,18 +64,17 @@ function newPid() {
 }
 
 const SENTINEL_STATE = Object.freeze({
-  version: 4,
-  revision: 0,
-  nodes: { Sentinel: { id: "Sentinel", title: "alive" } },
+  version: 1,
+  revision: 1,
+  nodes: { Sentinel: { id: "Sentinel", kind: "resolvable", subkind: "task", title: "alive", status: "open", revision: 1 } },
   edges: [],
   initiatives: {},
   log: [],
 });
-const SENTINEL_BYTES = JSON.stringify(SENTINEL_STATE, null, 2) + "\n";
 
 // Orchestrator: runs the full lifecycle inside the helper. The helper sets
-// CLIMIER_HOME to a private sandbox; this script reads tasks.json from that
-// sandbox and emits a single JSON summary to stdout.
+// CLIMIER_HOME to a private sandbox; this script reads SQLite state through
+// the CLI and emits a single JSON summary to stdout.
 
 const ORCHESTRATOR_SOURCE = `
 import { execFileSync } from "node:child_process";
@@ -93,7 +93,7 @@ if (!BIN || !PROJECT || !PID || !SANDBOX_HOME) {
   process.exit(2);
 }
 
-const TASKS_FILE = path.join(SANDBOX_HOME, "projects", PID, "tasks.json");
+const STATE_FILE = path.join(SANDBOX_HOME, "projects", PID, "state.sqlite");
 
 function cli(...args) {
   const result = execFileSync(process.execPath, [BIN, "--project", PROJECT, ...args], {
@@ -105,8 +105,7 @@ function cli(...args) {
 // 1. init creates an empty canonical state in the sandbox.
 cli("init");
 
-// 2. Seed a sentinel through the public CLI path so the state and ledger stay
-// consistent before the upcoming force-init snapshot.
+// 2. Seed a sentinel through the public CLI path before the upcoming force-init snapshot.
 cli("add-initiative", "sentinel", "--as", "test-agent");
 cli("add-task", "Sentinel", "--initiative", "sentinel", "--title", "alive", "--body", "sentinel", "--acceptance", "alive", "--blocked-by", "", "--as", "test-agent");
 
@@ -134,8 +133,8 @@ if (forceInitSnap.reason !== "force-init") {
 }
 
 // 5. Restore the force-init snapshot. The restore command validates
-// the target, takes a pre-restore raw snapshot of the current state,
-// writes the raw bytes back to tasks.json, and appends a
+// the target, snapshots the current SQLite state, installs the target,
+// and appends a
 // { action: "restore", agent, snapshot_id } log entry.
 const restored = cli("restore", forceInitSnap.id, "--as", "test-agent");
 if (!restored.snapshot || restored.snapshot.id !== forceInitSnap.id) {
@@ -159,7 +158,7 @@ const list2 = cli("snapshots");
 const preRestoreSnaps = list2.snapshots.filter((s) => s.reason === "pre-restore");
 
 // 8. Read the live state to verify the restore log entry.
-const after = JSON.parse(fs.readFileSync(TASKS_FILE, "utf8"));
+const after = cli("state", "export");
 const restoreEntries = after.log.filter((e) => e.action === "restore");
 
 // 9. Capture file modes INSIDE the sandbox while it is still alive.
@@ -169,7 +168,7 @@ let sandboxStateMode = null;
 let sandboxHomeMode = null;
 let sandboxSnapDirMode = null;
 try {
-  sandboxStateMode = fs.statSync(TASKS_FILE).mode & 0o777;
+  sandboxStateMode = fs.statSync(STATE_FILE).mode & 0o777;
   sandboxHomeMode = fs.statSync(SANDBOX_HOME).mode & 0o777;
   const snapDir = path.join(SANDBOX_HOME, "projects", PID, "snapshots");
   sandboxSnapDirMode = fs.statSync(snapDir).mode & 0o777;
@@ -236,19 +235,18 @@ function spawnHelper(args: string[], env: NodeJS.ProcessEnv = {}): Promise<RunRe
 
 // temp project that copies the same project_id. Returns the paths so the
 // test can assert and clean up.
-function setupIncidentFixtures(pid) {
+async function setupIncidentFixtures(pid) {
   const control = mkTempDir("climier-regression-control-");
   const tempProj = mkTempDir("climier-regression-tproj-");
-  fs.mkdirSync(path.join(control, "projects", pid), { recursive: true });
-  fs.writeFileSync(
-    path.join(control, "projects", pid, "tasks.json"),
-    SENTINEL_BYTES
-  );
+  const projectStateDir = path.join(control, "projects", pid);
+  fs.mkdirSync(projectStateDir, { recursive: true });
+  const stateFile = path.join(projectStateDir, "state.sqlite");
+  await writeSqliteState(stateFile, SENTINEL_STATE);
   fs.writeFileSync(
     path.join(tempProj, ".climier.json"),
     JSON.stringify({ project_id: pid }) + "\n"
   );
-  return { control, tempProj };
+  return { control, tempProj, stateFile };
 }
 
 // NEGATIVE CONTROL — proves the bug exists. Without smoke-sandbox, init --force
@@ -259,7 +257,7 @@ function setupIncidentFixtures(pid) {
 
 test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_id clobbers a sentinel control home (pins the original incident)", async () => {
   const pid = newPid();
-  const { control, tempProj } = setupIncidentFixtures(pid);
+  const { control, tempProj, stateFile } = await setupIncidentFixtures(pid);
 
   try {
     // Run init --force WITHOUT the helper. The parent's CLIMIER_HOME
@@ -278,17 +276,7 @@ test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_
     );
 
     // The sentinel home must have been clobbered. This is the bug.
-    const controlBytes = fs.readFileSync(
-      path.join(control, "projects", pid, "tasks.json"),
-      "utf8"
-    );
-    assert.notEqual(
-      controlBytes,
-      SENTINEL_BYTES,
-      "expected the sentinel to be clobbered by an unguarded init --force; " +
-        "if this assertion fails, the negative control no longer demonstrates the bug"
-    );
-    const after = JSON.parse(controlBytes);
+    const after = await readSqliteState(stateFile);
     assert.equal(after.version, 1);
     assert.deepEqual(
       after.nodes,
@@ -309,7 +297,7 @@ test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_
 // oxlint-disable-next-line max-lines-per-function, max-statements -- full recovery lifecycle assertions stay together
 test("REGRESSION: with smoke-sandbox, init --force with copied project_id does NOT touch the sentinel control home", async () => {
   const pid = newPid();
-  const { control, tempProj } = setupIncidentFixtures(pid);
+  const { control, tempProj, stateFile } = await setupIncidentFixtures(pid);
 
   try {
     const orchestrator = writeOrchestrator(tempProj);
@@ -329,20 +317,9 @@ test("REGRESSION: with smoke-sandbox, init --force with copied project_id does N
       `orchestrator failed; code=${r.code} stdout=${r.stdout} stderr=${r.stderr}`
     );
 
-    // The sentinel control home is the central invariant of this
-    // regression test. If the helper ever stops isolating CLIMIER_HOME,
-    // the bytes here change and this assertion fails — which is
-    // acceptance criterion #4.
-    const controlBytes = fs.readFileSync(
-      path.join(control, "projects", pid, "tasks.json"),
-      "utf8"
-    );
-    assert.equal(
-      controlBytes,
-      SENTINEL_BYTES,
-      `isolation is broken: CONTROL/projects/${pid}/tasks.json was modified by the smoke-sandbox run.\n` +
-        `Expected (sentinel): ${SENTINEL_BYTES}\nActual: ${controlBytes}`
-    );
+    // SQLite's physical layout may change on open; isolation is about preserving state.
+    const controlState = await readSqliteState(stateFile);
+    assert.deepEqual(controlState, SENTINEL_STATE, `isolation is broken: CONTROL/projects/${pid}/state.sqlite state changed.`);
 
     const summary = JSON.parse(r.stdout.trim());
     assert.equal(summary.ok, true, `orchestrator reported not-ok; summary=${JSON.stringify(summary)}`);
@@ -381,7 +358,7 @@ test("REGRESSION: with smoke-sandbox, init --force with copied project_id does N
 
 test("HELPER ISOLATION: smoke-sandbox.sh overrides the parent's CLIMIER_HOME even when the caller exports one", async () => {
   const pid = newPid();
-  const { control, tempProj } = setupIncidentFixtures(pid);
+  const { control, tempProj, stateFile } = await setupIncidentFixtures(pid);
 
   try {
     // Probe helper: print CLIMIER_HOME from inside the wrapped command.
@@ -402,11 +379,7 @@ test("HELPER ISOLATION: smoke-sandbox.sh overrides the parent's CLIMIER_HOME eve
       "helper must override the parent's CLIMIER_HOME; observed value must not equal the control home"
     );
 
-    const controlBytes = fs.readFileSync(
-      path.join(control, "projects", pid, "tasks.json"),
-      "utf8"
-    );
-    assert.equal(controlBytes, SENTINEL_BYTES);
+    assert.deepEqual(await readSqliteState(stateFile), SENTINEL_STATE);
   } finally {
     rmTempDir(control);
     rmTempDir(tempProj);
@@ -419,14 +392,14 @@ test("HELPER ISOLATION: smoke-sandbox.sh overrides the parent's CLIMIER_HOME eve
 // and the parent test asserts against the summary.
 
 // oxlint-disable-next-line max-lines-per-function -- filesystem permission invariants stay in one scenario
-test("SANDBOX FILES: orchestrator-created state file lives under the sandbox home with private umask (0700/0600)", async () => {
+test("SANDBOX FILES: SQLite state lives under the sandbox home with private umask (0700/0600)", async () => {
   if (process.platform === "win32") {
     // chmod is best-effort on Windows; the contract is that the sandbox
     // is private enough on POSIX. Skip on Windows.
     return;
   }
   const pid = newPid();
-  const { control, tempProj } = setupIncidentFixtures(pid);
+  const { control, tempProj, stateFile } = await setupIncidentFixtures(pid);
 
   try {
     const orchestrator = writeOrchestrator(tempProj);
@@ -446,7 +419,7 @@ test("SANDBOX FILES: orchestrator-created state file lives under the sandbox hom
     assert.equal(
       summary.sandbox_state_mode,
       0o600,
-      `sandbox tasks.json must be 0600; got 0o${(summary.sandbox_state_mode).toString(8)}`
+      `sandbox SQLite state must be 0600; got 0o${(summary.sandbox_state_mode).toString(8)}`
     );
     assert.equal(
       summary.sandbox_home_mode,
@@ -459,12 +432,9 @@ test("SANDBOX FILES: orchestrator-created state file lives under the sandbox hom
       `snapshots dir must be 0700; got 0o${(summary.sandbox_snap_dir_mode).toString(8)}`
     );
 
-    // CONTROL home was untouched through this whole round.
-    const controlBytes = fs.readFileSync(
-      path.join(control, "projects", pid, "tasks.json"),
-      "utf8"
-    );
-    assert.equal(controlBytes, SENTINEL_BYTES);
+    // CONTROL state was preserved through this whole round.
+    const controlState = await readSqliteState(stateFile);
+    assert.deepEqual(controlState, SENTINEL_STATE, `control SQLite state changed at ${stateFile}`);
   } finally {
     rmTempDir(control);
     rmTempDir(tempProj);

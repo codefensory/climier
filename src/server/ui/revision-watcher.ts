@@ -1,15 +1,13 @@
 import fs from "node:fs";
-import fsp from "node:fs/promises";
 import path from "node:path";
 
-type WatcherListener = (revision: number) => void;
+ type WatcherListener = (revision: number) => void;
 type WatcherOptions = {
-  projectDir?: string;
-  ledgerPath?: string;
-  resolveLedger?: () => string | Promise<string>;
+  statePath?: string;
+  resolveState?: () => string | Promise<string>;
   pollIntervalMs?: number;
   watchFactory?: typeof fs.watch;
-  readFile?: (file: string) => Promise<string>;
+  readRevision?: (file: string) => Promise<number | null | undefined>;
   onError?: (error: unknown) => void;
 };
 
@@ -31,60 +29,38 @@ function assertPositiveInteger(value, name) {
   }
 }
 
-function revisionFromLedger(raw: string, ledgerPath: string) {
-  let ledger;
-  try {
-    ledger = JSON.parse(raw);
-  } catch (cause) {
-    const error = new Error(`server revision watcher: ledger at ${ledgerPath} is not valid JSON`);
-    error.cause = cause;
-    throw error;
-  }
-  if (!Number.isSafeInteger(ledger?.high_water_revision) || ledger.high_water_revision < 1) {
-    throw new Error(`server revision watcher: ledger at ${ledgerPath} has no valid high_water_revision`);
-  }
-  return ledger.high_water_revision;
-}
-
-function isMissing(error) {
+function missing(error) {
   return error?.code === "ENOENT";
 }
 
-/**
- * Observe a project's revision ledger. Filesystem notifications only wake the
- * poll; the ledger remains the authoritative source of the revision.
- */
+async function readSqliteRevision(file: string) {
+  const { readSqliteState } = await import("../../storage/sqlite/store.ts");
+  const state = await readSqliteState(file, { includeBodies: false });
+  return Number.isSafeInteger(state?.revision) ? state.revision : null;
+}
+
+/** Observe the revision stored in a project's SQLite database. */
 export function createRevisionWatcher({
-  projectDir,
-  ledgerPath,
-  resolveLedger,
+  statePath,
+  resolveState,
   pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
   watchFactory = fs.watch,
-  readFile = (file) => fsp.readFile(file, "utf8"),
+  readRevision = readSqliteRevision,
   onError,
 }: WatcherOptions = {}): Watcher {
-  if (typeof projectDir !== "undefined" && (typeof projectDir !== "string" || projectDir.length === 0)) {
-    throw new TypeError("server revision watcher: projectDir must be a non-empty path");
+  if (statePath !== undefined && (typeof statePath !== "string" || !statePath)) {
+    throw new TypeError("server revision watcher: statePath must be a non-empty path");
   }
-  if (ledgerPath !== undefined && (typeof ledgerPath !== "string" || ledgerPath.length === 0)) {
-    throw new TypeError("server revision watcher: ledgerPath must be a non-empty path");
+  if (resolveState !== undefined && typeof resolveState !== "function") {
+    throw new TypeError("server revision watcher: resolveState must be a function");
   }
-  if (typeof resolveLedger !== "undefined" && typeof resolveLedger !== "function") {
-    throw new TypeError("server revision watcher: resolveLedger must be a function");
-  }
-  if (ledgerPath === undefined && resolveLedger === undefined) {
-    throw new TypeError("server revision watcher: ledgerPath or resolveLedger is required");
+  if (statePath === undefined && resolveState === undefined) {
+    throw new TypeError("server revision watcher: statePath or resolveState is required");
   }
   assertPositiveInteger(pollIntervalMs, "pollIntervalMs");
-  if (typeof watchFactory !== "function") {
-    throw new TypeError("server revision watcher: watchFactory must be a function");
-  }
-  if (typeof readFile !== "function") {
-    throw new TypeError("server revision watcher: readFile must be a function");
-  }
-  if (onError !== undefined && typeof onError !== "function") {
-    throw new TypeError("server revision watcher: onError must be a function");
-  }
+  if (typeof watchFactory !== "function") throw new TypeError("server revision watcher: watchFactory must be a function");
+  if (typeof readRevision !== "function") throw new TypeError("server revision watcher: readRevision must be a function");
+  if (onError !== undefined && typeof onError !== "function") throw new TypeError("server revision watcher: onError must be a function");
 
   const listeners = new Set<WatcherListener>();
   let currentRevision;
@@ -97,39 +73,30 @@ export function createRevisionWatcher({
   let running = false;
   let closed = false;
 
-  const reportError = (error) => {
-    if (onError) onError(error);
-  };
-
-  const resolveLedgerPath = async () => {
-    const resolved = resolveLedger ? await resolveLedger() : ledgerPath;
-    if (typeof resolved !== "string" || resolved.length === 0) {
-      throw new TypeError("server revision watcher: resolveLedger returned an invalid path");
-    }
+  const reportError = (error) => { if (onError) onError(error); };
+  const resolveStatePath = async () => {
+    const resolved = resolveState ? await resolveState() : statePath;
+    if (typeof resolved !== "string" || !resolved) throw new TypeError("server revision watcher: resolveState returned an invalid path");
     return path.resolve(resolved);
   };
-
   const closeDirectoryWatcher = () => {
     if (!directoryWatcher) return;
     directoryWatcher.close();
     directoryWatcher = undefined;
     currentDirectory = undefined;
   };
-
   const watchDirectory = (directory) => {
     if (directoryWatcher && currentDirectory === directory) return;
     closeDirectoryWatcher();
     currentDirectory = directory;
     try {
       directoryWatcher = watchFactory(directory, () => {
-        if (closed) return;
-        if (!wakeup) {
-          wakeup = setTimeout(() => {
-            wakeup = undefined;
-            void poll().catch(reportError);
-          }, 0);
-          wakeup.unref?.();
-        }
+        if (closed || wakeup) return;
+        wakeup = setTimeout(() => {
+          wakeup = undefined;
+          void poll().catch(reportError);
+        }, 0);
+        wakeup.unref?.();
       });
     } catch (error) {
       currentDirectory = undefined;
@@ -141,33 +108,27 @@ export function createRevisionWatcher({
     if (closed) return currentRevision;
     if (pollPromise) return pollPromise;
     pollPromise = (async () => {
-      const pathToLedger = await resolveLedgerPath();
-      watchDirectory(path.dirname(pathToLedger));
-      let raw;
-      try {
-        raw = await readFile(pathToLedger);
-      } catch (error) {
-        if (isMissing(error)) return currentRevision;
-        throw error;
+      const file = await resolveStatePath();
+      watchDirectory(path.dirname(file));
+      let revision;
+      try { revision = await readRevision(file); }
+      catch (error) { if (missing(error)) return currentRevision; throw error; }
+      if (revision === null || revision === undefined) return currentRevision;
+      if (!Number.isSafeInteger(revision) || revision < 0) {
+        throw new Error(`server revision watcher: SQLite state at ${file} has no valid revision`);
       }
-      const revision = revisionFromLedger(raw, pathToLedger);
       if (currentRevision === undefined) {
         currentRevision = revision;
       } else if (emit && currentRevision !== revision) {
         currentRevision = revision;
-        for (const listener of [...listeners]) {
-          listener(revision);
-        }
+        for (const listener of [...listeners]) listener(revision);
       } else {
         currentRevision = revision;
       }
       return currentRevision;
     })();
-    try {
-      return await pollPromise;
-    } finally {
-      pollPromise = undefined;
-    }
+    try { return await pollPromise; }
+    finally { pollPromise = undefined; }
   };
 
   const start = async () => {
@@ -207,9 +168,7 @@ export function createRevisionWatcher({
     poll,
     close,
     subscribe(listener) {
-      if (typeof listener !== "function") {
-        throw new TypeError("server revision watcher: listener must be a function");
-      }
+      if (typeof listener !== "function") throw new TypeError("server revision watcher: listener must be a function");
       if (closed) throw new Error("server revision watcher: watcher is closed");
       listeners.add(listener);
       return () => listeners.delete(listener);

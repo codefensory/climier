@@ -76,7 +76,7 @@ function assertDeprecationLog(log) {
   assert.equal(log[0].action, "knowledge.deprecate");
   assert.equal(log[0].agent, "alice");
   assert.equal(log[0].node, "K-1");
-  assert.equal(log[0].revision, 6);
+  assert.equal(log[0].revision, 5);
 
   assert.equal(log[0].reason, undefined);
 }
@@ -216,7 +216,7 @@ test("deprecate: apply preserves scope, status, reason, deprecated_at/by via ker
     assert.equal(out.idempotent, false, "deprecate is never idempotent (records a new event)");
     assert.equal(out.diff.updated.length, 1);
     assert.equal(out.diff.updated[0].id, "K-1");
-    assert.equal(out.diff.updated[0].node.revision, 6, "kernel advances beyond the fenced fixture high-water");
+    assert.equal(out.diff.updated[0].node.revision, 5, "kernel increments the node revision in SQLite");
 
     const node = after.nodes["K-1"];
     assertDeprecatedKnowledgeNode(node);

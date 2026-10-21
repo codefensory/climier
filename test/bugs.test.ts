@@ -32,7 +32,7 @@ test("bug: corrupted state file produces a clear error, not a SyntaxError stack"
     const file = stateFilePath(dir);
     await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, "{ this is not valid json :::", "utf8");
-    await assert.rejects(readState(dir), /corrupt|invalid.*json|parse/i);
+    await assert.rejects(readState(dir), /corrupt|invalid|not a database|parse/i);
   } finally {
     await rmTempProject(dir);
   }

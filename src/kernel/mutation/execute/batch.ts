@@ -1,8 +1,8 @@
 import { asCaughtError } from "../../../contracts/errors.ts";
 
 
-import { commitFencedStateUnderLock } from "../../../storage/ledger.ts";
-import { isFencedStateVersion } from "../../../storage/state.ts";
+import { isCanonicalStateVersion, sqliteStateFile } from "../../../storage/state.ts";
+import { writeSqliteState } from "../../../storage/sqlite/store.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
 import { prepareLogEntry } from "../../../storage/log.ts";
 import { createTransaction } from "../../transaction.ts";
@@ -189,7 +189,6 @@ function buildPersistedBatchState({ snapshot, draftView, diff, results, plans, r
   const logEntry = prepareLogEntry({ action: "core.batch", agent: request.actor, revision: revisionAfter, operations: logOperations }, { pluginId });
   const persistedState = {
     ...snapshot,
-    fence_generation: snapshot.fence_generation,
     nodes: finalNodes,
     edges: draftView.edges,
     initiatives: finalInitiatives,
@@ -209,7 +208,7 @@ export async function executeBatchMutation({ projectDir, lockContext, request, b
   const commandName = "core.batch";
   const sourceSnapshot = await readMutationSnapshotUnderLock(lockContext, projectDir);
   const snapshot = sourceSnapshot.state as Record<string, unknown> & { version: number; revision: number };
-  if (!snapshot || typeof snapshot !== "object" || !isFencedStateVersion(snapshot.version)) {
+  if (!snapshot || typeof snapshot !== "object" || !isCanonicalStateVersion(snapshot.version)) {
     throw new Error(`${commandName}: state file missing or not canonical (run init first)`);
   }
   checkStateRevision(request.if_state_revision, snapshot, commandName);
@@ -223,7 +222,7 @@ export async function executeBatchMutation({ projectDir, lockContext, request, b
   const revisionAfter = diff.changed ? deriveNextStateRevision(snapshot, diff.nextNodes) : snapshot.revision;
   if (diff.changed) {
     const persistedState = buildPersistedBatchState({ snapshot, draftView, diff, results, plans, request, pluginId, revisionAfter });
-    await commitFencedStateUnderLock(lockContext, persistedState, { projectDir, sourceSnapshot });
+    await writeSqliteState(sqliteStateFile(projectDir), persistedState);
   }
   return { ok: true, revision_before: revisionBefore, revision_after: revisionAfter, results };
 }

@@ -213,12 +213,11 @@ test("api.query.node reflects a state mutation (read without lock picks the late
   try {
     await seedState(dir);
     const api = await freshApi(dir);
-    // Replace through the fenced fixture helper to simulate another agent's update.
+    // Replace through the canonical fixture helper to simulate another agent's update.
     const replacement = baseState();
     replacement.nodes.T1.title = "T1 (mutated)";
     const current = await readRawState(dir);
     replacement.revision = current.revision;
-    replacement.fence_generation = current.fence_generation;
     await writeFencedState(dir, replacement);
     const expected = await readRawState(dir);
     const out = await api.query.node("T1");

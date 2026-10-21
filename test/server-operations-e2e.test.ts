@@ -9,7 +9,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
-import { runCli, writeCanonicalState } from "./helpers.ts";
+import { readSqliteState, writeSqliteState } from "../src/storage/sqlite/store.ts";
+import { runCli } from "./helpers.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliLauncher = path.join(repoRoot, "bin", "climier.ts");
@@ -226,18 +227,17 @@ async function makeClient(root, name, homeName = `${name}-home`): Promise<Client
 
 async function clientStateFile(client) {
   const metadata = JSON.parse(await fs.readFile(path.join(client.projectDir, ".climier.json"), "utf8"));
-  return path.join(client.home, "projects", metadata.project_id, "tasks.json");
+  return path.join(client.home, "projects", metadata.project_id, "state.sqlite");
 }
 
 async function writeSentinel(client) {
   const file = await clientStateFile(client);
-  await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-  await fs.writeFile(file, `${JSON.stringify(sentinel, null, 2)}\n`);
+  await writeSqliteState(file, sentinel);
   return file;
 }
 
 async function readSentinel(file) {
-  return JSON.parse(await fs.readFile(file, "utf8"));
+  return readSqliteState(file);
 }
 
 async function cloneLinkedClient(source, target) {
@@ -256,30 +256,23 @@ async function selectLocalBackend(client) {
 
 async function seedPluginData(client) {
   const file = await clientStateFile(client);
-  const state = JSON.parse(await fs.readFile(file, "utf8"));
-  const previousHome = process.env.CLIMIER_HOME;
-  process.env.CLIMIER_HOME = client.home;
-  try {
-    await writeCanonicalState(client.projectDir, {
-      ...state,
-      plugins: { transferFixture: { data: { marker: "project-data" } } },
-      nodes: {
-        ...state.nodes,
-        "T-transfer-local": {
-          ...state.nodes["T-transfer-local"],
-          plugins: { transferFixture: { data: { marker: "node-data" } } },
-        },
+  const state = await readSqliteState(file);
+  await writeSqliteState(file, {
+    ...state,
+    plugins: { transferFixture: { data: { marker: "project-data" } } },
+    nodes: {
+      ...state.nodes,
+      "T-transfer-local": {
+        ...state.nodes["T-transfer-local"],
+        plugins: { transferFixture: { data: { marker: "node-data" } } },
       },
-    });
-  } finally {
-    if (previousHome === undefined) {delete process.env.CLIMIER_HOME;}
-    else {process.env.CLIMIER_HOME = previousHome;}
-  }
+    },
+  });
 }
 
 function remoteStateDirectory(root, projectId) {
   const internalId = createHash("sha256").update(projectId, "utf8").digest("hex");
-  return path.join(root, "server-home", "projects", internalId);
+  return path.join(root, "server-home", "projects", internalId, "state.sqlite");
 }
 
 test("v1 transfer E2E bootstraps, supports offline work, detects divergence, and makes force replacement visible", async (t) => {
@@ -309,18 +302,12 @@ test("v1 transfer E2E bootstraps, supports offline work, detects divergence, and
   await loginClient(client);
   const remoteInit = await cli(client.projectDir, "init", [], client.env);
   assert.equal(remoteInit.code, 0, `remote init: ${JSON.stringify(remoteInit.body)}`);
-  const initializedServerState = JSON.parse(await fs.readFile(path.join(serverProject, "tasks.json"), "utf8"));
-  const initialFence = initializedServerState.fence_generation;
   const pushed = await cli(client.projectDir, "push", ["--as", "alice"], client.env);
   assert.equal(pushed.code, 0, `first push: ${JSON.stringify(pushed.body)}`);
   assert.equal(pushed.body.transfer, "push");
   assert.equal(pushed.body.project_id, projectId);
   assert.equal(pushed.body.forced, false);
-  let remoteState = JSON.parse(await fs.readFile(path.join(serverProject, "tasks.json"), "utf8"));
-  let remoteLedger = JSON.parse(await fs.readFile(path.join(serverProject, "revision-ledger.json"), "utf8"));
-  assert.equal(remoteState.fence_generation, initialFence);
-  assert.equal(remoteLedger.fence_generation, initialFence);
-  assert.equal(remoteLedger.high_water_revision, remoteState.revision);
+  let remoteState = await readSqliteState(serverProject);
   assert.equal(remoteState.nodes["T-transfer-local"].status, "in_progress");
   assert.equal(remoteState.nodes["T-transfer-local"].claim.by, "alice");
   assert.deepEqual(remoteState.plugins, { transferFixture: { data: { marker: "project-data" } } });
@@ -328,7 +315,7 @@ test("v1 transfer E2E bootstraps, supports offline work, detects divergence, and
   const pulled = await cli(client.projectDir, "pull", ["--as", "alice"], client.env);
   assert.equal(pulled.code, 0, `pull after push: ${JSON.stringify(pulled.body)}`);
   assert.equal(pulled.body.transfer, "pull");
-  const localStateAfterPull = JSON.parse(await fs.readFile(await clientStateFile(client), "utf8"));
+  const localStateAfterPull = await readSqliteState(await clientStateFile(client));
   assert.equal(localStateAfterPull.nodes["T-transfer-local"].status, "in_progress");
   assert.equal(localStateAfterPull.nodes["T-transfer-local"].claim.by, "alice");
   assert.deepEqual(localStateAfterPull.plugins, { transferFixture: { data: { marker: "project-data" } } });
@@ -351,7 +338,7 @@ test("v1 transfer E2E bootstraps, supports offline work, detects divergence, and
 
   const remoteOnly = await cli(client.projectDir, "add-note", ["T-transfer-local", "REMOTE-ONLY-LOG-MARKER", "--as", "remote-agent"], client.env);
   assert.equal(remoteOnly.code, 0, `remote divergent note: ${JSON.stringify(remoteOnly.body)}`);
-  remoteState = JSON.parse(await fs.readFile(path.join(serverProject, "tasks.json"), "utf8"));
+  remoteState = await readSqliteState(serverProject);
   assert.ok(remoteState.log.some((entry) => entry.action === "note.add" && entry.agent === "remote-agent"));
   await selectLocalBackend(client);
   const localOnly = await cli(client.projectDir, "add-note", ["T-transfer-local", "LOCAL-ONLY-LOG-MARKER", "--as", "local-agent"], client.env);
@@ -370,11 +357,7 @@ test("v1 transfer E2E bootstraps, supports offline work, detects divergence, and
 
   const forcedPush = await cli(client.projectDir, "push", ["--as", "alice", "--force"], client.env);
   assert.equal(forcedPush.code, 0, `forced push: ${JSON.stringify(forcedPush.body)}`);
-  remoteState = JSON.parse(await fs.readFile(path.join(serverProject, "tasks.json"), "utf8"));
-  remoteLedger = JSON.parse(await fs.readFile(path.join(serverProject, "revision-ledger.json"), "utf8"));
-  assert.equal(remoteState.fence_generation, initialFence);
-  assert.equal(remoteLedger.fence_generation, initialFence);
-  assert.equal(remoteLedger.high_water_revision, remoteState.revision);
+  remoteState = await readSqliteState(serverProject);
   assert.equal(remoteState.nodes["T-transfer-offline"].title, "Offline task");
   assert.ok(remoteState.log.some((entry) => entry.action === "transfer.push" && entry.agent === "alice" && Number.isInteger(entry.replaced_revision)));
   assert.ok(!remoteState.log.some((entry) => entry.action === "note.add" && entry.agent === "remote-agent"), "push force deliberately discards the destination-only log");
@@ -397,19 +380,10 @@ test("v1 transfer E2E bootstraps, supports offline work, detects divergence, and
   await cli(client.projectDir, "add-note", ["T-transfer-local", "REMOTE-ONLY-BEFORE-PULL-FORCE", "--as", "remote-agent"], client.env);
   const forcedPull = await cli(client.projectDir, "pull", ["--as", "alice", "--force"], client.env);
   assert.equal(forcedPull.code, 0, `forced pull: ${JSON.stringify(forcedPull.body)}`);
-  const localStateAfterForcedPull = JSON.parse(await fs.readFile(await clientStateFile(client), "utf8"));
-  const localLedgerAfterForcedPull = JSON.parse(await fs.readFile(path.join(client.home, "projects", projectId, "revision-ledger.json"), "utf8"));
+  const localStateAfterForcedPull = await readSqliteState(await clientStateFile(client));
   assert.ok(localStateAfterForcedPull.log.some((entry) => entry.action === "note.add" && entry.agent === "remote-agent"));
   assert.ok(!localStateAfterForcedPull.log.some((entry) => entry.action === "note.add" && entry.agent === "offline-agent"), "pull force deliberately discards the destination-only log");
   assert.ok(localStateAfterForcedPull.log.some((entry) => entry.action === "transfer.pull" && entry.agent === "alice" && Number.isInteger(entry.replaced_revision)));
-  assert.equal(localStateAfterForcedPull.fence_generation, initializedServerState.fence_generation);
-  assert.equal(localLedgerAfterForcedPull.fence_generation, initializedServerState.fence_generation);
-  assert.equal(localLedgerAfterForcedPull.high_water_revision, localStateAfterForcedPull.revision);
-  remoteState = JSON.parse(await fs.readFile(path.join(serverProject, "tasks.json"), "utf8"));
-  remoteLedger = JSON.parse(await fs.readFile(path.join(serverProject, "revision-ledger.json"), "utf8"));
-  assert.equal(remoteState.fence_generation, initialFence);
-  assert.equal(remoteLedger.fence_generation, initialFence);
-  assert.equal(remoteLedger.high_water_revision, remoteState.revision);
 });
 
 test("v1 transfer E2E never provisions via push and leaves baselines unchanged on failure or ambiguous timeout", async (t) => {
@@ -484,7 +458,7 @@ test("v1 transfer E2E never provisions via push and leaves baselines unchanged o
   assert.equal(timedOutPush.body.error.code, "REMOTE_REQUEST_FAILED");
   assert.equal(timedOutPush.body.error.details.remote_result_ambiguous, true);
   assert.equal(await timeoutBaseline.get(new URL(timeoutOrigin).origin, timeoutId), null);
-  const appliedDespiteTimeout = JSON.parse(await fs.readFile(path.join(remoteStateDirectory(root, timeoutId), "tasks.json"), "utf8"));
+  const appliedDespiteTimeout = await readSqliteState(remoteStateDirectory(root, timeoutId));
   assert.ok(appliedDespiteTimeout.nodes["T-timeout-source"]);
   assert.ok(appliedDespiteTimeout.log.some((entry) => entry.action === "transfer.push"));
 });
