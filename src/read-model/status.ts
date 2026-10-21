@@ -406,16 +406,18 @@ interface ProjectStatusArgs {
   snapshot?: ReadModelSnapshot;
   filters?: RawStatusFilters;
   now?: number;
-  knowledgeCount?: number;
+  summaryCounts?: Partial<Pick<StatusResult["summary"], "in_progress" | "submitted" | "open_gates" | "active_knowledge">> & { knowledge_count?: number };
 }
 
-function applyKnowledgeCount(result: StatusResult, count: number | undefined, options: StatusFilters): void {
-  if (count !== undefined && !options.initiative && (!options.kind || options.kind === "knowledge")) {
-    result.knowledge_count = count;
+function applySummaryCounts(result: StatusResult, counts: ProjectStatusArgs["summaryCounts"]): void {
+  if (!counts) {return;}
+  for (const field of ["in_progress", "submitted", "open_gates", "active_knowledge"] as const) {
+    if (counts[field] !== undefined) {result.summary[field] = counts[field]!;}
   }
+  if (counts.knowledge_count !== undefined) {result.knowledge_count = counts.knowledge_count;}
 }
 
-export function projectStatusView({ snapshot = {}, filters = {}, now, knowledgeCount }: ProjectStatusArgs = {}) {
+export function projectStatusView({ snapshot = {}, filters = {}, now, summaryCounts }: ProjectStatusArgs = {}) {
   requireNow(now);
   const nodes = snapshot?.nodes || {};
   const options = statusFilters(filters);
@@ -424,6 +426,6 @@ export function projectStatusView({ snapshot = {}, filters = {}, now, knowledgeC
   const pools = selectStatusPools(nodes, derived, options);
   const tasks = taskLists({ snapshot, nodes, pools, filters: options, derived, graph });
   const result = createStatusResult({ nodes, pools, tasks, snapshot, graph });
-  applyKnowledgeCount(result, knowledgeCount, options);
+  applySummaryCounts(result, summaryCounts);
   return applyStatusOptions({ result, pools, nodes, filters: options, now });
 }

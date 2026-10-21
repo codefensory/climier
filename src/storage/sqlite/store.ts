@@ -4,6 +4,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { asCaughtError, codedError } from "../../contracts/errors.ts";
 import { validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { SQLITE_INDEXES, SQLITE_PRAGMAS, SQLITE_SCHEMA, SQLITE_SCHEMA_VERSION } from "./schema.ts";
+import { bodyHash, makeStoredLogRows, nodeWithoutBodyText, readSqliteChangesInTransaction } from "./delta.ts";
 
 const SQLITE_MODULE = "bun:sqlite";
 const COLLECTIONS = new Set(["nodes", "edges", "initiatives", "log"]);
@@ -78,15 +79,11 @@ function initializeDeltaFloor(database, schemaVersion: number) {
   database.query("INSERT OR IGNORE INTO sync_state (key, value) VALUES ('delta_floor', ?)").run(revision);
 }
 
-async function migrationDeltaCodec(schemaVersion: number) {
-  return schemaVersion < SQLITE_SCHEMA_VERSION ? import("./delta.ts") : undefined;
-}
-
-function upgradeDatabase(database, schemaVersion: number, deltaCodec) {
+function upgradeDatabase(database, schemaVersion: number) {
   database.exec(SQLITE_SCHEMA);
   addMissingSchemaColumns(database);
   if (schemaVersion < SQLITE_SCHEMA_VERSION) {
-    migrateInlineBodies(database, deltaCodec);
+    migrateInlineBodies(database);
     migrateEdgeLookupColumns(database);
   }
   database.exec(SQLITE_INDEXES);
@@ -94,7 +91,7 @@ function upgradeDatabase(database, schemaVersion: number, deltaCodec) {
   database.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`);
 }
 
-function migrateInlineBodies(database, { bodyHash, nodeWithoutBodyText }) {
+function migrateInlineBodies(database) {
   const rows = database.query("SELECT id, data, body_hash FROM nodes ORDER BY position").all();
   const knownBodies = new Map<string, string>();
   const updateNode = database.query("UPDATE nodes SET data = ?, body_hash = ? WHERE id = ?");
@@ -152,8 +149,7 @@ async function openDatabase(file: string) {
       "idx_nodes_count_status_position",
       "idx_nodes_count_subkind_status_position",
     ])) { return database; }
-    const deltaCodec = await migrationDeltaCodec(schemaVersion);
-    database.transaction(() => upgradeDatabase(database, schemaVersion, deltaCodec))();
+    database.transaction(() => upgradeDatabase(database, schemaVersion))();
     return database;
   } catch (error) {
     database.close();
@@ -324,7 +320,7 @@ function readStateInTransaction(database, { includeBodies = true, includeLog = t
   return state;
 }
 
-function contentAddressedNode(database, value: unknown, knownBodies: Map<string, string>, { bodyHash, nodeWithoutBodyText }) {
+function contentAddressedNode(database, value: unknown, knownBodies: Map<string, string>) {
   if (!value || typeof value !== "object" || Array.isArray(value)) { return { data: value, hash: null }; }
   const node = value as Record<string, unknown>;
   if (typeof node.body !== "string") { return { data: value, hash: null }; }
@@ -333,11 +329,11 @@ function contentAddressedNode(database, value: unknown, knownBodies: Map<string,
   return { data: nodeWithoutBodyText(node), hash };
 }
 
-function replaceNodes(database, nodes: Record<string, unknown>, deltaCodec) {
+function replaceNodes(database, nodes: Record<string, unknown>) {
   const knownBodies = new Map<string, string>();
   const insert = database.prepare("INSERT INTO nodes (id, position, data, body_hash) VALUES (?, ?, ?, ?)");
   Object.entries(nodes).forEach(([id, value], position) => {
-    const { data, hash } = contentAddressedNode(database, value, knownBodies, deltaCodec);
+    const { data, hash } = contentAddressedNode(database, value, knownBodies);
     insert.run(id, position, JSON.stringify(data), hash);
   });
   database.exec("DELETE FROM node_body WHERE hash NOT IN (SELECT body_hash FROM nodes WHERE body_hash IS NOT NULL)");
@@ -354,15 +350,14 @@ function replaceMetadata(database, state: SqliteState) {
   })) { insert.run(key, JSON.stringify(value)); }
 }
 
-async function replaceRows(database, state: SqliteState, previousState?: Record<string, unknown> | null) {
+function replaceRows(database, state: SqliteState, previousState?: Record<string, unknown> | null) {
   const previous = (previousState === undefined ? readStateInTransaction(database, { includeBodies: false }) : previousState) as SqliteState | null;
   const previousBodyHashes = new Map<string, string | null>(database.query("SELECT id, body_hash FROM nodes").all()
     .map(({ id, body_hash }) => [id, body_hash as string | null]));
-  const deltaCodec = await import("./delta.ts");
-  const storedLogRows = deltaCodec.makeStoredLogRows(database, state, previous, previousBodyHashes);
+  const storedLogRows = makeStoredLogRows(database, state, previous, previousBodyHashes);
   database.exec("DELETE FROM meta; DELETE FROM nodes; DELETE FROM edges; DELETE FROM initiatives; DELETE FROM log;");
   replaceMetadata(database, state);
-  replaceNodes(database, state.nodes, deltaCodec);
+  replaceNodes(database, state.nodes);
   const insertEdge = database.prepare("INSERT INTO edges (position, data, from_id, to_id, edge_type) VALUES (?, ?, ?, ?, ?)");
   state.edges.forEach((edge: any, position) => insertEdge.run(position, JSON.stringify(edge), edge?.from ?? null, edge?.to ?? null, edge?.type ?? null));
   const insertInitiative = database.prepare("INSERT INTO initiatives (name, position, data) VALUES (?, ?, ?)");
@@ -432,6 +427,36 @@ export async function readSqliteNodeMetadata(file: string, filters: { kind?: str
     }
     if (filters.kind !== undefined) {params.push(filters.kind);}
     const rows = database.query(`SELECT id, ${dataExpression} AS data FROM nodes${where} ORDER BY position`)
+      .all(...params);
+    return Object.fromEntries(rows.map(({ id, data }) => [id, JSON.parse(data)]));
+  });
+}
+
+export async function readSqliteKnowledgeCandidates(file: string, target: { id?: unknown; domain?: unknown; tags?: unknown; initiative?: unknown }): Promise<Record<string, Record<string, unknown>> | null> {
+  return withReadTransaction(file, null, (database) => {
+    if (!hasStoredState(database)) { return null; }
+    const matches: string[] = [];
+    const params: unknown[] = [];
+    const addArrayMatch = (scopeField: string, value: unknown) => {
+      if (typeof value !== "string" || value.length === 0) { return; }
+      matches.push(`EXISTS (SELECT 1 FROM json_each(CASE WHEN json_type(n.data, '$.scope.${scopeField}') = 'array' THEN json_extract(n.data, '$.scope.${scopeField}') ELSE '[]' END) AS scoped WHERE scoped.type = 'text' AND scoped.value = ?)`);
+      params.push(value);
+    };
+    addArrayMatch("node_ids", target.id);
+    addArrayMatch("domains", target.domain);
+    addArrayMatch("initiatives", target.initiative);
+    if (Array.isArray(target.tags) && target.tags.length > 0) {
+      matches.push(`EXISTS (
+        SELECT 1 FROM json_each(CASE WHEN json_type(n.data, '$.scope.tags') = 'array' THEN json_extract(n.data, '$.scope.tags') ELSE '[]' END) AS scoped
+        JOIN json_each(?) AS target_tag ON scoped.type = target_tag.type AND scoped.value IS target_tag.value
+        WHERE scoped.type IN ('text', 'integer', 'real', 'true', 'false', 'null')
+      )`);
+      params.push(JSON.stringify(target.tags));
+    }
+    if (matches.length === 0) { return {}; }
+    const fields = ["id", "kind", "domain", "tags", "initiative", "scope"];
+    const projected = `json_object(${fields.map((field) => `'${field}', json_extract(n.data, '$.${field}')`).join(", ")})`;
+    const rows = database.query(`SELECT n.id, ${projected} AS data FROM nodes AS n WHERE json_extract(n.data, '$.kind') = 'knowledge' AND (${matches.join(" OR ")}) ORDER BY n.position`)
       .all(...params);
     return Object.fromEntries(rows.map(({ id, data }) => [id, JSON.parse(data)]));
   });
@@ -563,15 +588,28 @@ export async function readSqliteLogSince(file: string, revision: number): Promis
   ).all(revision).map(({ data }) => JSON.parse(data)));
 }
 
-export async function readSqliteCounts(file: string, filters: { kind?: string; subkind?: string; status?: string } = {}) {
+export async function readSqliteCounts(file: string, filters: { kind?: string; subkind?: string; status?: string; statusDefault?: string; initiative?: string; domain?: string; claimedBy?: string } = {}) {
   return withReadTransaction(file, { total: 0, byKind: {}, bySubkind: {}, byStatus: {} }, (database) => {
     const conditions: string[] = [];
     const params: string[] = [];
     for (const field of ["kind", "subkind", "status"] as const) {
       if (filters[field] !== undefined) {
+        conditions.push(field === "status" && filters.statusDefault !== undefined
+          ? `CASE WHEN json_extract(data, '$.status') IS NULL OR json_extract(data, '$.status') = '' OR (json_type(data, '$.status') IN ('integer', 'real', 'false') AND json_extract(data, '$.status') = 0) THEN ? ELSE json_extract(data, '$.status') END = ?`
+          : `json_extract(data, '$.${field}') = ?`);
+        if (field === "status" && filters.statusDefault !== undefined) {params.push(filters.statusDefault);}
+        params.push(filters[field]!);
+      }
+    }
+    for (const field of ["initiative", "domain"] as const) {
+      if (filters[field] !== undefined) {
         conditions.push(`json_extract(data, '$.${field}') = ?`);
         params.push(filters[field]!);
       }
+    }
+    if (filters.claimedBy !== undefined) {
+      conditions.push("CASE WHEN json_extract(data, '$.claim.by') IS NULL OR json_extract(data, '$.claim.by') = '' OR (json_type(data, '$.claim.by') IN ('integer', 'real', 'false') AND json_extract(data, '$.claim.by') = 0) THEN json_extract(data, '$.claimed_by') ELSE json_extract(data, '$.claim.by') END = ?");
+      params.push(filters.claimedBy);
     }
     const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
     // Unfiltered counts intentionally aggregate every node; only grouped scalar rows reach JavaScript.
@@ -607,7 +645,6 @@ export async function readSqliteRevision(file: string): Promise<number> {
 export async function readSqliteChangesSince(file: string, since: number) {
   if (!Number.isSafeInteger(since) || since < 0) { throw new TypeError("storage: since must be a non-negative safe integer"); }
   const active = activeDatabase(file);
-  const { readSqliteChangesInTransaction } = await import("./delta.ts");
   if (active) { return readSqliteChangesInTransaction(active, since); }
   try {
     await fs.access(file);
@@ -628,7 +665,7 @@ export async function writeSqliteState(file: string, state: unknown, previousSta
   assertCanonicalState(state, "writeState");
   const active = activeDatabase(file);
   if (active) {
-    await replaceRows(active, state, previousState);
+    replaceRows(active, state, previousState);
     return state;
   }
   return withSqliteTransaction(file, async () => writeSqliteState(file, state, previousState));
@@ -648,6 +685,6 @@ export async function updateSqliteState(file: string, mutator: (state: Record<st
   const next = mutator({ ...current });
   if (next === undefined) { throw new Error("updateState mutator must return the new state object"); }
   assertCanonicalState(next, "state.update");
-  await replaceRows(active, next, current);
+  replaceRows(active, next, current);
   return next;
 }

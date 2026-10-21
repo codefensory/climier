@@ -99,9 +99,37 @@ async function readLocalStatus(statePath, flags) {
       limit: parseLimit(flags),
       all: flags.all === true,
     };
-    const knowledgeCounts = await readSqliteCounts(file, { kind: "knowledge" });
+    const countScope = {
+      initiative: filters.initiative,
+      domain: filters.domain,
+    };
+    const taskKind = !filters.kind || filters.kind === "resolvable";
+    const knowledgeKind = !filters.kind || filters.kind === "knowledge";
+    const count = async (query) => (await readSqliteCounts(file, query)).total;
+    const [inProgress, submitted, openGates, activeKnowledge, knowledgeCount] = await Promise.all([
+      taskKind && (!filters.status || filters.status === "in_progress")
+        ? count({ ...countScope, kind: "resolvable", subkind: "task", status: "in_progress", claimedBy: !filters.status ? filters["claimed-by"] : undefined })
+        : 0,
+      taskKind && (!filters.status || filters.status === "submitted")
+        ? count({ ...countScope, kind: "resolvable", subkind: "task", status: "submitted" })
+        : 0,
+      taskKind && (!filters.status || filters.status === "open")
+        ? count({ initiative: filters.initiative, kind: "resolvable", subkind: "gate", status: "open", statusDefault: "open" })
+        : 0,
+      knowledgeKind
+        ? count({ initiative: filters.initiative, kind: "knowledge", status: "active", statusDefault: "active" })
+        : 0,
+      knowledgeKind
+        ? count({ initiative: filters.initiative, kind: "knowledge" })
+        : 0,
+    ]);
     const snapshot: ReadModelSnapshot = { nodes, edges };
-    return projectStatusView({ snapshot, filters, now: Date.now(), knowledgeCount: knowledgeCounts.total });
+    return projectStatusView({
+      snapshot,
+      filters,
+      now: Date.now(),
+      summaryCounts: { in_progress: inProgress, submitted, open_gates: openGates, active_knowledge: activeKnowledge, knowledge_count: knowledgeCount },
+    });
   });
   if (!result) {
     await sqliteStateExists(statePath);

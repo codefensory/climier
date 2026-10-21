@@ -1,6 +1,6 @@
 
 import { sqliteStateExists, stateFile } from "../../storage/state.ts";
-import { readSqliteEdgesOf, readSqliteNode, readSqliteNodeMetadata, readSqliteNodesByIds, withSqliteReadTransaction } from "../../storage/sqlite/store.ts";
+import { readSqliteEdgesOf, readSqliteKnowledgeCandidates, readSqliteNode, readSqliteNodesByIds, withSqliteReadTransaction } from "../../storage/sqlite/store.ts";
 import { knowledgeForNode, projectContextView } from "../../read-model/index.ts";
 import { throwV2 } from "../../contracts/errors.ts";
 import type { CommandContext } from "./contracts.ts";
@@ -54,10 +54,7 @@ function contextRelatedIds(edges: ReadModelEdge[], id: string): Set<string> {
 }
 
 async function contextSnapshot(file: string, id: string, node: ReadModelNode): Promise<ReadModelSnapshot> {
-  const knowledgeNodes = await readSqliteNodeMetadata(file, {
-    kind: "knowledge",
-    fields: ["id", "kind", "domain", "tags", "initiative", "scope"],
-  }) as Record<string, ReadModelNode>;
+  const knowledgeNodes = await readSqliteKnowledgeCandidates(file, node) as Record<string, ReadModelNode>;
   const knowledgeView: ReadModelSnapshot = { nodes: { ...knowledgeNodes, [id]: node } };
   const knowledgeIds = knowledgeForNode({ snapshot: knowledgeView, id }).map((item) => item.id);
   const candidateNodes = await readSqliteNodesByIds(file, knowledgeIds) as Record<string, ReadModelNode>;
