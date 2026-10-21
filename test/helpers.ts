@@ -135,7 +135,7 @@ export async function writeLegacyJsonState(dir: string, state): Promise<void> {
 }
 
 export async function writeCanonicalState(dir: string, state): Promise<CanonicalState> {
-  const nodeRevision = Math.max(0, ...Object.values(state.nodes || {}).map((node) => Number.isInteger(node?.revision) ? node.revision : 0));
+  const nodeRevision = Math.max(0, ...Object.values(state.nodes || {}).map((node: any) => Number.isInteger(node?.revision) ? node.revision : 0));
   const normalized = { ...state, version: 1, revision: Math.max(Number.isInteger(state.revision) ? state.revision : 0, nodeRevision) };
   const { writeState: writeCanonical } = await import("../src/storage/state.ts");
   await writeCanonical(dir, normalized);

@@ -33,7 +33,7 @@ for (let i = 0; i < argv.length; i += 1) {
   options.set(key, "true");
 }
 
-const projectRoot = path.join(import.meta.dir, "..");
+const projectRoot = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
 const cli = path.join(projectRoot, "bin", "climier.ts");
 const dispatchUrl = new URL("../src/cli/dispatch.ts", import.meta.url).href;
 const realFixture = path.join(os.homedir(), ".climier/projects/b4e2c579bbb81669/tasks.json");
@@ -181,7 +181,7 @@ function readinessPrototype(snapshot: Record<string, any>) {
   let ready = 0;
   let blocked = 0;
   for (const [id, node] of Object.entries(snapshot.nodes ?? {})) {
-    if (!node || node.subkind !== "task") continue;
+    if (!node || (node as any).subkind !== "task") continue;
     const status = (node as any).status || "open";
     if (status !== "open" || (node as any).backlog === true) continue;
     const blockers = incoming.get(id) ?? [];
@@ -322,7 +322,7 @@ if (sweep) {
     fs.writeFileSync(file, JSON.stringify(state));
     fixtures.push({ label: `synthetic ${size}`, file, counts });
   }
-  const reports = [];
+  const reports: Array<Awaited<ReturnType<typeof measure>>> = [];
   for (const fixture of fixtures) reports.push(await measure(fixture, Math.max(3, iterations)));
   fs.rmSync(root, { recursive: true, force: true });
   if (json) {

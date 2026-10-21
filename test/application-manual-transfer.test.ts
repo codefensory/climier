@@ -10,9 +10,10 @@ import { createTempProject, readState, rmTempProject, writeCanonicalState } from
 const readFencedState = readState;
 import { pullManualTransfer, pushManualTransfer } from "../src/application/manual-transfer.ts";
 
-type SnapshotNode = { id: string; kind: string; subkind: string; status: string; title: string };
+type SnapshotNode = { id: string; kind: string; subkind: string; status: string; title: string; revision?: number };
 type Snapshot = {
   version: number;
+  revision?: number;
   nodes: Record<string, SnapshotNode>;
   edges: unknown[];
   initiatives: Record<string, { desc: string }>;
@@ -118,7 +119,7 @@ async function fixture(
 async function changeLocalTitle(projectDir: string, title: string) {
   const current = await readState(projectDir) as FencedSnapshot;
   current.nodes.T1.title = title;
-  current.nodes.T1.revision += 1;
+  current.nodes.T1.revision = (current.nodes.T1.revision ?? 0) + 1;
   current.revision += 1;
   const { writeState } = await import("../src/storage/state.ts");
   return writeState(projectDir, current);
