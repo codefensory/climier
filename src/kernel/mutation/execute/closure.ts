@@ -80,6 +80,7 @@ async function readDeclaredMutationSnapshotContents(projectDir: string, closure:
   const file = sqliteStateFile(projectDir);
   const metadata = await readSqliteMutationMetadata(file);
   if (!metadata) { return { state: null, raw: null, closure: null }; }
+  if (metadata.closureSafe === false) { return undefined; }
   const nodes: Record<string, Record<string, unknown>> = {};
   const edgeRows = new Map<number, Record<string, unknown>>();
   const knownIds = new Set<string>();
@@ -214,5 +215,5 @@ export async function readDeclaredMutationSnapshot(projectDir: string, closure: 
   const file = sqliteStateFile(projectDir);
   const snapshot = await withSqliteReadTransaction(file, () =>
     readDeclaredMutationSnapshotContents(projectDir, closure, request));
-  return snapshot ?? { state: null, raw: null, closure: null };
+  return snapshot === null ? { state: null, raw: null, closure: null } : snapshot;
 }

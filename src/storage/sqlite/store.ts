@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { asCaughtError, codedError, throwV2 } from "../../contracts/errors.ts";
-import { validateEdge, validateStateInvariants } from "../../contracts/state-invariants.ts";
+import { EDGE_TYPES, validateEdge, validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { SQLITE_INDEXES, SQLITE_PRAGMAS, SQLITE_SCHEMA, SQLITE_SCHEMA_VERSION } from "./schema.ts";
 import { bodyHash, createStateDelta, makeStoredLogAppendRows, makeStoredLogRows, nodeWithoutBodyText, readDeltaFloor, readSqliteChangesInTransaction, writeDeltaFloor } from "./delta.ts";
 
@@ -11,6 +11,8 @@ const COLLECTIONS = new Set(["nodes", "edges", "initiatives", "log"]);
 const META_FIELDS = new Set(["version", "revision"]);
 const ROOT_ORDER_KEY = "__root_order";
 const MAX_NODE_REVISION_KEY = "__maximum_node_revision";
+const EDGE_VALIDATION_EPOCH_KEY = "edge_validation_epoch";
+const EDGE_VALIDATION_CHECKED_KEY = "edge_validation_checked_epoch";
 const SQLITE_HEADER = Buffer.from("SQLite format 3\0");
 const sqliteTransaction = new AsyncLocalStorage<{ file: string; database: any }>();
 const sqliteQueues = new Map<string, Promise<void>>();
@@ -57,6 +59,21 @@ function hasIndexes(database, names: string[]): boolean {
   return count === names.length;
 }
 
+const EDGE_VALIDATION_TRIGGERS = [
+  "edge_validation_edge_insert", "edge_validation_edge_delete", "edge_validation_edge_update",
+  "edge_validation_node_insert", "edge_validation_node_delete", "edge_validation_node_update",
+  "edge_validation_log_invalid_insert", "edge_validation_log_invalid_update",
+  "edge_validation_log_invalid_delete",
+];
+
+function hasEdgeValidationTriggers(database): boolean {
+  const placeholders = EDGE_VALIDATION_TRIGGERS.map(() => "?").join(",");
+  const { count } = database.query(
+    `SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'trigger' AND name IN (${placeholders})`,
+  ).get(...EDGE_VALIDATION_TRIGGERS);
+  return count === EDGE_VALIDATION_TRIGGERS.length;
+}
+
 function supportsSchemaVersion(version: number): boolean {
   return version === 0 || version === 1 || version === 2 || version === 3 || version === SQLITE_SCHEMA_VERSION;
 }
@@ -80,6 +97,12 @@ function initializeDeltaFloor(database, schemaVersion: number) {
   database.query("INSERT OR IGNORE INTO sync_state (key, value) VALUES ('delta_floor', ?)").run(revision);
 }
 
+function initializeEdgeValidation(database) {
+  database.query("INSERT OR IGNORE INTO sync_state (key, value) VALUES (?, 0)").run(EDGE_VALIDATION_EPOCH_KEY);
+  database.query("INSERT OR IGNORE INTO sync_state (key, value) VALUES (?, -1)").run(EDGE_VALIDATION_CHECKED_KEY);
+  database.query("UPDATE sync_state SET value = -1 WHERE key = ?").run(EDGE_VALIDATION_CHECKED_KEY);
+}
+
 function upgradeDatabase(database, schemaVersion: number) {
   database.exec(SQLITE_SCHEMA);
   addMissingSchemaColumns(database);
@@ -89,6 +112,7 @@ function upgradeDatabase(database, schemaVersion: number) {
   }
   database.exec(SQLITE_INDEXES);
   initializeDeltaFloor(database, schemaVersion);
+  initializeEdgeValidation(database);
   database.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`);
 }
 
@@ -147,10 +171,12 @@ async function openDatabase(file: string) {
     if (schemaVersion === SQLITE_SCHEMA_VERSION && hasBodyHashColumn(database) && hasLogDeltaColumns(database) && hasEdgeLookupColumns(database) && hasIndexes(database, [
       "idx_nodes_count_fields_position",
       "idx_edges_identity",
+      "idx_edges_json_fields",
+      "idx_nodes_id_shape_kind",
       "idx_nodes_count_subkind_position",
       "idx_nodes_count_status_position",
       "idx_nodes_count_subkind_status_position",
-    ])) { return database; }
+    ]) && hasEdgeValidationTriggers(database)) { return database; }
     database.transaction(() => upgradeDatabase(database, schemaVersion))();
     return database;
   } catch (error) {
@@ -524,45 +550,158 @@ export async function readSqliteNode(file: string, id: string): Promise<Record<s
   });
 }
 
-function validateSqliteMutationStructure(database) {
-  const invalidEdge = database.query(`
-    SELECT e.position, e.data, e.from_id, e.to_id,
-      f.data AS from_node_data, t.data AS to_node_data
-    FROM edges AS e
-    LEFT JOIN nodes AS f ON f.id = e.from_id
-    LEFT JOIN nodes AS t ON t.id = e.to_id
-    WHERE e.from_id IS NULL OR e.to_id IS NULL OR f.id IS NULL OR t.id IS NULL
-      OR e.from_id = e.to_id
-      OR e.edge_type IS NULL OR e.edge_type NOT IN ('BLOCKS', 'SUPERSEDES', 'DERIVED_FROM')
-    ORDER BY e.position
+export const SQLITE_EDGE_INVARIANT_RULES = Object.freeze([
+  "edge-object",
+  "endpoint-shape",
+  "type-shape",
+  "self-edge",
+  "endpoint-exists",
+  "allowed-type",
+  "kind-compatibility",
+  "unique-edge",
+  "blocks-acyclic",
+] as const);
+
+function hasUnreadableSqliteMutationRows(database): boolean {
+  return Boolean(database.query(`
+    SELECT 1 FROM nodes WHERE json_valid(data) = 0
+    UNION ALL SELECT 1 FROM edges WHERE json_valid(data) = 0
+    UNION ALL SELECT 1 FROM initiatives WHERE json_valid(data) = 0
+    UNION ALL SELECT 1 FROM meta WHERE key = 'extras' AND json_valid(value) = 0
+    LIMIT 1
+  `).get());
+}
+
+function hasUnreadableSqliteLog(database): boolean {
+  return Boolean(database.query("SELECT 1 FROM log WHERE json_valid(data) = 0 LIMIT 1").get());
+}
+
+function hasMissingNodeBody(database): boolean {
+  return Boolean(database.query(`
+    SELECT 1 FROM nodes AS n
+    LEFT JOIN node_body AS b ON b.hash = n.body_hash
+    WHERE n.body_hash IS NOT NULL AND b.hash IS NULL
+    LIMIT 1
+  `).get());
+}
+
+// Cache the global edge proof by a trigger-maintained epoch; ordinary task/status/log writes leave it valid.
+function edgeValidationState(database): { epoch: number; checked: number } | null {
+  const rows = database.query("SELECT key, value FROM sync_state WHERE key IN (?, ?)")
+    .all(EDGE_VALIDATION_EPOCH_KEY, EDGE_VALIDATION_CHECKED_KEY);
+  const values = Object.fromEntries(rows.map(({ key, value }) => [key, value]));
+  const epoch = values[EDGE_VALIDATION_EPOCH_KEY];
+  const checked = values[EDGE_VALIDATION_CHECKED_KEY];
+  return Number.isInteger(epoch) && Number.isInteger(checked) ? { epoch, checked } : null;
+}
+
+// Call only after full-state validation or successful SQL validation of the current epoch.
+function markEdgeValidationCurrent(database, epoch?: number) {
+  const current = epoch ?? database.query("SELECT value FROM sync_state WHERE key = ?").get(EDGE_VALIDATION_EPOCH_KEY)?.value;
+  if (!Number.isInteger(current)) { return; }
+  database.query("INSERT INTO sync_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(EDGE_VALIDATION_CHECKED_KEY, current);
+}
+
+function validateSqliteMutationStructure(database): boolean {
+  const malformedOrStale = database.query(`
+    SELECT position, data FROM edges INDEXED BY idx_edges_json_fields
+    WHERE json_type(data) IS NOT 'object'
+      OR json_type(data, '$.from') IS NOT 'text'
+      OR json_type(data, '$.to') IS NOT 'text'
+      OR json_type(data, '$.type') IS NOT 'text'
+      OR from_id = '' OR to_id = '' OR edge_type = ''
+      OR from_id IS NOT json_extract(data, '$.from')
+      OR to_id IS NOT json_extract(data, '$.to')
+      OR edge_type IS NOT json_extract(data, '$.type')
+    ORDER BY position
     LIMIT 1
   `).get();
 
+  let shapeInvalidEdge: { position: number; data: string } | null = null;
+  if (malformedOrStale) {
+    const edge = JSON.parse(malformedOrStale.data);
+    const shapeIsInvalid = !edge || typeof edge !== "object" || Array.isArray(edge)
+      || typeof edge.from !== "string" || edge.from.length === 0
+      || typeof edge.to !== "string" || edge.to.length === 0
+      || typeof edge.type !== "string" || edge.type.length === 0;
+    if (shapeIsInvalid) { shapeInvalidEdge = malformedOrStale; }
+    else { return false; }
+  }
+
+  const invalidEdge = database.query(`
+    SELECT e.position, e.data
+    FROM edges AS e
+    LEFT JOIN nodes AS f INDEXED BY idx_nodes_id_shape_kind ON f.id = e.from_id
+    LEFT JOIN nodes AS t INDEXED BY idx_nodes_id_shape_kind ON t.id = e.to_id
+    WHERE e.from_id IS NULL OR e.to_id IS NULL
+      OR e.from_id = e.to_id
+      OR f.id IS NULL OR t.id IS NULL
+      OR json_type(f.data) IN ('null', 'false')
+      OR (json_type(f.data) IN ('integer', 'real') AND json_extract(f.data, '$') = 0)
+      OR (json_type(f.data) = 'text' AND json_extract(f.data, '$') = '')
+      OR json_type(t.data) IN ('null', 'false')
+      OR (json_type(t.data) IN ('integer', 'real') AND json_extract(t.data, '$') = 0)
+      OR (json_type(t.data) = 'text' AND json_extract(t.data, '$') = '')
+      OR e.edge_type NOT IN (${EDGE_TYPES.map((type) => `'${type}'`).join(", ")})
+      OR (e.edge_type = 'BLOCKS' AND (
+        json_extract(f.data, '$.kind') IS NOT 'resolvable'
+        OR json_extract(t.data, '$.kind') IS NOT 'resolvable'
+      ))
+      OR (e.edge_type = 'SUPERSEDES' AND NOT (
+        (json_type(f.data, '$.kind') IS NULL AND json_type(t.data, '$.kind') IS NULL)
+        OR (
+          json_type(f.data, '$.kind') IN ('integer', 'real')
+          AND json_type(t.data, '$.kind') IN ('integer', 'real')
+          AND json_extract(f.data, '$.kind') IS json_extract(t.data, '$.kind')
+        )
+        OR (
+          json_type(f.data, '$.kind') = json_type(t.data, '$.kind')
+          AND json_type(f.data, '$.kind') IN ('text', 'true', 'false', 'null')
+          AND json_extract(f.data, '$.kind') IS json_extract(t.data, '$.kind')
+        )
+      ))
+    ORDER BY e.position
+    LIMIT 1
+  `).get();
+  const ambiguousEdgeKey = database.query(`
+    SELECT 1 FROM edges WHERE instr(from_id, '|') > 0 OR instr(to_id, '|') > 0 LIMIT 1
+  `).get();
+  if (ambiguousEdgeKey) { return false; }
+
   const duplicateEdge = database.query(`
-    WITH duplicates AS (
+    WITH duplicate_sets AS (
       SELECT from_id, to_id, edge_type, MIN(position) AS first_position
       FROM edges
       GROUP BY from_id, to_id, edge_type
       HAVING COUNT(*) > 1
     )
-    SELECT e.position, e.data
+    SELECT MIN(e.position) AS position
     FROM edges AS e
-    JOIN duplicates AS d
+    JOIN duplicate_sets AS d
       ON e.from_id IS d.from_id AND e.to_id IS d.to_id AND e.edge_type IS d.edge_type
-      AND e.position > d.first_position
-    ORDER BY e.position
-    LIMIT 1
+    WHERE e.position > d.first_position
   `).get();
-
-  if (invalidEdge && (!duplicateEdge || invalidEdge.position <= duplicateEdge.position)) {
-    const edge = JSON.parse(invalidEdge.data);
-    const nodes = {};
-    if (invalidEdge.from_node_data !== null) { nodes[edge.from] = JSON.parse(invalidEdge.from_node_data); }
-    if (invalidEdge.to_node_data !== null) { nodes[edge.to] = JSON.parse(invalidEdge.to_node_data); }
-    validateEdge({ nodes }, edge, "readState");
+  const duplicatePosition = Number.isInteger(duplicateEdge?.position) ? duplicateEdge.position : null;
+  const shapePosition = shapeInvalidEdge ? shapeInvalidEdge.position : null;
+  const earliestErrorPosition = [invalidEdge?.position, duplicatePosition, shapePosition]
+    .filter(Number.isInteger).reduce((minimum, position) => Math.min(minimum, position), Number.POSITIVE_INFINITY);
+  if (shapeInvalidEdge && shapePosition !== null && shapePosition === earliestErrorPosition) {
+    validateEdge({ nodes: Object.create(null) }, JSON.parse(shapeInvalidEdge.data), "readState");
+    return false;
   }
-  if (duplicateEdge) {
-    const edge = JSON.parse(duplicateEdge.data);
+  if (invalidEdge && invalidEdge.position === earliestErrorPosition) {
+    const edge = JSON.parse(invalidEdge.data);
+    const nodes = Object.create(null);
+    if (edge && typeof edge === "object" && !Array.isArray(edge)) {
+      const endpointRows = database.query("SELECT id, data FROM nodes WHERE id IN (?, ?)").all(edge.from, edge.to);
+      for (const row of endpointRows) { nodes[row.id] = JSON.parse(row.data); }
+    }
+    validateEdge({ nodes }, edge, "readState");
+    return false;
+  }
+  if (duplicatePosition !== null && duplicatePosition === earliestErrorPosition) {
+    const edge = JSON.parse(database.query("SELECT data FROM edges WHERE position = ?").get(duplicatePosition).data);
     throwV2(
       "DUPLICATE_EDGE",
       `readState: edge ${edge.type} ${edge.from} -> ${edge.to} is duplicated`,
@@ -570,7 +709,8 @@ function validateSqliteMutationStructure(database) {
     );
   }
 
-  // Every directed cycle must contain an edge against the node-position order.
+  // A directed cycle contains an edge against node insertion order. The CTE only detects it;
+  // the canonical validator supplies its stable DFS path and exact error details.
   const cycle = database.query(`
     WITH RECURSIVE reachable(start_id, node_id) AS (
       SELECT e.from_id, e.to_id
@@ -587,10 +727,11 @@ function validateSqliteMutationStructure(database) {
     SELECT start_id FROM reachable WHERE start_id = node_id LIMIT 1
   `).get();
   if (cycle) {
-    readStateInTransaction(database);
-    const from = cycle.start_id;
-    throwV2("CYCLE_DETECTED", "readState: BLOCKS cycle detected", { from, to: from, type: "BLOCKS", cycle: [from, from] });
+    const state = readStateInTransaction(database);
+    validateStateInvariants(state, "readState");
+    return false;
   }
+  return true;
 }
 
 export async function readSqliteMutationMetadata(file: string) {
@@ -599,9 +740,23 @@ export async function readSqliteMutationMetadata(file: string) {
     const metadata = Object.fromEntries(rows.map(({ key, value }) => [key, JSON.parse(value)]));
     if (metadata.version === undefined) { return null; }
     if (metadata.version !== 1) { throw new Error("storage: SQLite store requires canonical schema-1 state"); }
-    validateSqliteMutationStructure(database);
+    const validationState = edgeValidationState(database);
+    if (!validationState || hasMissingNodeBody(database) || hasUnreadableSqliteMutationRows(database)) {
+      return { version: metadata.version, revision: metadata.revision, closureSafe: false };
+    }
+    if (validationState.epoch !== validationState.checked && hasUnreadableSqliteLog(database)) {
+      return { version: metadata.version, revision: metadata.revision, closureSafe: false };
+    }
     if (!Number.isInteger(metadata.revision) || metadata.revision < 0) {
-      throw new Error("readState: state revision must be a non-negative integer");
+      throwV2("INVALID_EXECUTION_CONTRACT", "readState: state revision must be a non-negative integer", {
+        field: "revision", value: metadata.revision,
+      });
+    }
+    const closureSafe = validationState.epoch === validationState.checked
+      ? true
+      : validateSqliteMutationStructure(database);
+    if (closureSafe && validationState.epoch !== validationState.checked) {
+      markEdgeValidationCurrent(database, validationState.epoch);
     }
     const maximumNodeRevision = Number.isInteger(metadata[MAX_NODE_REVISION_KEY])
       ? metadata[MAX_NODE_REVISION_KEY]
@@ -613,6 +768,7 @@ export async function readSqliteMutationMetadata(file: string) {
       revision: metadata.revision,
       maximumNodeRevision,
       rootOrder: Array.isArray(metadata[ROOT_ORDER_KEY]) ? metadata[ROOT_ORDER_KEY] : null,
+      closureSafe,
     };
   });
 }
@@ -1052,6 +1208,7 @@ export async function writeSqliteState(file: string, state: unknown, previousSta
       }
       replaceRows(active, state, replacementPrevious);
     }
+    markEdgeValidationCurrent(active);
     return state;
   }
   return withSqliteTransaction(file, async () => writeSqliteState(file, state, previousState));

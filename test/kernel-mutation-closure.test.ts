@@ -7,7 +7,8 @@ import { buildRegistry } from "../src/application/operations/registry.ts";
 import { executeOperation } from "../src/application/operations/execute.ts";
 import { mutate } from "../src/kernel/mutate.ts";
 import { applyRemoteChanges } from "../src/application/backend-remote-reads.ts";
-import { readSqliteChangesSince } from "../src/storage/sqlite/store.ts";
+import { readSqliteChangesSince, SQLITE_EDGE_INVARIANT_RULES } from "../src/storage/sqlite/store.ts";
+import { STATE_EDGE_INVARIANT_RULES } from "../src/contracts/state-invariants.ts";
 import type { StateSnapshot } from "../src/contracts/domain.ts";
 
 const stateFixture = {
@@ -158,6 +159,150 @@ test("closure mutations do not reject a healthy unrelated BLOCKS graph", async (
       source: { registry: createBuiltinOperationRegistry(), mutate },
     });
     assert.equal((await readState(dir)).nodes.C.notes?.length, 1);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("SQL closure validation covers every canonical edge invariant", () => {
+  assert.deepEqual(SQLITE_EDGE_INVARIANT_RULES, STATE_EDGE_INVARIANT_RULES);
+});
+
+test("SQL closure validation matches full-state edge invariant errors and details", async (t) => {
+  const invalidEdges = [
+    { name: "edge object shape", rules: ["edge-object"], edges: [null] },
+    { name: "endpoint shape", rules: ["endpoint-shape"], edges: [{ from: "", to: "A", type: "BLOCKS" }] },
+    { name: "missing endpoint", rules: ["endpoint-exists"], edges: [{ from: "MISSING", to: "A", type: "BLOCKS" }] },
+    { name: "self-edge", rules: ["self-edge"], edges: [{ from: "A", to: "A", type: "BLOCKS" }] },
+    { name: "empty edge type", rules: ["type-shape"], edges: [{ from: "A", to: "B", type: "" }] },
+    { name: "unknown edge type", rules: ["allowed-type"], edges: [{ from: "A", to: "B", type: "UNKNOWN" }] },
+    { name: "BLOCKS requires resolvable source", rules: ["kind-compatibility"], edges: [{ from: "K", to: "A", type: "BLOCKS" }] },
+    { name: "BLOCKS requires resolvable target", rules: ["kind-compatibility"], edges: [{ from: "A", to: "K", type: "BLOCKS" }] },
+    { name: "SUPERSEDES requires equal kinds", rules: ["kind-compatibility"], edges: [{ from: "A", to: "K", type: "SUPERSEDES" }] },
+    { name: "duplicate edge", rules: ["unique-edge"], edges: [{ from: "A", to: "B", type: "BLOCKS" }, { from: "A", to: "B", type: "BLOCKS" }] },
+    { name: "BLOCKS cycle", rules: ["blocks-acyclic"], edges: [{ from: "A", to: "B", type: "BLOCKS" }, { from: "B", to: "A", type: "BLOCKS" }] },
+  ];
+  const exercisedRules = new Set(invalidEdges.flatMap(({ rules }) => rules));
+  assert.deepEqual([...exercisedRules].toSorted(), [...STATE_EDGE_INVARIANT_RULES].toSorted());
+
+  async function errorFrom(operation: () => Promise<unknown>) {
+    try {
+      await operation();
+    } catch (error) {
+      const caught = error as { code?: string; details?: unknown };
+      return { code: caught.code, details: caught.details };
+    }
+    return null;
+  }
+
+  for (const example of invalidEdges) {
+    await t.test(example.name, async () => {
+      const dir = await createTempProject();
+      try {
+        await writeCanonicalState(dir, {
+          version: 1,
+          revision: 1,
+          nodes: {
+            A: { id: "A", kind: "resolvable", subkind: "task", title: "A", initiative: "core", status: "open", revision: 1 },
+            B: { id: "B", kind: "resolvable", subkind: "task", title: "B", initiative: "core", status: "open", revision: 1 },
+            G: { id: "G", kind: "resolvable", subkind: "gate", title: "G", initiative: "core", status: "open", revision: 1 },
+            K: { id: "K", kind: "knowledge", title: "K", initiative: "core", status: "active" },
+            TARGET: { id: "TARGET", kind: "resolvable", subkind: "task", title: "target", initiative: "core", status: "open", revision: 1 },
+          },
+          edges: [],
+          initiatives: { core: { desc: "core" } },
+          log: [],
+        });
+        const { Database } = await import(SQLITE_MODULE);
+        const database = new Database(stateFilePath(dir));
+        try {
+          const insert = database.query("INSERT INTO edges (position, data, from_id, to_id, edge_type) VALUES (?, ?, ?, ?, ?)");
+          for (const [position, edge] of example.edges.entries()) {
+            insert.run(position, JSON.stringify(edge), edge?.from ?? null, edge?.to ?? null, edge?.type ?? null);
+          }
+        } finally {
+          database.close();
+        }
+
+        const fullError = await errorFrom(() => readState(dir));
+        const closureError = await errorFrom(() => readMutationSnapshot(dir, "task", {
+          action: "note.add",
+          input: { id: "TARGET" },
+        }));
+        assert.ok(fullError, "the canonical full-state validator rejects this case");
+        assert.deepEqual(closureError, fullError);
+      } finally {
+        await rmTempProject(dir);
+      }
+    });
+  }
+});
+
+test("node kind changes invalidate the cached SQL edge proof", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeCanonicalState(dir, {
+      version: 1,
+      revision: 1,
+      nodes: {
+        A: { id: "A", kind: "resolvable", subkind: "task", title: "A", initiative: "core", status: "open", revision: 1 },
+        B: { id: "B", kind: "resolvable", subkind: "task", title: "B", initiative: "core", status: "open", revision: 1 },
+        TARGET: { id: "TARGET", kind: "resolvable", subkind: "task", title: "target", initiative: "core", status: "open", revision: 1 },
+      },
+      edges: [{ from: "A", to: "B", type: "BLOCKS" }],
+      initiatives: { core: { desc: "core" } },
+      log: [],
+    });
+    const { Database } = await import(SQLITE_MODULE);
+    const database = new Database(stateFilePath(dir));
+    try {
+      const node = { id: "B", kind: "knowledge", title: "B", initiative: "core", status: "active" };
+      database.query("UPDATE nodes SET data = ? WHERE id = 'B'").run(JSON.stringify(node));
+    } finally {
+      database.close();
+    }
+
+    const fullError = await readState(dir).then(() => null, (error) => error as { code?: string; details?: unknown });
+    const closureError = await readMutationSnapshot(dir, "task", {
+      action: "note.add",
+      input: { id: "TARGET" },
+    }).then(() => null, (error) => error as { code?: string; details?: unknown });
+    assert.ok(fullError);
+    assert.ok(closureError);
+    assert.equal(fullError.code, "INVALID_EDGE_KIND");
+    assert.deepEqual({ code: closureError.code, details: closureError.details }, {
+      code: fullError.code,
+      details: fullError.details,
+    });
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("closure SQL preserves canonical kind rules without imposing subkind rules", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeCanonicalState(dir, {
+      version: 1,
+      revision: 1,
+      nodes: {
+        A: { id: "A", kind: "resolvable", subkind: "task", title: "A", initiative: "core", status: "open", revision: 1 },
+        G: { id: "G", kind: "resolvable", subkind: "gate", title: "G", initiative: "core", status: "open", revision: 1 },
+        K: { id: "K", kind: "knowledge", title: "K", initiative: "core", status: "active" },
+        TARGET: { id: "TARGET", kind: "resolvable", subkind: "task", title: "target", initiative: "core", status: "open", revision: 1 },
+      },
+      edges: [
+        { from: "A", to: "G", type: "BLOCKS" },
+        { from: "A", to: "G", type: "SUPERSEDES" },
+        { from: "K", to: "A", type: "DERIVED_FROM" },
+      ],
+      initiatives: { core: { desc: "core" } },
+      log: [],
+    });
+    const full = await readState(dir);
+    const { state: closure } = await readMutationSnapshot(dir, "task", { action: "note.add", input: { id: "TARGET" } });
+    assert.deepEqual(closure.edges, []);
+    assert.deepEqual(full.edges.length, 3);
   } finally {
     await rmTempProject(dir);
   }
