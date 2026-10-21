@@ -107,6 +107,25 @@ async function countResultRows(run: () => Promise<unknown>) {
   finally { Database.prototype.query = originalQuery; }
 }
 
+async function observeNodeSelects<T>(run: () => Promise<T>) {
+  const { Database } = await import(SQLITE_MODULE);
+  const originalQuery = Database.prototype.query;
+  const selects: Array<{ sql: string; rows: Array<Record<string, unknown>> }> = [];
+  Database.prototype.query = function (sql, ...args) {
+    const statement = originalQuery.call(this, sql, ...args);
+    if (!/^\s*SELECT\b/i.test(sql) || !/\bFROM\s+nodes\b/i.test(sql)) { return statement; }
+    const originalAll = statement.all;
+    statement.all = function (...queryArgs) {
+      const rows = originalAll.apply(this, queryArgs);
+      selects.push({ sql, rows });
+      return rows;
+    };
+    return statement;
+  };
+  try { return { result: await run(), selects }; }
+  finally { Database.prototype.query = originalQuery; }
+}
+
 test("point reads match complete SQLite state and preserve node property order", async () => {
   const projectDir = await createTempProject();
   try {
@@ -301,7 +320,18 @@ test("10,000-node point reads use indexed bounded work and match full-state proj
     assert.equal(JSON.stringify(await readSqliteEdgesOf(file, ids)), JSON.stringify(expectedEdges));
     assert.equal(JSON.stringify(await readSqliteEdgesOf(file, ids, { type: "BLOCKS" })), JSON.stringify(expectedEdges.filter((edge: any) => edge.type === "BLOCKS")));
     assert.equal(JSON.stringify(await readSqliteLogSince(file, 9_990)), JSON.stringify(complete.log.filter((_, index) => index + 1 > 9_990)));
-    assertCountsMatch(await readSqliteCounts(file), expectedCounts(complete.nodes as Record<string, Record<string, unknown>>));
+    const expectedAllCounts = expectedCounts(complete.nodes as Record<string, Record<string, unknown>>);
+    const { result: allCounts, selects: countSelects } = await observeNodeSelects(() => readSqliteCounts(file));
+    assertCountsMatch(allCounts, expectedAllCounts);
+    assert.equal(countSelects.length, 1, "unfiltered counts must use one aggregate query");
+    assert.match(countSelects[0].sql, /COUNT\(\*\)\s+AS\s+count/i);
+    assert.match(countSelects[0].sql, /GROUP\s+BY/i);
+    assert.doesNotMatch(countSelects[0].sql, /node_body|body_hash/i);
+    const expectedGroupCount = new Set(Object.values(complete.nodes).map((node: any) => JSON.stringify([node.kind ?? null, node.subkind ?? null, node.status ?? null]))).size;
+    assert.equal(countSelects[0].rows.length, expectedGroupCount, "only grouped count rows should reach JavaScript");
+    for (const row of countSelects[0].rows) {
+      assert.deepEqual(Object.keys(row), ["kind", "subkind", "status", "count"]);
+    }
     assert.equal(await readSqliteRevision(file), complete.revision);
 
     const plans = await Promise.all([
