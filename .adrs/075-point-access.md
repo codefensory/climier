@@ -20,7 +20,23 @@ de la máquina (`bun -e 0` = 3 ms, `--help` = 16 ms, `status` vacío = 28 ms):
 | `add-note` | 139 ms | 98 ms | 70 ms |
 
 Todos los comandos materializan el estado entero —nodos, edges y log parseados a
-objetos JS— en cada lectura y en cada mutación. ADR-074 §Verificación pide
+objetos JS— en cada lectura y en cada mutación. Desglose medido (mismo proyecto,
+parseo fila por fila como lo hace el store, mediana de 7 corridas):
+
+| colección | filas | bytes | parse | µs/fila |
+|---|---|---|---|---|
+| `nodes` | 594 | 2,81 MB | 4,2 ms | 7,0 |
+| `log` | 4.964 | 2,52 MB | 3,1 ms | 0,6 |
+| `edges` | 906 | 0,07 MB | 0,2 ms | 0,2 |
+
+Dos consecuencias que no eran obvias:
+
+- **`status` no usa el log**: 3,1 ms de su lectura son trabajo descartado.
+- **La mutación no escribe una fila**: `replaceRows` ejecuta
+  `DELETE FROM meta; DELETE FROM nodes; DELETE FROM edges; DELETE FROM initiatives;
+  DELETE FROM log;` y reinserta todo (`src/storage/sqlite/store.ts:268`). Un
+  `add-note` borra e inserta 5.558 filas para cambiar una. El costo dominante de
+  una mutación no es leer el estado, es **reescribirlo entero**. ADR-074 §Verificación pide
 `add-note` ≤ 30 ms y `status` ≤ 35 ms, y hoy no se alcanzan por ese motivo, no por
 el motor.
 
@@ -47,6 +63,10 @@ el motor.
    declarado, el kernel falla cerrado en lugar de leer el estado completo.
 5. `withSqliteTransaction` sigue siendo la única frontera de escritura; el
    snapshot acotado se lee **dentro** de la transacción.
+6. La mutación escribe solo lo que cambió: la fila del nodo objetivo, la entrada de
+   log y `meta.revision`. Desaparece el `DELETE FROM nodes/edges/log` de
+   `replaceRows` del camino de mutación; el reemplazo completo queda solo para
+   `restore` y `state migrate`.
 
 Lo que no cambia: la forma del estado en disco, los ids, la dirección de `BLOCKS`,
 los códigos de error, la salida JSON de cada comando y la garantía de atomicidad.
@@ -86,7 +106,7 @@ Cada fila es una task. Colateral medido por comando, ver
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | Store de consulta (`getNode`, `edgesOf`, `logSince`, `countsBy`, `revision`) con indices y contadores de trabajo | nuevo | `src/storage/sqlite/store.ts`, `schema.ts` | ~8 tests | primero | si | `EXPLAIN QUERY PLAN` sin `SCAN`, `npm test` | ~60 | — |
 | 2 | Lecturas por consulta: `status`, `context`, `history`, `search`, `initiatives` sobre vistas resueltas | cambio | `src/read-model/*`, `src/cli/commands/{status,context,history,search,log,initiatives}.ts` | ~12 tests | mismo slice | si | paridad byte-identica vs golden, `status` ≤ 35 ms | ~70 | 1 |
-| 3 | Mutaciones con closure acotado + catalogo declarado por operacion | cambio | `src/kernel/mutation/execute/*`, `src/kernel/transaction.ts`, `src/application/operations/*` | ~15 tests | mismo slice | si | `add-note` ≤ 30 ms, 50 writers, contador de filas ajenas = 0 | ~90 | 1 |
+| 3 | Mutaciones con closure acotado + catalogo declarado + escritura por fila | cambio | `src/kernel/mutation/execute/*`, `src/kernel/transaction.ts`, `src/application/operations/*`, `src/storage/sqlite/store.ts` | ~15 tests | mismo slice | si | `add-note` ≤ 30 ms, filas escritas = nodo + log + meta, 50 writers, filas leidas ajenas = 0 | ~90 | 1 |
 | 4 | Golden del proyecto real (export antes del cambio) y test de trabajo por operacion | nuevo | `test/perf-work-budget.test.ts`, fixture | ~4 tests | primero | si | paridad de los 4 comandos | ~30 | — |
 
 ## Verificacion
@@ -96,6 +116,7 @@ Cada fila es una task. Colateral medido por comando, ver
 - Sobre ese proyecto: `add-note` ≤ 30 ms y `status` ≤ 35 ms end-to-end, mediana de
   7–9 corridas, con el mismo piso de máquina documentado arriba.
 - Contadores de trabajo: una lectura o mutación de un nodo no parsea filas de
-  otros nodos; el test falla si aparece una.
+  otros nodos, y una mutación no reescribe filas ajenas (nodo objetivo + 1 entrada
+  de log + `meta`); el test falla si aparece una.
 - 50 escritores concurrentes sin pérdidas; `npm test` y `npm run test:concurrent`
   verdes.
