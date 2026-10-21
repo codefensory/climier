@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { applyRemoteChanges } from "../src/application/operations/index.ts";
-import { readSqliteChangesSince, readSqliteState, writeSqliteState } from "../src/storage/sqlite/store.ts";
+import { readSqliteChangesSince, readSqliteState, updateSqliteState, writeSqliteState } from "../src/storage/sqlite/store.ts";
 import { stateFile } from "../src/storage/state.ts";
 import { createTempProject, rmTempProject } from "./helpers.ts";
 
@@ -63,6 +63,7 @@ test("SQLite state writes touch only changed collection rows", async () => {
         CREATE TRIGGER audit_log_update AFTER UPDATE ON log BEGIN INSERT INTO write_audit VALUES ('log', 'update'); END;
         CREATE TRIGGER audit_log_delete AFTER DELETE ON log BEGIN INSERT INTO write_audit VALUES ('log', 'delete'); END;
         CREATE TRIGGER audit_log_insert AFTER INSERT ON log BEGIN INSERT INTO write_audit VALUES ('log', 'insert'); END;
+        CREATE TRIGGER audit_meta_revision AFTER UPDATE ON meta WHEN OLD.key = 'revision' BEGIN INSERT INTO write_audit VALUES ('meta.revision', 'update'); END;
       `);
     } finally {
       database.close();
@@ -81,15 +82,56 @@ test("SQLite state writes touch only changed collection rows", async () => {
       const writes = audit.query("SELECT table_name, operation, COUNT(*) AS count FROM write_audit GROUP BY table_name, operation ORDER BY table_name, operation").all();
       assert.deepEqual(writes, [
         { table_name: "log", operation: "insert", count: 1 },
+        { table_name: "meta.revision", operation: "update", count: 1 },
         { table_name: "nodes", operation: "update", count: 1 },
       ]);
       assert.deepEqual(audit.query("SELECT body FROM node_body ORDER BY body").all(), [
         { body: "second body" },
         { body: "updated body" },
       ]);
+      audit.exec("DELETE FROM write_audit");
     } finally {
       audit.close();
     }
+
+    await updateSqliteState(file, (state) => state);
+
+    const noOpAudit = new Database(file);
+    try {
+      assert.equal(noOpAudit.query("SELECT COUNT(*) AS count FROM write_audit WHERE table_name = 'nodes'").get().count, 0);
+      assert.equal(noOpAudit.query("SELECT COUNT(*) AS count FROM write_audit WHERE table_name = 'meta.revision'").get().count, 0);
+    } finally {
+      noOpAudit.close();
+    }
+  } finally {
+    await rmTempProject(projectDir);
+  }
+});
+
+test("in-place updateState mutations persist node, edge, removal, and log changes", async () => {
+  const projectDir = await createTempProject();
+  try {
+    const file = stateFile(projectDir);
+    const initial = initialState();
+    initial.revision = 1;
+    await writeSqliteState(file, initial);
+
+    await updateSqliteState(file, (state) => {
+      state.revision = 2;
+      const nodes = state.nodes as TestState["nodes"];
+      nodes["T-one"].title = "Updated in place";
+      delete nodes["T-two"];
+      (state.edges as unknown[]).splice(0, 1);
+      (state.log as unknown[]).push({ action: "task.update", node: "T-one" });
+      return state;
+    });
+
+    const actual = await readSqliteState(file);
+    assert.equal(actual.revision, 2);
+    assert.equal(actual.nodes["T-one"].title, "Updated in place");
+    assert.equal(Object.hasOwn(actual.nodes, "T-two"), false);
+    assert.deepEqual(actual.edges, []);
+    assert.deepEqual(actual.log, [{ action: "task.update", node: "T-one" }]);
   } finally {
     await rmTempProject(projectDir);
   }

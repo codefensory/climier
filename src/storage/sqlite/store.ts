@@ -807,7 +807,7 @@ export async function updateSqliteState(file: string, mutator: (state: Record<st
     initiatives: {},
     log: [],
   };
-  const draft = { ...current };
+  const draft = structuredClone(current);
   const next = mutator(draft);
   if (next === undefined) { throw new Error("updateState mutator must return the new state object"); }
   await writeSqliteState(file, next, current);

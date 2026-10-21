@@ -19,11 +19,10 @@ export function nodeWithoutBodyText(node: Record<string, unknown>) {
 }
 
 export function isStateLogPrefix(previous: unknown[], next: unknown[]): boolean {
-  return previous === next || (previous.length <= next.length && previous.every((entry, index) => structurallyEqual(entry, next[index])));
+  return previous.length <= next.length && previous.every((entry, index) => structurallyEqual(entry, next[index]));
 }
 
 function changedMap(previous: Record<string, unknown>, next: Record<string, unknown>) {
-  if (previous === next) { return { upsert: {}, remove: [] as string[] }; }
   const upsert: Record<string, unknown> = {};
   const remove = Object.keys(previous).filter((key) => !Object.hasOwn(next, key));
   for (const [key, value] of Object.entries(next)) {
@@ -41,7 +40,6 @@ function nodeUnchanged(previous: unknown, next: unknown, storedBodyHash: string 
 }
 
 function changedNodes(previous: Record<string, unknown>, next: Record<string, unknown>, previousBodyHashes: Map<string, string | null>) {
-  if (previous === next) { return { upsert: {}, remove: [] as string[] }; }
   const upsert: Record<string, unknown> = {};
   const remove = Object.keys(previous).filter((key) => !Object.hasOwn(next, key));
   for (const [id, value] of Object.entries(next)) {
