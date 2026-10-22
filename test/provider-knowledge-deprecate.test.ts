@@ -24,7 +24,7 @@ import { importFresh } from "./helpers.ts";
 import {
   createTempProject,
   rmTempProject,
-  writeFencedState,
+  writeCanonicalState,
   readState as readStateHelper,
 } from "./helpers.ts";
 
@@ -42,7 +42,7 @@ async function deprecateKnowledgeWithSearch(provider, mutate, dir) {
       "K-old": knowledgeNode("K-old", { title: "shared deprecated", body: "shared body" }),
     },
   });
-  await writeFencedState(dir, base);
+  await writeCanonicalState(dir, base);
   await mutate({
     projectDir: dir,
     request: {
@@ -76,7 +76,7 @@ function assertDeprecationLog(log) {
   assert.equal(log[0].action, "knowledge.deprecate");
   assert.equal(log[0].agent, "alice");
   assert.equal(log[0].node, "K-1");
-  assert.equal(log[0].revision, 6);
+  assert.equal(log[0].revision, 5);
 
   assert.equal(log[0].reason, undefined);
 }
@@ -193,7 +193,7 @@ async function applyDeprecationWithDetails(provider, mutate, dir) {
       }),
     },
   });
-  await writeFencedState(dir, base);
+  await writeCanonicalState(dir, base);
   const out = await mutate({
     projectDir: dir,
     request: {
@@ -216,7 +216,7 @@ test("deprecate: apply preserves scope, status, reason, deprecated_at/by via ker
     assert.equal(out.idempotent, false, "deprecate is never idempotent (records a new event)");
     assert.equal(out.diff.updated.length, 1);
     assert.equal(out.diff.updated[0].id, "K-1");
-    assert.equal(out.diff.updated[0].node.revision, 6, "kernel advances beyond the fenced fixture high-water");
+    assert.equal(out.diff.updated[0].node.revision, 5, "kernel increments the node revision in SQLite");
 
     const node = after.nodes["K-1"];
     assertDeprecatedKnowledgeNode(node);
@@ -264,7 +264,7 @@ test("deprecate: apply uses tx only (does not leak the snapshot after kernel mut
     const base = emptySnapshot({
       nodes: { "K-1": knowledgeNode("K-1", { revision: 3, scope: { domains: ["auth"] } }) },
     });
-    await writeFencedState(dir, base);
+    await writeCanonicalState(dir, base);
     const before = await readStateHelper(dir);
     const expectedTitle = before.nodes["K-1"].title;
     const expectedScope = JSON.parse(JSON.stringify(before.nodes["K-1"].scope));

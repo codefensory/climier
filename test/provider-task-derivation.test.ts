@@ -11,6 +11,7 @@ import {
   statusOfV2,
 } from "../src/providers/task/derivation.ts";
 import { taskTakeProvider } from "../src/providers/task/index.ts";
+import { createGraphIndexes } from "../src/kernel/graph.ts";
 
 function state(
   nodes: Record<string, Record<string, unknown>>,
@@ -82,6 +83,41 @@ test("task satisfaction follows superseded gate chains and remains safe on cycle
   assert.equal(isSatisfiedV2(graph, "missing"), false);
   assert.equal(isTaskReady(graph, "target"), true);
   assert.equal(readiness(graph, "target"), true);
+});
+
+test("indexed task derivation memoizes satisfaction while preserving cycles and unknown blockers", () => {
+  const graph = state(
+    {
+      old: gate("old", "superseded"),
+      newer: gate("newer", "resolved"),
+      cycleA: gate("cycleA", "superseded"),
+      cycleB: gate("cycleB", "superseded"),
+      ready: task("ready"),
+      blocked: task("blocked"),
+    },
+    [
+      { from: "newer", to: "old", type: "SUPERSEDES" },
+      { from: "cycleB", to: "cycleA", type: "SUPERSEDES" },
+      { from: "cycleA", to: "cycleB", type: "SUPERSEDES" },
+      { from: "old", to: "ready", type: "BLOCKS" },
+      { from: "cycleA", to: "blocked", type: "BLOCKS" },
+      { from: "missing", to: "blocked", type: "BLOCKS" },
+    ],
+  );
+  const indexes = createGraphIndexes(graph);
+  const satisfactionMemo = new Map<string, boolean>();
+  const projectionGraph = { indexes, satisfactionMemo };
+
+  assert.deepEqual(deriveV2(graph, projectionGraph), {
+    ready: ["ready"],
+    blocked: ["blocked"],
+    backlog: [],
+    openGates: [],
+  });
+  assert.equal(satisfactionMemo.get("old"), true);
+  assert.equal(satisfactionMemo.get("cycleA"), false);
+  assert.equal(isSatisfiedV2(graph, "missing", new Set(), projectionGraph), false);
+  assert.equal(satisfactionMemo.get("missing"), false);
 });
 
 test("submitted tasks are explicit non-open lifecycle and do not satisfy blockers", () => {

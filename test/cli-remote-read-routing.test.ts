@@ -9,6 +9,7 @@ import searchCommand from "../src/cli/commands/search.ts";
 import initiativesCommand from "../src/cli/commands/initiatives.ts";
 import logCommand from "../src/cli/commands/log.ts";
 import stateCommand from "../src/cli/commands/state.ts";
+import { projectSnapshot } from "../src/read-model/index.ts";
 import { createTempProject, rmTempProject, writeCanonicalState, readState, runCli, initExampleProject } from "./helpers.ts";
 
 const status = (context: unknown) => statusCommand(context as Parameters<typeof statusCommand>[0]);
@@ -46,7 +47,15 @@ const remoteResponses = {
   search: { matches: [{ id: "K-remote" }], count: 1 },
   initiatives: { initiatives: [{ name: "remote" }], unregistered: { nodes: 0, values: [] }, all: true },
   log: [{ id: "remote-log" }],
-  state: { revision: 42, nodes: { "T-remote": {} }, edges: [], derived: {}, plugins: {} },
+  state: {
+    version: 1,
+    revision: 42,
+    initiatives: {},
+    nodes: { "T-remote": { id: "T-remote", kind: "resolvable", subkind: "task", title: "Remote", status: "open" } },
+    edges: [],
+    plugins: {},
+    log: [],
+  },
 };
 
 function commandCase({ name, run, options, method, statePath, expected }) {
@@ -59,6 +68,9 @@ function commandCases(client, statePath = "/not/read/locally") {
     commandCase({ name: "status", expected: remoteResponses.status, method: "readStatus", statePath,
       options: { initiative: "remote-init", kind: "task", status: "ready", domain: "api", claimedBy: "alice", staleMs: 0, limit: 2, all: true, as: "alice" },
       run: () => status({ statePath, backendClient: client, positional: [], flags: { initiative: "remote-init", kind: "task", status: "ready", domain: "api", "claimed-by": "alice", "stale-ms": "0", limit: "2", all: true, as: "alice" } }) }),
+    commandCase({ name: "status uppercase filter", expected: remoteResponses.status, method: "readStatus", statePath,
+      options: { initiative: undefined, kind: undefined, status: "done", domain: undefined, claimedBy: undefined, staleMs: undefined, limit: undefined, all: false, as: undefined },
+      run: () => status({ statePath, backendClient: client, positional: [], flags: { status: "DONE" } }) }),
     commandCase({ name: "context", expected: remoteResponses.context, method: "readContext", statePath,
       options: { id, as: "alice", staleMs: 0 }, run: () => context({ statePath, backendClient: client, positional: [id], flags: { as: "alice", staleMs: "0" } }) }),
     commandCase({ name: "show", expected: remoteResponses.show, method: "readNode", statePath,
@@ -72,7 +84,7 @@ function commandCases(client, statePath = "/not/read/locally") {
     commandCase({ name: "log", expected: remoteResponses.log, method: "readLog", statePath,
       options: { limit: 2, action: "task.create", agent: "alice", node: id },
       run: () => log({ statePath, backendClient: client, positional: [], flags: { limit: "2", action: "task.create", agent: "alice", node: id } }) }),
-    commandCase({ name: "state", expected: remoteResponses.state, method: "readState", statePath,
+    commandCase({ name: "state", expected: projectSnapshot({ snapshot: remoteResponses.state }), method: "readState", statePath,
       options: undefined, run: () => state({ statePath, backendClient: client }) }),
   ];
 }
@@ -131,7 +143,7 @@ test("remote CLI read failures propagate without returning or changing the local
       for (const command of commandCases(client, projectDir)) {
         await assert.rejects(command.run(), (error) => error === remoteError, `${command.name} must propagate ${remoteError.code}`);
       }
-      assert.equal(calls.length, 8);
+      assert.equal(calls.length, 9);
     }
 
     assert.deepEqual(await readState(projectDir), before);

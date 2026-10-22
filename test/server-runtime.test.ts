@@ -68,8 +68,8 @@ async function assertTrustedProjects(runtime, root, stateHome) {
   assert.match(alphaMeta.project_id, /^[a-f0-9]{64}$/u);
   assert.match(betaMeta.project_id, /^[a-f0-9]{64}$/u);
   assert.notEqual(alphaMeta.project_id, betaMeta.project_id);
-  assert.equal(stateFile(alpha.projectDir), path.join(stateHome, "projects", alphaMeta.project_id, "tasks.json"));
-  assert.equal(stateFile(beta.projectDir), path.join(stateHome, "projects", betaMeta.project_id, "tasks.json"));
+  assert.equal(stateFile(alpha.projectDir), path.join(stateHome, "projects", alphaMeta.project_id, "state.sqlite"));
+  assert.equal(stateFile(beta.projectDir), path.join(stateHome, "projects", betaMeta.project_id, "state.sqlite"));
   assert.notEqual(stateFile(alpha.projectDir), stateFile(beta.projectDir));
   assert.equal(path.dirname(alphaPath), path.join(root, "catalog"));
   assert.equal(path.dirname(betaPath), path.join(root, "catalog"));

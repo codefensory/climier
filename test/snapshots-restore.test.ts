@@ -848,10 +848,7 @@ test("restore: current state file missing fails (no pre-restore snapshot possibl
     }
     assert.ok(captured, "expected restore to throw");
     assert.equal(captured.code, "INVALID_STATUS");
-    // State file is still missing.
-    let exists = true;
-    try { await fs.access(stateFilePath(dir)); } catch { exists = false; }
-    assert.equal(exists, false);
+    assert.equal(await readState(dir), null, "failed restore leaves no canonical SQLite state");
   } finally {
     await rmTempProject(dir);
   }

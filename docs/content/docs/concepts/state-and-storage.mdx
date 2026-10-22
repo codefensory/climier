@@ -3,7 +3,7 @@ title: State and storage
 description: Understand the canonical project snapshot, revisions, and durable writes.
 ---
 
-Climier keeps project metadata separate from the live coordination state. The project directory contains `.climier.json`, which identifies the project. The live state is stored in Climier's storage area so multiple checkouts can coordinate against the same project record.
+Climier keeps project metadata separate from the live coordination state. The project directory contains `.climier.json`, which identifies the project. The live state is stored in Climier's SQLite database so multiple checkouts can coordinate against the same project record.
 
 ## Canonical state shape
 
@@ -12,7 +12,6 @@ Climier keeps project metadata separate from the live coordination state. The pr
 ```json
 {
   "version": 1,
-  "fence_generation": 1,
   "revision": 4,
   "initiatives": {
     "publishing": {
@@ -35,11 +34,11 @@ Climier keeps project metadata separate from the live coordination state. The pr
 }
 ```
 
-The required top-level fields are `version`, `fence_generation`, `revision`, `initiatives`, `nodes`, `edges`, and `log`. Nodes contain durable fields such as lifecycle status, acceptance criteria, claims, and resolutions. The graph and initiative collections are part of the same snapshot.
+The schema-1 state shape contains `version`, `revision`, `initiatives`, `nodes`, `edges`, and `log`. SQLite is the canonical runtime store; JSON with this shape is used only by explicit migration, export, and snapshot-restore workflows. Nodes contain durable fields such as lifecycle status, acceptance criteria, claims, and resolutions. The graph and initiative collections are stored together.
 
 ## Persisted versus derived data
 
-The snapshot stores the task's lifecycle value (`open`, `in_progress`, `submitted`, `done`, `canceled`, or `archived`) and an optional backlog flag. It does not store `ready` or `blocked` as authoritative task states. Those values are derived from the current `BLOCKS` graph and blocker satisfaction. A task whose node says `status: "open"` can therefore be reported as `ready` or `blocked` without mutating the file.
+The snapshot stores the task's lifecycle value (`open`, `in_progress`, `submitted`, `done`, `canceled`, or `archived`) and an optional backlog flag. It does not store `ready` or `blocked` as authoritative task states. Those values are derived from the current `BLOCKS` graph and blocker satisfaction. A task whose node says `status: "open"` can therefore be reported as `ready` or `blocked` without mutating the stored state.
 
 For example, this open task with no incoming blockers derives as ready:
 
@@ -51,15 +50,15 @@ The response includes the persisted node and a separate `derived_status` field. 
 
 ## Revisions and safe writes
 
-The project `revision` advances with mutations. Nodes also carry revisions for focused optimistic checks; `update --if-revision N` refuses to overwrite a node changed since the caller read it. `fence_generation` and the revision ledger protect the canonical state across committed writes.
+The project `revision` advances with mutations. Nodes also carry revisions for focused optimistic checks; `update --if-revision N` refuses to overwrite a node changed since the caller read it. SQLite is the only runtime state store.
 
-Mutations are serialized with the project lock and commit the state, ledger, and audit log as one atomic operation. This prevents two writers from interleaving updates and keeps the log consistent with the state. Read commands such as `status`, `context`, `show`, and `state` do not change the snapshot.
+Mutations run in SQLite `BEGIN IMMEDIATE` transactions with `busy_timeout`. SQLite serializes writers, and the state change, project revision, and audit-log entry commit atomically. Read commands such as `status`, `context`, `show`, and `state` do not change the state.
 
-Use the CLI as the write interface rather than editing the live JSON. For a safe inspection of the raw snapshot:
+Use the CLI as the write interface rather than editing the SQLite database. For a safe inspection of the state projection:
 
 ```bash
 climier state
 climier status --all
 ```
 
-The one-time schema-1 import window for older projects is complete, and its importer is no longer shipped. If older or incomplete state is discovered, preserve the project files and restore a verified canonical backup or contact the maintainer. `init --force` is a destructive reset, not a conversion or recovery mechanism.
+To import a complete legacy schema-1 JSON state, use `climier state migrate --as <agent> --yes`; the importer preserves a verified JSON backup. `climier state export` emits schema-1 JSON. If older or incomplete state is discovered, preserve the project files and restore a verified canonical backup or contact the maintainer. `init --force` is a destructive reset, not a conversion or recovery mechanism.

@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { createRequire } from "node:module";
-import { stateFilePath } from "./helpers.ts";
+import { readState as readStateHelper, stateFilePath } from "./helpers.ts";
 
 export const PLUGIN_MODULE = "../src/plugins/paths.ts";
 export const LOCK_MODULE = "../src/plugins/lock.ts";
@@ -154,18 +154,15 @@ export async function installCommandCollisionPair(install, fixtureDir) {
   return secondDir;
 }
 
-export async function installAndCheckProjectUntouched({ install, fixtureDir, projectDir, beforeMtime, beforeRaw }) {
+export async function installAndCheckProjectUntouched({ install, fixtureDir, projectDir, beforeState }) {
   await createFixturePackage(fixtureDir, {
     id: "no.touch", command: "no-touch", npmName: "no-touch-pkg", dirName: "no-touch-pkg",
   });
   await install({ positional: [path.join(fixtureDir, "no-touch-pkg")], flags: {}, projectDir, statePath: projectDir });
-  const afterMtime = (await fs.stat(stateFilePath(projectDir))).mtimeMs;
-  const afterRaw = await fs.readFile(stateFilePath(projectDir), "utf8");
-  assert.equal(afterMtime, beforeMtime, "install must not write the project state file");
-  assert.equal(afterRaw, beforeRaw, "install must not change the project state bytes");
+  assert.deepEqual(await readStateHelper(projectDir), beforeState, "install must not change the project state");
 }
 
-export async function uninstallOnlyNamedPlugin({ env, projectDir, install, uninstall, fixtureDir, statePath, beforeRaw }) {
+export async function uninstallOnlyNamedPlugin({ env, projectDir, install, uninstall, fixtureDir, statePath, beforeState }) {
   for (const [id, command] of [["plugin.a", "a"], ["plugin.b", "b"]]) {
     await createFixturePackage(fixtureDir, { id, command, npmName: `${command}-pkg`, dirName: `${command}-pkg` });
     await install({ positional: [path.join(fixtureDir, `${command}-pkg`)], flags: {}, projectDir, statePath: projectDir });
@@ -179,6 +176,5 @@ export async function uninstallOnlyNamedPlugin({ env, projectDir, install, unins
   assert.equal(result.plugin.uninstalled, true);
   await assert.rejects(fs.access(aPath));
   assert.ok((await fs.stat(bPath)).isDirectory());
-  const afterRaw = await fs.readFile(statePath, "utf8");
-  assert.equal(afterRaw, beforeRaw, "uninstall must not change project state");
+  assert.deepEqual(await readStateHelper(projectDir), beforeState, "uninstall must not change project state");
 }

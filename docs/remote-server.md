@@ -133,11 +133,12 @@ stop configuring it, and `doctor` only checks that it contains `index.html`, so
 it does not report the drift. Drop the `uiRoot` key to serve the bundled build,
 or refresh the directory from the same release. If an upgrade reports that the
 required state schema differs from the installed release, follow only a
-release-specific, supported transition plan;
-this CLI has no general-purpose state importer. Preserve backups and keep all
-writers on a compatible release until the plan is clear. For legacy or
-incomplete state without such a plan, stop and contact the maintainer rather
-than resetting or editing the project files.
+release-specific, supported transition plan. `state migrate` explicitly
+imports a complete legacy schema-1 JSON file into SQLite, but it is not a
+general-purpose schema converter. Preserve backups and keep all writers on a
+compatible release until the plan is clear. For legacy or incomplete state
+without a supported transition, stop and contact the maintainer rather than
+resetting or editing the project files.
 
 For `--unit none`, a foreground launch must provide the generated secret to the
 process environment without putting it in argv or logs. The generated env file
@@ -343,8 +344,7 @@ or use force.
 Back up `stateHome`, `remote-auth.json`, and `dataRoot` together using a
 consistent filesystem or service-level snapshot. Protect the backup as both a
 secret and the original DAG data. Stop the server before restoring. Never use
-`init --force`, delete a project state, or restore a ledger without its matching
-state file as a recovery shortcut.
+`init --force` or delete a project database as a recovery shortcut.
 
 ### Relocating the root
 
@@ -360,8 +360,8 @@ The configuration stores absolute paths, so relocating a server is one pass:
 5. run `climier server doctor` and verify the served UI and one authenticated
    read. Every project must report the revision it had before the move.
 
-Never copy `stateHome` while the service is running: the lock, the projects, and
-the ledgers move together.
+Never copy `stateHome` while the service is running: the service lock, project
+databases, and metadata move together.
 
 To rotate the password, stop the service and run
 `climier server init --root /srv/climier --rotate-password`. Run the preflight,
@@ -373,9 +373,9 @@ persistence fails, do not report a successful rotation or reopen the proxy.
 
 If `remote-auth.json` is corrupt, stop the service and take a backup first.
 Move only that file aside, then restart with the intended password. The server
-creates fresh auth and leaves project DAGs, ledgers, and `dataRoot` untouched;
-all clients must log in again. Never delete `tasks.json`, the ledger, or the
-whole state directory for auth recovery.
+creates fresh auth and leaves project SQLite databases and `dataRoot` untouched;
+all clients must log in again. Never delete a project database or the whole
+state directory for auth recovery.
 
 The service lock at `stateHome/.server.lock` covers the entire process lifetime.
 A second process using the same `stateHome` fails with `SERVER_ALREADY_RUNNING`

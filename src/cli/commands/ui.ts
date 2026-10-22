@@ -10,9 +10,8 @@ import { createStaticHandler } from "../../server/http/static.ts";
 import { resolvePackagedUi, type PackagedUi } from "../../server/packaged-ui.ts";
 import { createUiApi } from "../../server/http/ui-api.ts";
 import { createUiEvents } from "../../server/http/ui-events.ts";
-import { ledgerFileForProjectId, readStateByProjectId } from "../../storage/ledger.ts";
 import { climierHome } from "../../storage/paths.ts";
-import { listProjectIds, readProjectName, readState, stateFile, stateFileForProjectId } from "../../storage/state.ts";
+import { listProjectIds, readProjectName, readState, readStateByProjectId, stateFile, stateFileForProjectId } from "../../storage/state.ts";
 import { asCaughtError } from "../../contracts/errors.ts";
 import type { CommandContext } from "./contracts.ts";
 import type { ReadModelSnapshot } from "../../read-model/types.ts";
@@ -152,7 +151,7 @@ function createLocalUiEvents({ names = new Map() }) {
     authorize: async () => {},
     getProject: (projectId) => resolveLocalProject(projectId, names),
     readSnapshot: (project) => readStateByProjectId((project as unknown as { id: string }).id),
-    resolveLedger: ({ projectId }: { projectId: string }) => ledgerFileForProjectId(projectId),
+    resolveState: ({ projectId }: { projectId: string }) => stateFileForProjectId(projectId),
     protocolVersion: PROTOCOL_VERSION,
   });
 }

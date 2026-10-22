@@ -35,6 +35,8 @@ import {
   installPolicyFixture,
   uninstallPolicyFixture,
   writeCanonicalState,
+  writeLegacyJsonState,
+  stateFilePath,
 } from "./helpers.ts";
 
 async function projectFixture() {
@@ -765,27 +767,10 @@ test("cancel: missing node returns NODE_NOT_FOUND", async () => {
 // === CLI dispatch =======================================================
 
 async function seedV1State(dir, state) {
-
-  // just need the .climier.json to know the project id).
-  const metaPath = path.join(dir, ".climier.json");
-  let projectId;
-  try {
-    projectId = JSON.parse(await fs.readFile(metaPath, "utf8")).project_id;
-  } catch {
-    projectId = undefined;
-  }
-  if (!projectId) {
-    const { default: init } = await importFresh("./cli/commands/init.ts");
-    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
-    projectId = JSON.parse(await fs.readFile(metaPath, "utf8")).project_id;
-  }
-  if (!projectId) throw new Error("seedV1State: project metadata has no project_id");
-  const climierHome = process.env.CLIMIER_HOME;
-  if (!climierHome) throw new Error("seedV1State: CLIMIER_HOME is required");
-  const stateFile = path.join(climierHome, "projects", projectId, "tasks.json");
-  await fs.mkdir(path.dirname(stateFile), { recursive: true });
-  await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
-  return stateFile;
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
+  await fs.rm(stateFilePath(dir));
+  await writeLegacyJsonState(dir, state);
 }
 
 test("CLI: release is routed to the release command (clears claim, status=open)", async () => {
@@ -897,7 +882,7 @@ test("CLI: cancel is routed to the cancel command (status=canceled)", async () =
   } finally { await rmTempProject(dir); }
 });
 
-test("CLI: pre-release states are rejected with structural migration guidance", async () => {
+test("CLI: tasks.json-only projects are rejected with explicit migration guidance", async () => {
 
   // their version number, and the error directs users to the importer.
   const dir = await createTempProject();
@@ -915,7 +900,6 @@ test("CLI: pre-release states are rejected with structural migration guidance", 
     const out = JSON.parse(r.stdout);
     assert.equal(out.ok, false);
     const message = out.error.message || out.error;
-    assert.match(message, /PRE_RELEASE_STATE_UNSUPPORTED|restore a verified backup/i);
-    assert.doesNotMatch(message, /init --force/i);
+    assert.match(message, /climier state migrate/);
   } finally { await rmTempProject(dir); }
 });

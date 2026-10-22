@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, stateFilePath, lockFilePath, writeCanonicalState } from "./helpers.ts";
+import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.ts";
 
 test("storage: init uses the global state path", async () => {
   const { default: init } = await importFresh("./cli/commands/init.ts");
@@ -15,7 +15,7 @@ test("storage: init uses the global state path", async () => {
   }
 });
 
-test("storage: project metadata makes sibling worktrees share the same state and lock path", async () => {
+test("storage: project metadata makes sibling worktrees share the same state path", async () => {
   const { default: init } = await importFresh("./cli/commands/init.ts");
   const { readState } = await importFresh("./storage/state.ts");
   const a = await createTempProject();
@@ -25,7 +25,6 @@ test("storage: project metadata makes sibling worktrees share the same state and
     await fs.copyFile(path.join(a, ".climier.json"), path.join(b, ".climier.json"));
 
     assert.equal(stateFilePath(a), stateFilePath(b));
-    assert.equal(lockFilePath(a), lockFilePath(b));
 
     await writeCanonicalState(a, {
       nodes: { T1: { id: "T1", title: "shared" } },
@@ -49,7 +48,7 @@ test("storage: state path is deterministic even before metadata exists", async (
     await writeCanonicalState(dir, { nodes: {}, edges: [], initiatives: {}, log: [] });
     const s = await readState(dir);
     assert.equal(s.version, 1);
-    assert.equal(s.revision, 1);
+    assert.equal(s.revision, 0);
     assert.equal(stateFilePath(dir), file);
   } finally {
     await rmTempProject(dir);

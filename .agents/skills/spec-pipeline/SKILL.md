@@ -76,17 +76,17 @@ climier resolve <G-adrN> --choice aprobado --rationale "<resumen de la decision>
 
 Si un ADR reemplaza a otro: `add-gate ... --supersedes <viejo>` (rewire automatico de dependencias). ADR riesgoso → tambien pasa por rfc-reviewer antes de resolverse.
 
-## 4. Onboarding breve para crear tasks
+## 4. Onboarding y corte propuesto
 
-Antes de crear tasks de implementacion, el orquestador puede hacer una pasada corta sobre el ADR y el codigo minimo relevante. El objetivo es entender el cambio y detectar como expresarlo mejor en tasks ejecutables.
+Antes de crear tasks de implementacion, el orquestador hace una pasada corta sobre el ADR y el codigo minimo relevante. El objetivo es convertir el cambio en filas ejecutables, no en un plan de pasos.
 
-El onboarding entrega solo una nota breve con:
+El onboarding entrega una nota breve con:
 
-- alcance entendido y paths probablemente afectados;
-- sugerencia simple para separar o acotar tasks, si hace falta;
+- **deltas**: que deja de existir, que empieza a existir, que cambia de comportamiento;
+- **corte propuesto**: la tabla de `§Plan de implementacion` del ADR completada (paths, colateral, tests, verde, verificar, turnos, depende), con cada fila ya mergeable en verde;
 - ambiguedades, riesgos o criterios de acceptance que convenga aclarar.
 
-No es un plan ni una secuencia de pasos. No crea una task de onboarding, no escribe `docs/plans/`, no arma batches, no crea tasks hijas y no implementa producto. Si el ADR ya alcanza para una task clara, se omite.
+Si el analisis no permite responder los deltas, no hay tasks: se abre una gate de research o se vuelve al usuario. No es un plan ni una secuencia de pasos. No crea una task de onboarding, no escribe `docs/plans/`, no arma batches, no crea tasks hijas y no implementa producto. Si el ADR ya alcanza para una task clara, se omite.
 
 Debe terminar rapido. Si aparece una decision real o falta contexto, se informa al usuario o se abre una gate; no se inventa una solucion. Luego el orquestador crea y cura las tasks directamente.
 
@@ -96,6 +96,8 @@ Debe terminar rapido. Si aparece una decision real o falta contexto, se informa 
 climier add-task --initiative <init> \
   --title "<cambio concreto>" \
   --body "Spec: .adrs/NNN-<slug>.md §<seccion>.
+Tamaño: ~N turnos, M paths de src, K tests huerfanos. Corte: <deja-de-usar | borra-muerto | superficies>.
+Tests: <primero | mismo slice | golden+borrar | ->.
 Archivos: <paths a tocar>.
 No-go: <lo que no debe tocar>.
 Verificar: <comando>." \
@@ -110,6 +112,17 @@ Verificar: <comando>." \
 - Una task = un cambio principal + acceptance verificable. "Y ademas" → otra task.
 - Las dependencias del DAG deben ser reales y salir del alcance decidido, no de un plan generado por el onboarding.
 - Las ejecuciones deben respetar el scope de paths y las dependencias del DAG; no se solapan cambios incompatibles.
+
+### Corte y tamaño
+
+Un corte no es un corte si no mergea verde. Antes de crear tasks de una pieza del ADR:
+
+- **Presupuesto por colateral**: <=100 turnos del runner por task, estimado por superficie y no por lineas: paths de `src/` **mas** los tests/fixtures/scripts que la task toca u orfaniza. Si la pieza borra o reemplaza un subsistema, el tamaño es el colateral de tests (`grep -rl "<simbolo>" test/ | wc -l`), no el de `src/`.
+- **Verde intermedio**: cada task mergea con la suite requerida verde. Si el corte natural deja tests rojos, no es un corte: se parte por *dejar de usar -> borrar lo muerto -> limpiar superficies y docs*, nunca por capas (`storage`/`kernel`/`cli`). Cortar por capas produce slices que compilan y no mergean.
+- **Tests por tipo de delta**: `nuevo` -> test primero; `cambio` -> el test viejo se adapta en la misma fila; `delecion` -> golden del comportamiento actual antes de borrar, y los tests huerfanos se borran con el codigo (nunca quedan rojos); `superficies` -> mismo slice, sin tests nuevos. Lo que deja de describir algo se borra con su codigo; la cobertura perdida se trackea como task propia con acceptance medible.
+- **Serial vs paralelo**: si los slices son seriales (cada uno compila sobre el anterior) el paralelismo no gana nada; la ganancia es recuperacion barata y contexto acotado. Si son paralelos, los paths deben ser excluyentes, incluidos `test/helpers.ts` y `test/test-manifest.json`.
+- **Registro en el body**: cada task arranca con `Tamaño:` (turnos, paths, tests huerfanos, tipo de corte) y `Tests:` (primero | mismo slice | golden+borrar | -), para que el proximo que cura no repita el analisis.
+- **Re-corte**: si una pieza produce mas de 3 tasks seriales o una task de mas de ~100 turnos, la pieza estaba mal cortada: se corrige en `§Plan de implementacion` del ADR antes de delegar, no en el DAG.
 
 ## Knowledge
 

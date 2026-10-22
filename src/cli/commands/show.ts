@@ -1,19 +1,22 @@
 
-import { readState } from "../../storage/state.ts";
+import { sqliteStateExists, stateFile } from "../../storage/state.ts";
+import { readSqliteNode } from "../../storage/sqlite/store.ts";
 import { throwV2 } from "../../contracts/errors.ts";
 
 export const knownFlags = [];
 
-function findCurrentNode(snapshot, id) {
-  const node = snapshot.nodes[id];
+function showNode(node, id) {
   if (!node) {throwV2("NODE_NOT_FOUND", `show: ${id} not found`, { id });}
   return { type: node.subkind || node.kind, node };
 }
 
 async function readNode(statePath, id) {
-  const snapshot = await readState(statePath);
-  if (!snapshot) {throw new Error("show: state file missing");}
-  return findCurrentNode(snapshot, id);
+  const node = await readSqliteNode(stateFile(statePath), id);
+  if (!node) {
+    if (!(await sqliteStateExists(statePath))) {throw new Error("show: state file missing");}
+    throwV2("NODE_NOT_FOUND", `show: ${id} not found`, { id });
+  }
+  return showNode(node, id);
 }
 
 export default async function show({ statePath, positional, backendClient }) {

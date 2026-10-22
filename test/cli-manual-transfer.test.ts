@@ -4,9 +4,10 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
-import { readFencedState } from "../src/storage/ledger.ts";
 import { runCli as runCliCommand } from "../src/cli/dispatch.ts";
-import { createTempProject, rmTempProject, writeCanonicalState } from "./helpers.ts";
+import { createTempProject, readState, rmTempProject, writeCanonicalState } from "./helpers.ts";
+
+const readFencedState = readState;
 
 const runCliInProcess = (options: unknown) => runCliCommand(options as Parameters<typeof runCliCommand>[0]);
 

@@ -1,6 +1,7 @@
 
 export { default, executeOperation, executeBatch } from "./execute.ts";
 export { default as createBackendClient, REMOTE_PROTOCOL_VERSION } from "../backend-client.ts";
+export { applyRemoteChanges } from "../backend-remote-reads.ts";
 export { default as createOperationBridge, SUPPORTED_OPERATION_IDS } from "./bridge.ts";
 export {
   buildRegistry,

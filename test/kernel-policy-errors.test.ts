@@ -8,7 +8,6 @@ import {
   writeCanonicalState as writeStateHelper,
   readState as readStateHelper,
 } from "./helpers.ts";
-import { bootstrapFencedState } from "../src/storage/ledger.ts";
 
 type ErrorDetails = {
   plugin_id?: string; action?: string; actor?: string; reason?: string | null; cause_message?: string;
@@ -43,7 +42,7 @@ async function captureError(run: () => Promise<unknown>): Promise<ErrorLike> {
 }
 
 async function bootstrap(dir) {
-  await writeStateHelper(dir, {
+  return await writeStateHelper(dir, {
     version: 1,
     nodes: {
       T1: {
@@ -59,8 +58,7 @@ async function bootstrap(dir) {
     edges: [],
     initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
-  });
-  return await bootstrapFencedState(dir) as State;
+  }) as State;
 }
 
 const updateProvider = {
@@ -80,7 +78,7 @@ function baseRequest() {
     action: "task.update",
     actor: "alice",
     input: {},
-    if_revision: { kind: "single", id: "T1", value: 4 },
+    if_revision: { kind: "single", id: "T1", value: 3 },
   };
 }
 
@@ -302,7 +300,7 @@ test("kernel.mutate: decide() returning allow proceeds with the mutation", async
   });
   assert.equal(out.idempotent, false);
   const after = await readStateHelper(dir);
-  assert.equal(after.nodes.T1.title, "mutated"); assert.equal(after.nodes.T1.revision, 5, "revision bumped once after allow");
+  assert.equal(after.nodes.T1.title, "mutated"); assert.equal(after.nodes.T1.revision, 4, "revision bumped once after allow");
   assert.equal(after.log.length, 1, "log entry written after allow");
 });
 
@@ -326,7 +324,7 @@ test("kernel.mutate: decide() returning abstain proceeds with the mutation", asy
   assert.equal(after.nodes.T1.title, "mutated"); assert.equal(after.log.length, 1);
 });
 
-test("kernel.mutate: same-chain nested mutate still rejected with INVALID_EXECUTION_CONTRACT (AsyncLocalStorage guard preserved)", async (t) => {
+test("kernel.mutate: nested mutation is rejected inside an active SQLite transaction", async (t) => {
   const { mutate } = await importKernel();
   const dir = await createTrackedProject(t);
   await bootstrap(dir);
@@ -364,5 +362,5 @@ test("kernel.mutate: same-chain nested mutate still rejected with INVALID_EXECUT
   assert.equal(nestedError.code, "INVALID_EXECUTION_CONTRACT");
   assert.match(nestedError.message, /nested kernel\.mutate/i);
   const after = await readStateHelper(dir);
-  assert.equal(after.nodes.T1.title, "T1-title", "T1 untouched — nested call rejected before any tx"); assert.equal(after.log.length, 0);
+  assert.equal(after.nodes.T1.title, "T1-title", "T1 untouched — nested call rejected before a second transaction"); assert.equal(after.log.length, 0);
 });

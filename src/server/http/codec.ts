@@ -147,6 +147,7 @@ const READ_ROUTES: readonly RouteDefinition[] = [
   ["search", /^read\/search(?:\/([^/]+))?$/, ["query", "all"]],
   ["initiatives", /^read\/initiatives$/, ["all"]],
   ["log", /^read\/log$/, ["limit", "action", "agent", "node"]],
+  ["changes", /^read\/changes$/, ["since"]],
   ["state", /^read\/state$/, []],
   ["node", /^read\/nodes\/([^/]+)$/, []],
 ];

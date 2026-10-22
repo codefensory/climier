@@ -124,7 +124,6 @@ export interface LogEntry {
 
 export interface ProjectState {
   version: 1;
-  fence_generation: number;
   revision: number;
   initiatives: Record<string, Initiative>;
   nodes: Record<string, Node>;

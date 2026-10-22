@@ -8,7 +8,7 @@
 //   - This provider does not own persistence, locks, logs, or adapters.
 
 import { throwV2 } from "../../contracts/errors.ts";
-import { collectReadyTasks } from "./derivation.ts";
+import { newlyReadyTasks } from "./derivation.ts";
 
 const OP = "task.accept";
 const LOG_ACTION = "accept";
@@ -32,10 +32,6 @@ function resolveActor(input, request) {
 
 function readSnapshotNodes(snapshot) {
   return snapshot && snapshot.nodes && typeof snapshot.nodes === "object" ? snapshot.nodes : {};
-}
-
-function readSnapshotEdges(snapshot) {
-  return Array.isArray(snapshot && snapshot.edges) ? snapshot.edges : [];
 }
 
 function validateInputShape(input, request) {
@@ -148,12 +144,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
   };
   tx.updateNode(plan.target.id, patch);
 
-  const beforeReady = new Set(collectReadyTasks({
-    nodes: readSnapshotNodes(snapshot),
-    edges: readSnapshotEdges(snapshot),
-  }));
-  const afterReady = collectReadyTasks(tx.view());
-  const newlyReady = afterReady.filter((id) => !beforeReady.has(id)).toSorted();
+  const newlyReady = newlyReadyTasks(snapshot, tx.view(), plan.target.id);
 
   const merged = tx.getNode(plan.target.id);
   const projection = merged

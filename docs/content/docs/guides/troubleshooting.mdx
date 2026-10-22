@@ -51,27 +51,33 @@ climier release publish-docs --as alice
 
 A stale claim is an alert, not proof that the process is dead. Confirm with the actor before releasing it. When a task has been accepted, create a correction task rather than rewriting the accepted record.
 
-## A mutation timed out on the lock
+## A mutation encounters SQLite contention
 
-Mutations use a lock beside the shared state. A timeout can mean another writer is still active or that a process stopped while holding the lock. Inspect the project and running processes before touching the file:
+Project mutations run in SQLite `BEGIN IMMEDIATE` transactions with
+`busy_timeout`. If a mutation fails while another writer is active, let that
+writer finish and retry. Inspect the project and running processes without
+editing the database:
 
 ```bash
 climier status
 ps -ef | grep '[c]limier'
 ```
 
-Climier does not automatically steal an old lock. If no legitimate writer is running, back up the project storage and remove only the stale lock file, then retry the original command:
-
-```bash
-rm "$CLIMIER_HOME/projects/<project-id>/.lock"
-climier status
-```
-
-The default storage home is `~/.climier` when `CLIMIER_HOME` is unset. Never remove a lock while a writer may still be active, and do not delete `tasks.json` or the revision ledger as a shortcut.
+The default storage home is `~/.climier` when `CLIMIER_HOME` is unset. Preserve
+`state.sqlite` and its backups; do not delete database files as a shortcut.
+SQLite recovers uncommitted transactions after a process crash. If the state
+remains unreadable, preserve the files and contact the maintainer.
 
 ## State is not canonical
 
-The one-time schema-1 import window is complete and its importer is retired. If an old schema, missing revision ledger, or non-canonical state is found, stop all writers and preserve the complete project files and backups. Do not edit the state or use `init --force`; it resets data rather than repairing it. Restore a verified canonical backup or contact the maintainer. See [Older or incomplete state](./state-recovery) for recovery guidance.
+SQLite is the canonical runtime store. For a complete legacy schema-1 JSON
+file, use the explicit `climier state migrate --as <agent> --yes` command;
+`climier state export` emits schema-1 JSON. Migration preserves a verified
+source backup. If migration reports an incomplete or non-canonical state, stop
+all writers and preserve the project files and backups. Do not edit the state
+or use `init --force`; it resets data rather than repairing it. Restore a
+verified canonical backup or contact the maintainer. See [Older or incomplete
+state](./state-recovery) for recovery guidance.
 
 ## The audit trail does not show expected work
 

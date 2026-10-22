@@ -84,6 +84,7 @@ function createNodeData({ projectDir, agent, pluginId }: DataContext): PluginDat
         request: { action: "plugin-data.node.set", actor: opAgent, input: { id, value } },
         provider: pluginDataNodeSetProvider,
         pluginId,
+        snapshotClosure: "plugin-data.node",
       }) as unknown as MutationOutcome;
       return (outcome.result as { value: unknown }).value;
     },
@@ -97,6 +98,7 @@ function createNodeData({ projectDir, agent, pluginId }: DataContext): PluginDat
         request: { action: "plugin-data.node.delete", actor: opAgent, input: { id } },
         provider: pluginDataNodeDeleteProvider,
         pluginId,
+        snapshotClosure: "plugin-data.node",
       }) as unknown as MutationOutcome;
       return outcome.result;
     },
@@ -116,6 +118,7 @@ function createProjectData({ projectDir, agent, pluginId }: DataContext): Plugin
         request: { action: "plugin-data.project.set", actor: opAgent, input: { key, value } },
         provider: pluginDataProjectSetProvider,
         pluginId,
+        snapshotClosure: "plugin-data.project",
       });
     },
     async delete(key: string) {
@@ -128,6 +131,7 @@ function createProjectData({ projectDir, agent, pluginId }: DataContext): Plugin
         request: { action: "plugin-data.project.delete", actor: opAgent, input: { key } },
         provider: pluginDataProjectDeleteProvider,
         pluginId,
+        snapshotClosure: "plugin-data.project",
       }) as unknown as MutationOutcome;
       return outcome.result;
     },

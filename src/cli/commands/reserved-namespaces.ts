@@ -1,51 +1,8 @@
 
 import { PluginInvalidDescriptor } from "../../plugins/descriptor.ts";
+import { RESERVED_NAMESPACES } from "./reserved-namespaces-list.ts";
 
-export const RESERVED_NAMESPACES = Object.freeze([
-
-  "status",
-  "context",
-  "search",
-  "history",
-  "show",
-  "initiatives",
-  "log",
-  "snapshots",
-  "state",
-  "batch",
-
-  "take",
-  "submit",
-  "accept",
-  "reject",
-  "resolve",
-  "release",
-  "cancel",
-  "reopen",
-  "update",
-  "add-note",
-
-  "add-initiative",
-  "add-task",
-  "add-gate",
-  "add-knowledge",
-  "deprecate-knowledge",
-  "add-node",
-  "add-edge",
-  "remove-edge",
-
-  "init",
-  "server",
-  "restore",
-  "ui",
-  "urls",
-  "help",
-  "version",
-  "upgrade",
-
-  "install",
-  "uninstall",
-]);
+export { RESERVED_NAMESPACES };
 
 export class PluginNamespaceCollision extends PluginInvalidDescriptor {
   constructor(command, extra = {}) {

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.ts";
+import { createTempProject, readState as readStateHelper, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.ts";
 import { INSTALL_MODULE, UNINSTALL_MODULE, freshEnv, createFixturePackage, installedDir, uninstallOnlyNamedPlugin } from "./plugin-install-test-helpers.ts";
 
 test("uninstall: removes installed/<id> and nothing else; project state is untouched", async () => {
@@ -21,10 +21,10 @@ test("uninstall: removes installed/<id> and nothing else; project state is untou
     log: [{ ts: new Date().toISOString(), agent: "seed", action: "seed", note: "seeded" }],
   });
   const statePath = stateFilePath(projectDir);
-  const beforeRaw = await fs.readFile(statePath, "utf8");
+  const beforeState = await readStateHelper(projectDir);
   const fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "climier-plugin-fixture-"));
   try {
-    await uninstallOnlyNamedPlugin({ env, projectDir, install, uninstall, fixtureDir, statePath, beforeRaw });
+    await uninstallOnlyNamedPlugin({ env, projectDir, install, uninstall, fixtureDir, statePath, beforeState });
   } finally {
     await rmTempProject(projectDir);
     env.restore();

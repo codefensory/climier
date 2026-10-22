@@ -4,15 +4,16 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { bootstrapFencedState, readFencedState, replaceFencedStateUnderLock } from "../src/storage/ledger.ts";
 import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
-import { withLock } from "../src/storage/lock.ts";
-import { createTempProject, rmTempProject } from "./helpers.ts";
+import { createTempProject, readState, rmTempProject, writeCanonicalState } from "./helpers.ts";
+
+const readFencedState = readState;
 import { pullManualTransfer, pushManualTransfer } from "../src/application/manual-transfer.ts";
 
-type SnapshotNode = { id: string; kind: string; subkind: string; status: string; title: string };
+type SnapshotNode = { id: string; kind: string; subkind: string; status: string; title: string; revision?: number };
 type Snapshot = {
   version: number;
+  revision?: number;
   nodes: Record<string, SnapshotNode>;
   edges: unknown[];
   initiatives: Record<string, { desc: string }>;
@@ -80,14 +81,7 @@ function payload(title = "remote"): Snapshot {
 }
 
 async function initialize(projectDir: string, state: Snapshot | null = payload("local")) {
-  await bootstrapFencedState(projectDir);
-  if (state) {
-    await withLock(projectDir, (lockContext) => replaceFencedStateUnderLock(lockContext, {
-      ...state,
-      fence_generation: 1,
-      revision: 0,
-    }));
-  }
+  await writeCanonicalState(projectDir, state ? { ...state, revision: state.revision ?? 1 } : { version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] });
 }
 
 async function fixture(
@@ -123,9 +117,12 @@ async function fixture(
 }
 
 async function changeLocalTitle(projectDir: string, title: string) {
-  const current = await readFencedState(projectDir) as FencedSnapshot;
+  const current = await readState(projectDir) as FencedSnapshot;
   current.nodes.T1.title = title;
-  return withLock(projectDir, (lockContext) => replaceFencedStateUnderLock(lockContext, current));
+  current.nodes.T1.revision = (current.nodes.T1.revision ?? 0) + 1;
+  current.revision += 1;
+  const { writeState } = await import("../src/storage/state.ts");
+  return writeState(projectDir, current);
 }
 
 function request(fixture: Fixture, overrides: Partial<TransferRequest> = {}): TransferRequest {

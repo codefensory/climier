@@ -18,16 +18,22 @@
 
 ## Plan de implementacion
 
-<piezas de trabajo en orden; cada pieza es candidata a task>
+<piezas de trabajo en orden; cada pieza es candidata a task. Se documenta con evidencia, no con
+intuicion: `colateral` son los tests/fixtures/scripts que la pieza toca u orfaniza
+(`grep -rl "<simbolo>" test/ | wc -l`), no las lineas de `src/`. Una fila con `verde: no` no se
+convierte en task: se re-corta (dejar de usar -> borrar lo muerto -> limpiar superficies) o se
+corrige la pieza.>
 
-1. <pieza> — archivos: <paths>
-2. ...
+| # | pieza | tipo | paths | colateral | tests | verde | verificar | turnos | depende |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | <pieza> | nuevo \| cambio \| delecion \| superficies | <paths> | <K tests> | primero \| mismo slice \| golden+borrar \| - | si \| no | <comando> | ~N | - |
+| 2 | ... | | | | | | | | 1 |
 
-## Onboarding breve para crear tasks
+## Onboarding y corte propuesto
 
 Antes de materializar tasks, el orquestador registra una nota corta o marca que no hace falta:
 
-- [ ] Onboarding realizado — <alcance, corte sugerido de tasks y ambiguedades detectadas>.
+- [ ] Onboarding realizado — <deltas, tabla de §Plan completada con colateral y verde por fila, y ambiguedades detectadas>.
 - [ ] No hace falta — <por que el ADR ya permite crear una task clara>.
 
 El onboarding no es un plan, no crea documentos ni tasks y no define pasos de implementacion.

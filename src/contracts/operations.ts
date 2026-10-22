@@ -59,10 +59,18 @@ export interface Provider<I = unknown, P = unknown, R = unknown, E = unknown> {
 
 export type ProviderKind = "task" | "gate" | "knowledge" | "core";
 
+export type SnapshotClosure =
+  | "task" | "task.create" | "task.accept"
+  | "gate" | "gate.create"
+  | "knowledge" | "knowledge.create"
+  | "edge" | "initiative"
+  | "plugin-data.node" | "plugin-data.project";
+
 export interface OperationEntry<I = unknown, P = unknown, R = unknown, E = unknown> {
   id: OperationId;
   kind: ProviderKind;
   provider: Provider<I, P, R, E>;
+  snapshotClosure?: SnapshotClosure;
 }
 
 export interface OperationRegistry {
@@ -130,6 +138,7 @@ export interface Mutation {
   policyActionFromPlan?: boolean;
   pluginId?: string;
   stateOperation?: unknown;
+  snapshotClosure?: SnapshotClosure;
   batch?: { registry: OperationRegistry };
 }
 

@@ -12,6 +12,7 @@ import {
   projectStatus,
 } from "../src/read-model/index.ts";
 import { readModelParity } from "./fixtures/read-model-parity.ts";
+import { unsatisfiedBlockerIdsForNode } from "../src/read-model/core.ts";
 
 const snapshot = {
   version: 2,
@@ -49,6 +50,21 @@ test("read-model composes canonical status and cross-domain projections from an 
   }]);
   assert.equal(informingForNode({ snapshot, id: "task" })[0].node.id, "informed");
   assert.equal(knowledgeForNode({ snapshot, id: "task" })[0].id, "knowledge");
+});
+
+test("unsatisfied blocker ids match the full blocking projection including unknown nodes", () => {
+  const graph = {
+    nodes: { target: { id: "target", kind: "resolvable", subkind: "task", status: "open" } },
+    edges: [
+      { from: "missing", to: "target", type: "BLOCKS" },
+      { from: "knowledge", to: "target", type: "BLOCKS" },
+    ],
+  };
+  const expected = blockingForNode(graph, "target")
+    .filter((blocker) => blocker.satisfied === false)
+    .map((blocker) => blocker.node && blocker.node.id)
+    .filter(Boolean);
+  assert.deepEqual(unsatisfiedBlockerIdsForNode(graph, "target"), expected);
 });
 
 test("read-model preserves the legacy open status for gates", () => {

@@ -107,6 +107,7 @@ function applyFixtureMutation(base: FixtureDraft, mutate: ((state: FixtureDraft)
 export async function bootstrapProject(dir: string, mutate?: (state: FixtureDraft) => void): Promise<FixtureState> {
   const base = {
     version: 1,
+    revision: 3,
     nodes: {
       G1: {
         id: "G1",
@@ -124,7 +125,7 @@ export async function bootstrapProject(dir: string, mutate?: (state: FixtureDraf
         title: "Original task title",
         initiative: "kernel",
         status: "open",
-        revision: 2,
+        revision: 3,
       },
     },
     edges: [

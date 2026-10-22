@@ -28,7 +28,7 @@ import {
   createTempProject,
   rmTempProject,
   runCli,
-  stateFilePath,
+  readState,
 } from "./helpers.ts";
 
 const FIXTURE_DIR = path.resolve("test/fixtures/core-plugin");
@@ -127,7 +127,7 @@ async function setupPluginProject(projectDir, description?: string) {
 }
 
 async function captureProjectCounts(projectDir) {
-  const state = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+  const state = await readState(projectDir);
   return {
     nodes: Object.keys(state.nodes).length,
     edges: state.edges.length,
@@ -136,7 +136,7 @@ async function captureProjectCounts(projectDir) {
 }
 
 async function assertProjectCountsUnchanged(projectDir, before) {
-  const after = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+  const after = await readState(projectDir);
   assert.equal(Object.keys(after.nodes).length, before.nodes, "no nodes added");
   assert.equal(after.edges.length, before.edges, "no edges added");
   assert.equal(after.log.length, before.logs, "no log entries added");
@@ -286,7 +286,7 @@ test("e2e: install + happy — full first slice leaves intact state, plugin_id o
       FIXTURE_NAMESPACE, "happy",
     ]);
     assertHappyMutationResults(out);
-    const state = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+    const state = await readState(projectDir);
     assertHappyState(state);
     await assertHappyHistory(projectDir);
   });
@@ -380,7 +380,7 @@ test("e2e: batch — fixture demonstrates repair, rollback, and stale CAS throug
       FIXTURE_NAMESPACE, "batch",
     ]);
     assertBatchResult(out);
-    const state = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+    const state = await readState(projectDir);
     assertBatchState(state);
   });
 });
@@ -420,7 +420,7 @@ test("e2e: partial — successful task.create is preserved; subsequent failed ed
       FIXTURE_NAMESPACE, "partial",
     ]);
     assertPartialResult(out);
-    const state = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+    const state = await readState(projectDir);
     assertPartialState(state);
   });
 });

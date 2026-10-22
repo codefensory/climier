@@ -15,6 +15,7 @@ import {
 import { requireAgent } from "../contracts/agent.ts";
 import { throwV2 } from "../contracts/errors.ts";
 import { validateStateInvariants } from "../contracts/state-invariants.ts";
+import { compactLog, DEFAULT_LOG_RETENTION } from "../storage/sqlite/log-checkpoint.ts";
 import type { ProjectState } from "../contracts/domain.ts";
 
 const REQUIRED_COLLECTIONS = ["nodes", "edges", "initiatives", "log"];
@@ -43,17 +44,6 @@ function validateSnapshotVersion(parsed, id, snapshotPath) {
       id,
       path: snapshotPath,
       version: parsed && parsed.version,
-    });
-  }
-  validateFenceGeneration(parsed, id);
-}
-
-function validateFenceGeneration(parsed, id) {
-  if (!Number.isInteger(parsed.fence_generation)) {
-    throwV2("INVALID_STATUS", `state.restore: snapshot ${id} has an invalid fence_generation`, {
-      id,
-      field: "fence_generation",
-      value: parsed.fence_generation ?? null,
     });
   }
 }
@@ -183,6 +173,27 @@ const restoreOperation = Object.freeze({
   },
 });
 
+const compactOperation = Object.freeze({
+  async prepare({ snapshot, input }) {
+    if (!snapshot.state) { throw new Error("state.compact: state is not initialized"); }
+    const keep = input?.keep ?? DEFAULT_LOG_RETENTION;
+    const compacted = compactLog(snapshot.state.log || [], keep, Object.keys(snapshot.state.nodes || {}));
+    return Object.freeze({
+      target: Object.freeze({ id: "state", kind: "state" }),
+      log: { keep, summarized: compacted.summarized, summarized_nodes: compacted.nodes },
+      preserveNodeRevisions: true,
+      compacted,
+    });
+  },
+  async apply({ snapshot, plan }) {
+    return {
+      state: { ...snapshot.state, log: plan.compacted.log },
+      result: { retained: plan.compacted.retained, summarized: plan.compacted.summarized, nodes: plan.compacted.nodes },
+      effects: null,
+    };
+  },
+});
+
 function operationRequest(action, actor, input) {
   return { action, actor, input };
 }
@@ -207,6 +218,17 @@ export async function restoreState({ projectDir, snapshotId, actor, policyAction
     projectDir,
     request: operationRequest("state.restore", resolvedActor, { snapshot_id: snapshotId }),
     stateOperation: restoreOperation,
+    policyAction,
+    pluginId,
+  });
+}
+
+export async function compactState({ projectDir, keep = DEFAULT_LOG_RETENTION, actor, policyAction, pluginId }: { projectDir: string; keep?: number; actor?: string; policyAction?: unknown; pluginId?: string } = { projectDir: "" }) {
+  const resolvedActor = requireAgent(actor, "state.compact");
+  return mutate({
+    projectDir,
+    request: operationRequest("state.compact", resolvedActor, { keep }),
+    stateOperation: compactOperation,
     policyAction,
     pluginId,
   });

@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { dispatchCommand } from "../src/cli/dispatch.ts";
 import { initState } from "../src/kernel/state-operations.ts";
-import { readFencedState } from "../src/storage/ledger.ts";
+import { readState } from "../src/storage/state.ts";
 import { snapshotDir } from "../src/storage/state.ts";
 import { asCaughtError } from "../src/contracts/errors.ts";
 import type { ProjectState } from "../src/contracts/domain.ts";
@@ -66,7 +66,6 @@ test("restore installs a canonical snapshot and the restored project accepts a m
     await initState({ projectDir });
     const target = {
       version: 1,
-      fence_generation: 1,
       revision: 1,
       nodes: {},
       edges: [],
@@ -84,9 +83,8 @@ test("restore installs a canonical snapshot and the restored project accepts a m
       projectDir,
     });
 
-    const state = await readFencedState(projectDir) as ProjectState;
+    const state = await readState(projectDir) as ProjectState;
     assert.equal(state.version, 1);
-    assert.ok(Number.isInteger(state.fence_generation));
     assert.equal(state.initiatives.before?.desc, "restored");
     assert.equal(state.initiatives["after-restore"]?.desc, "mutation after canonical restore");
     assert.equal(state.log.at(-1)?.action, "add-initiative");

@@ -562,6 +562,53 @@ test("CLI: status routes to the summary-shape on a canonical state", async () =>
   } finally { await rmTempProject(dir); }
 });
 
+test("CLI: status --status filters are case-insensitive", async () => {
+  const dir = await createTempProject();
+  try {
+    await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "work", "--as", "test-agent"]);
+    await runCli(["--project", dir, "add-task", "T-1", "--initiative", "work", "--title", "t", "--body", "b", "--acceptance", "a", "--blocked-by", "", "--as", "test-agent"]);
+    const upper = await runCli(["--project", dir, "status", "--status", "OPEN"]);
+    assert.equal(upper.code, 0, upper.stderr);
+    const lower = await runCli(["--project", dir, "status", "--status", "open"]);
+    assert.equal(lower.code, 0, lower.stderr);
+    const upperData = JSON.parse(upper.stdout);
+    assert.deepEqual(upperData, JSON.parse(lower.stdout));
+    assert.equal(upperData.tasks.ready.length, 1, "uppercase --status must select the same nodes");
+  } finally { await rmTempProject(dir); }
+});
+
+test("CLI: status --status accepts persisted and derived statuses in any case", async () => {
+  const dir = await createTempProject();
+  try {
+    await bootstrapProject(dir);
+    await addTask(dir, "T-done");
+    await addTask(dir, "T-blocker");
+    await addTask(dir, "T-blocked", { "blocked-by": "T-blocker" });
+    const { default: take } = await importFresh("./cli/commands/take.ts");
+    const { default: submit } = await importFresh("./cli/commands/submit.ts");
+    const { default: accept } = await importFresh("./cli/commands/accept.ts");
+    await take({ statePath: dir, positional: ["T-done"], flags: { as: "alice" } });
+    await submit({ statePath: dir, positional: ["T-done"], flags: { as: "alice", note: "done" } });
+    await accept({ statePath: dir, positional: ["T-done"], flags: { as: "alice" } });
+
+    for (const [upper, lowerName] of [["DONE", "done"], ["BLOCKED", "blocked"], ["READY", "ready"]]) {
+      const upperView = await statusOf(dir, { status: upper });
+      const lowerView = await statusOf(dir, { status: lowerName });
+      assert.deepEqual(upperView, lowerView, `--status ${upper} must equal --status ${lowerName}`);
+    }
+    const blockedView = await statusOf(dir, { status: "BLOCKED" });
+    assert.deepEqual(blockedView.tasks.blocked.map((node: { id: string }) => node.id), ["T-blocked"], "BLOCKED selects the blocked task");
+    assert.equal(blockedView.summary.blocked, 1);
+    const readyView = await statusOf(dir, { status: "READY" });
+    assert.deepEqual(readyView.tasks.ready.map((node: { id: string }) => node.id), ["T-blocker"], "READY selects the unblocked task");
+    assert.equal(readyView.summary.ready, 1);
+    const doneView = await statusOf(dir, { status: "DONE" });
+    assert.deepEqual(doneView.tasks.ready, [], "DONE must not leak ready tasks");
+    assert.deepEqual(doneView.tasks.blocked, [], "DONE must not leak blocked tasks");
+  } finally { await rmTempProject(dir); }
+});
+
 test("CLI: deprecate-knowledge routes and writes log entry via the bin", async () => {
   const dir = await createTempProject();
   try {

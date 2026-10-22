@@ -12,7 +12,7 @@ import {
 } from "./helpers.ts";
 
 type NodeRecord = { id: string; kind: string; subkind?: string; status?: string; [key: string]: unknown };
-type State = { version: number; revision: number; fence_generation?: number; nodes: Record<string, NodeRecord>; edges: unknown[]; initiatives: Record<string, unknown>; log: Array<Record<string, unknown>>; plugins?: Record<string, unknown> };
+type State = { version: number; revision: number; nodes: Record<string, NodeRecord>; edges: unknown[]; initiatives: Record<string, unknown>; log: Array<Record<string, unknown>>; plugins?: Record<string, unknown> };
 type OperationResult = { result: { seeded?: unknown; snapshot: { id: string; reason: string } } };
 type ErrorLike = { code?: string; message?: string };
 function errorLike(error: unknown): ErrorLike {
@@ -37,7 +37,6 @@ test("kernel state.init bootstraps an absent state through the kernel", async ()
     assert.equal(out.result.seeded, null);
     const state = await readState(dir);
     assert.equal(state.version, 1);
-    assert.equal(state.fence_generation, 1);
     assert.ok(Number.isInteger(state.revision) && state.revision >= 1);
     assert.deepEqual(state.nodes, {});
     assert.deepEqual(state.edges, []);
@@ -53,7 +52,7 @@ test("kernel state.init_force rejects policy before snapshot or write", async ()
     const original = baseState();
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
     await writeCanonicalState(dir, original);
-    const before = await fs.readFile(stateFilePath(dir), "utf8");
+    const before = await readState(dir);
     await assert.rejects(
       () => initState({
         projectDir: dir,
@@ -63,7 +62,7 @@ test("kernel state.init_force rejects policy before snapshot or write", async ()
       }),
       (err) => errorLike(err).code === "POLICY_DENIED",
     );
-    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
+    assert.deepEqual(await readState(dir), before);
     assert.deepEqual(await fs.readdir(await snapshotDir(dir)).catch(() => []), []);
   } finally { await rmTempProject(dir); }
 });
@@ -113,7 +112,7 @@ test("kernel state.restore rejects a historical v2 snapshot with recovery guidan
   const dir = await createTempProject();
   try {
     const { restoreState } = await importFresh("./kernel/state-operations.ts");
-    const { createSnapshot } = await importFresh("./storage/state.ts");
+    const { snapshotDir: getSnapshotDir } = await importFresh("./storage/state.ts");
     const legacy = {
       version: 2,
       nodes: { legacy: { id: "legacy", kind: "resolvable", subkind: "task", status: "open" } },
@@ -121,43 +120,40 @@ test("kernel state.restore rejects a historical v2 snapshot with recovery guidan
       initiatives: {},
       log: [{ action: "legacy" }],
     };
-    await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
-    await fs.writeFile(stateFilePath(dir), JSON.stringify(legacy), "utf8");
-    const target = await createSnapshot(dir, "force-init");
+    await writeCanonicalState(dir, baseState());
+    const snapshotDirectory = await getSnapshotDir(dir);
+    await fs.mkdir(snapshotDirectory, { recursive: true });
+    await fs.writeFile(path.join(snapshotDirectory, "legacy-v2.json"), JSON.stringify(legacy), "utf8");
+    await fs.writeFile(path.join(snapshotDirectory, "legacy-v2.meta.json"), JSON.stringify({ id: "legacy-v2" }), "utf8");
 
-    // conversion this cut removes, so restore refuses and names the way out.
     await assert.rejects(
-      () => restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" }),
-      (err) => (errorLike(err).message ?? "").includes(target.id)
+      () => restoreState({ projectDir: dir, snapshotId: "legacy-v2", actor: "recovery" }),
+      (err) => (errorLike(err).message ?? "").includes("legacy-v2")
         && /canonical v1/.test(errorLike(err).message ?? "")
         && /restore a verified backup/.test(errorLike(err).message ?? ""),
     );
-    assert.equal(JSON.parse(await fs.readFile(stateFilePath(dir), "utf8")).version, 2);
   } finally { await rmTempProject(dir); }
 });
 
 // oxlint-disable-next-line max-statements -- Keep this bounded regression test and its full assertions intact.
-test("kernel state.restore installs a canonical snapshot through the fenced state path", async () => {
+test("kernel state.restore installs a canonical snapshot through SQLite", async () => {
   const dir = await createTempProject();
   try {
     const { initState, restoreState } = await importFresh("./kernel/state-operations.ts");
     const { createSnapshot } = await importFresh("./storage/state.ts");
-    const { bootstrapFencedState, readFencedState } = await importFresh("./storage/ledger.ts");
+    const { readState: readStoredState } = await importFresh("./storage/state.ts");
     const original = baseState();
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
     await writeCanonicalState(dir, original);
-    await bootstrapFencedState(dir);
     const target = await createSnapshot(dir, "force-init");
     const targetRaw = JSON.parse(await fs.readFile(path.join(await snapshotDir(dir), `${target.id}.json`), "utf8"));
     assert.equal(targetRaw.version, 1);
-    assert.ok(Number.isInteger(targetRaw.fence_generation));
 
     await initState({ projectDir: dir, force: true, actor: "alice" });
     const restored = await restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" });
-    const current = await readFencedState(dir);
+    const current = await readStoredState(dir);
     assert.ok(current.nodes.keep);
     assert.equal(current.version, 1);
-    assert.ok(Number.isInteger(current.fence_generation));
     assert.equal(restored.result.snapshot.id, target.id);
   } finally { await rmTempProject(dir); }
 });
@@ -166,16 +162,14 @@ test("kernel state.restore rejects malformed v5 snapshot before policy or pre-sn
   const dir = await createTempProject();
   try {
     const { restoreState } = await importFresh("./kernel/state-operations.ts");
-    const { bootstrapFencedState } = await importFresh("./storage/ledger.ts");
     await writeCanonicalState(dir, baseState());
-    await bootstrapFencedState(dir);
     const dirPath = await snapshotDir(dir);
     await fs.mkdir(dirPath, { recursive: true });
-    const malformed = { version: 5, fence_generation: 1.5, nodes: {}, edges: [], initiatives: {}, log: [] };
+    const malformed = { version: 5, nodes: {}, edges: [], initiatives: {}, log: [] };
     await fs.writeFile(path.join(dirPath, "bad-v5.json"), JSON.stringify(malformed));
     await fs.writeFile(path.join(dirPath, "bad-v5.meta.json"), JSON.stringify({ id: "bad-v5" }));
     let policyCalls = 0;
-    const before = await fs.readFile(stateFilePath(dir), "utf8");
+    const before = await readState(dir);
     await assert.rejects(
       () => restoreState({
         projectDir: dir,
@@ -186,7 +180,7 @@ test("kernel state.restore rejects malformed v5 snapshot before policy or pre-sn
       (err) => errorLike(err).code === "INVALID_STATUS",
     );
     assert.equal(policyCalls, 0);
-    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
+    assert.deepEqual(await readState(dir), before);
     assert.deepEqual((await fs.readdir(dirPath)).toSorted(), ["bad-v5.json", "bad-v5.meta.json"]);
   } finally { await rmTempProject(dir); }
 });
@@ -200,116 +194,10 @@ test("kernel state.restore rejects malformed target without writing or snapshott
     await fs.mkdir(dirPath, { recursive: true });
     await fs.writeFile(path.join(dirPath, "bad.json"), "not json");
     await fs.writeFile(path.join(dirPath, "bad.meta.json"), JSON.stringify({ id: "bad" }));
-    const before = await fs.readFile(stateFilePath(dir), "utf8");
+    const before = await readState(dir);
     await assert.rejects(() => restoreState({ projectDir: dir, snapshotId: "bad", actor: "alice" }), (err) => errorLike(err).code === "INVALID_STATUS");
-    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
+    assert.deepEqual(await readState(dir), before);
     assert.deepEqual((await fs.readdir(dirPath)).toSorted(), ["bad.json", "bad.meta.json"]);
   } finally { await rmTempProject(dir); }
 });
 
-test("kernel state.init_force recovers future state by snapshotting raw bytes", async () => {
-  const version = 6;
-  const dir = await createTempProject();
-  try {
-    const { initState } = await importFresh("./kernel/state-operations.ts");
-    const raw = JSON.stringify({ version, nodes: {}, edges: [], initiatives: {}, log: [] });
-    await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
-    await fs.writeFile(stateFilePath(dir), raw, "utf8");
-    const out: OperationResult = await initState({ projectDir: dir, force: true, actor: "alice" });
-    assert.equal((await readState(dir)).version, 1);
-    assert.equal(out.result.snapshot.reason, "force-init");
-    const files = await fs.readdir(await snapshotDir(dir));
-    const snapshotId = files.find((name) => name.endsWith(".json") && !name.endsWith(".meta.json"));
-    assert.ok(snapshotId);
-    assert.equal(await fs.readFile(path.join(await snapshotDir(dir), snapshotId), "utf8"), raw);
-  } finally { await rmTempProject(dir); }
-});
-
-test("kernel state.restore recovers over future current state, preserving raw pre-restore snapshot", async () => {
-  const version = 6;
-  const dir = await createTempProject();
-  try {
-    const { initState, restoreState } = await importFresh("./kernel/state-operations.ts");
-    const { createSnapshot, listSnapshots } = await importFresh("./storage/state.ts");
-    await initState({ projectDir: dir });
-    const target = await createSnapshot(dir, "force-init");
-    const raw = JSON.stringify({ version, nodes: {}, edges: [], initiatives: {}, log: [] });
-    await fs.writeFile(stateFilePath(dir), raw, "utf8");
-
-    // a ledger-backed project refuses instead of silently overwriting bytes it
-    // cannot interpret, and the raw file is left untouched.
-    await assert.rejects(
-      () => restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" }),
-      /accepts only a canonical version 1 source state/,
-    );
-    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), raw);
-    assert.ok((await listSnapshots(dir)).some((item) => item.id === target.id));
-  } finally { await rmTempProject(dir); }
-});
-
-// oxlint-disable-next-line max-statements -- Keep this bounded regression test and its full assertions intact.
-test("kernel state.init recovers corrupt bytes through an existing fenced ledger without policy or actor", async () => {
-  const dir = await createTempProject();
-  try {
-    const { initState } = await importFresh("./kernel/state-operations.ts");
-    const { bootstrapFencedState, readFencedState, ledgerFile } = await importFresh("./storage/ledger.ts");
-    await writeCanonicalState(dir, baseState());
-    await bootstrapFencedState(dir);
-    const ledgerPath = ledgerFile(dir);
-    const beforeLedger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
-    const corruptRaw = Buffer.from("{ corrupt fenced state\n");
-    await fs.writeFile(stateFilePath(dir), corruptRaw);
-    let policyCalls = 0;
-
-    const out: OperationResult = await initState({
-      projectDir: dir,
-      policyAction: { decide: async () => { policyCalls += 1; return { decision: "deny" }; } },
-    });
-
-    const state = await readFencedState(dir);
-    const afterLedger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
-    assert.deepEqual(state.nodes, {});
-    assert.equal(state.version, 1);
-    assert.ok(state.revision > beforeLedger.high_water_revision);
-    assert.equal(afterLedger.high_water_revision, state.revision);
-    assert.equal(state.fence_generation, beforeLedger.fence_generation);
-    assert.equal(policyCalls, 0);
-    assert.equal(out.result.snapshot.reason, "corrupt-recovery");
-    const snapPath = path.join(await snapshotDir(dir), `${out.result.snapshot.id}.json`);
-    assert.deepEqual(await fs.readFile(snapPath), corruptRaw);
-  } finally { await rmTempProject(dir); }
-});
-
-test("kernel ordinary providers reject future state while trusted init keeps version errors recoverable", async () => {
-  const version = 6;
-  const dir = await createTempProject();
-  try {
-    const { mutate } = await importFresh("./kernel/mutate.ts");
-    const { initState } = await importFresh("./kernel/state-operations.ts");
-    const raw = JSON.stringify({ version, nodes: {}, edges: [], initiatives: {}, log: [] });
-    await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
-    await fs.writeFile(stateFilePath(dir), raw, "utf8");
-    let prepareCalls = 0;
-    let policyCalls = 0;
-    await assert.rejects(
-      () => mutate({
-        projectDir: dir,
-        request: { action: "task.create", actor: "alice", input: {} },
-        provider: {
-          prepare: async () => { prepareCalls += 1; return { target: { id: "T1" } }; },
-          apply: async () => ({}),
-        },
-        policyAction: { decide: async () => { policyCalls += 1; return { decision: "allow" }; } },
-      }),
-      (err) => errorLike(err).code === "CLIMIER_INCOMPATIBLE_VERSION",
-    );
-    assert.equal(prepareCalls, 0);
-    assert.equal(policyCalls, 0);
-    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), raw);
-    // Trusted init also leaves future versions recoverable through its explicit force path.
-    await assert.rejects(
-      () => initState({ projectDir: dir, actor: "alice" }),
-      (err) => errorLike(err).code === "CLIMIER_INCOMPATIBLE_VERSION",
-    );
-  } finally { await rmTempProject(dir); }
-});

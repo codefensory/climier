@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.ts";
+import { createTempProject, readState as readStateHelper, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.ts";
 import { PLUGIN_MODULE, INSTALL_MODULE, freshEnv, createFixturePackage, installedDir, listStagingDirs, installAndCheckProjectUntouched, assertHappyInstallLayout } from "./plugin-install-test-helpers.ts";
 import { runCli } from "./helpers.ts";
 
@@ -87,12 +87,11 @@ test("install: never mutates the project state file", async () => {
     initiatives: { x: { desc: "x", created_at: new Date().toISOString() } },
     log: [{ ts: new Date().toISOString(), agent: "seed", action: "seed", note: "seeded" }],
   });
-  const beforeMtime = (await fs.stat(stateFilePath(projectDir))).mtimeMs;
-  const beforeRaw = await fs.readFile(stateFilePath(projectDir), "utf8");
+  const beforeState = await readStateHelper(projectDir);
   const { default: install } = await importFresh(INSTALL_MODULE);
   const fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "climier-plugin-fixture-"));
   try {
-    await installAndCheckProjectUntouched({ install, fixtureDir, projectDir, beforeMtime, beforeRaw });
+    await installAndCheckProjectUntouched({ install, fixtureDir, projectDir, beforeState });
   } finally {
     await rmTempProject(projectDir);
     env.restore();

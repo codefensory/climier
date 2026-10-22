@@ -1,7 +1,7 @@
 /* eslint-disable max-lines, max-lines-per-function -- The integration contracts preserve their established end-to-end test boundaries. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeFencedState } from "./helpers.ts";
+import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeCanonicalState } from "./helpers.ts";
 
 test("init: creates an empty canonical state by default", async () => {
   const { default: init } = await importFresh("./cli/commands/init.ts");
@@ -11,7 +11,6 @@ test("init: creates an empty canonical state by default", async () => {
     await init({ statePath: dir, positional: [], projectDir: dir });
     const s = await readState(dir);
     assert.equal(s.version, 1);
-    assert.equal(s.fence_generation, 1);
     assert.equal(s.revision, 1);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
@@ -350,8 +349,8 @@ test("context: returns blockers, informing edges, and scoped knowledge for a tas
   const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
-    await writeFencedState(dir, {
-      version: 5,
+    await writeCanonicalState(dir, {
+      version: 1,
       revision: 0,
       nodes: {
         "T-auth-1": {

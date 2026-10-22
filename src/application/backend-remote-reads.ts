@@ -1,4 +1,4 @@
-import type { CodedApplicationError, ProjectConfig, RemoteRequest } from "./types.ts";
+import type { CodedApplicationError, RemoteRequest } from "./types.ts";
 import { isRecord } from "./types.ts";
 
 type ReadOption = string | boolean | number | null | undefined;
@@ -139,6 +139,124 @@ function readInitiatives(request: RemoteRequest, options: unknown): Promise<unkn
   });
 }
 
+function invalidDelta(): never {
+  throw clientError("REMOTE_INVALID_RESPONSE", "application.backendClient: delta entry is invalid or out of sequence", { field: "changes" });
+}
+
+type MapDelta = { upsert: Record<string, unknown>; remove: unknown[] };
+type LogDelta = { append?: unknown[]; replace?: unknown[] };
+type SyncDelta = {
+  from_revision: number;
+  revision: number;
+  set: Record<string, unknown>;
+  remove: unknown[];
+  nodes: MapDelta;
+  initiatives: MapDelta;
+  log: LogDelta;
+  edges?: unknown[];
+};
+type SyncChange = { from_revision: number; revision: number; delta: SyncDelta };
+type SyncSnapshot = Record<string, unknown> & {
+  revision: number;
+  nodes: Record<string, unknown>;
+  initiatives: Record<string, unknown>;
+  edges: unknown[];
+  log: unknown[];
+};
+type ChangesResult = { revision: number; reset_required: boolean; changes: unknown[] };
+
+function isRevision(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function validMapDelta(value: unknown): value is MapDelta {
+  return isRecord(value) && isRecord(value.upsert) && Array.isArray(value.remove);
+}
+
+function validLogDelta(value: unknown): value is LogDelta {
+  if (!isRecord(value)) { return false; }
+  return Array.isArray(value.append) !== Array.isArray(value.replace);
+}
+
+function validDelta(value: unknown): value is SyncDelta {
+  if (!isRecord(value)) { return false; }
+  const fieldsValid = [
+    isRevision(value.from_revision),
+    isRevision(value.revision),
+    isRecord(value.set),
+    Array.isArray(value.remove),
+    validMapDelta(value.nodes),
+    validMapDelta(value.initiatives),
+    validLogDelta(value.log),
+  ].every(Boolean);
+  return fieldsValid && (!Object.hasOwn(value, "edges") || Array.isArray(value.edges));
+}
+
+function applyMapDelta(source: unknown, delta: unknown): Record<string, unknown> {
+  if (!isRecord(source) || !validMapDelta(delta)) { invalidDelta(); }
+  const result = { ...source, ...delta.upsert };
+  for (const key of delta.remove) {
+    if (typeof key !== "string") { invalidDelta(); }
+    delete result[key];
+  }
+  return result;
+}
+
+function isCurrentChange(state: SyncSnapshot, change: unknown): change is SyncChange {
+  if (!isRecord(change) || !isRevision(change.from_revision) || !validDelta(change.delta)) { return false; }
+  return change.from_revision === state.revision && change.revision === change.delta.revision
+    && change.delta.from_revision === state.revision && change.delta.revision > state.revision;
+}
+
+function applyRemoteChange(state: SyncSnapshot, change: unknown): SyncSnapshot {
+  if (!isCurrentChange(state, change)) { invalidDelta(); }
+  const delta = change.delta;
+  const next: SyncSnapshot = { ...state, ...delta.set, revision: delta.revision };
+  for (const key of delta.remove) {
+    if (typeof key !== "string") { invalidDelta(); }
+    delete next[key];
+  }
+  next.nodes = applyMapDelta(state.nodes, delta.nodes);
+  next.initiatives = applyMapDelta(state.initiatives, delta.initiatives);
+  if (delta.edges !== undefined) { next.edges = delta.edges; }
+  next.log = Array.isArray(delta.log.replace) ? delta.log.replace : [...state.log, ...delta.log.append ?? []];
+  return next;
+}
+
+function validSyncSnapshot(value: unknown): value is SyncSnapshot {
+  return isRecord(value) && isRecord(value.nodes) && isRecord(value.initiatives)
+    && Array.isArray(value.edges) && Array.isArray(value.log) && isRevision(value.revision);
+}
+
+function validChangesResult(value: unknown): value is ChangesResult {
+  return isRecord(value) && Array.isArray(value.changes) && isRevision(value.revision)
+    && typeof value.reset_required === "boolean";
+}
+
+export function applyRemoteChanges(snapshot: unknown, result: unknown) {
+  if (!validSyncSnapshot(snapshot) || !validChangesResult(result)) {
+    throw clientError("REMOTE_INVALID_RESPONSE", "application.backendClient: delta response or base snapshot is invalid", { field: "changes" });
+  }
+  if (result.reset_required) {
+    throw clientError("REMOTE_SNAPSHOT_REQUIRED", "application.backendClient: delta history is unavailable; download a new snapshot");
+  }
+  let state = structuredClone(snapshot);
+  for (const change of result.changes) { state = applyRemoteChange(state, change); }
+  if (state.revision !== result.revision) {
+    throw clientError("REMOTE_INVALID_RESPONSE", "application.backendClient: delta sequence does not reach the advertised revision", { field: "revision" });
+  }
+  return state;
+}
+
+function readChanges(request: RemoteRequest, options: unknown): Promise<unknown> {
+  const method = "readChanges";
+  const allowed = ["since"];
+  const read = readOptions(method, options, allowed);
+  if (read.since === undefined) { throw invalidReadRequest(method, "since revision is required", "since"); }
+  validateReadOptions(method, read, { since: { kind: "non-negative-integer" } });
+  return request({ method: "GET", route: `read/changes${readQuery(read, [["since", "since"]])}` });
+}
+
 function readLog(request: RemoteRequest, options: unknown): Promise<unknown> {
   const allowed = ["limit", "action", "agent", "node"];
   const types = Object.fromEntries(allowed.map((key) => [key, { kind: key === "limit" ? "non-negative-integer" : "string" }])) as Record<string, ReadType>;
@@ -156,6 +274,7 @@ export function createRemoteReadMethods(request: RemoteRequest): {
   readSearch: (options?: ReadOptions) => Promise<unknown>;
   readInitiatives: (options?: ReadOptions) => Promise<unknown>;
   readLog: (options?: ReadOptions) => Promise<unknown>;
+  readChanges: (options: ReadOptions) => Promise<unknown>;
   readState: () => Promise<unknown>;
 } {
   return {
@@ -166,6 +285,7 @@ export function createRemoteReadMethods(request: RemoteRequest): {
     readSearch: (options: ReadOptions = {}) => readSearch(request, options),
     readInitiatives: (options: ReadOptions = {}) => readInitiatives(request, options),
     readLog: (options: ReadOptions = {}) => readLog(request, options),
+    readChanges: (options: ReadOptions) => readChanges(request, options),
     readState: () => request({ method: "GET", route: "read/state" }),
   };
 }

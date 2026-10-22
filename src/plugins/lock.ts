@@ -1,14 +1,37 @@
 import fs from "node:fs/promises";
+import { asCaughtError } from "../contracts/errors.ts";
 import { pluginsHome, globalPluginLockPath } from "./paths.ts";
-import { withFileLock, type LockOptions } from "../storage/lock.ts";
 
-async function ensurePluginsHome(): Promise<void> {
-  await fs.mkdir(pluginsHome(), { recursive: true });
+type LockOptions = { timeoutMs?: number; retryEveryMs?: number };
+
+async function acquirePluginLock(pathname: string, timeoutMs: number, retryEveryMs: number): Promise<void> {
+  const startedAt = Date.now();
+  let attempt = 0;
+  while (true) {
+    try {
+      const file = await fs.open(pathname, "wx");
+      await file.writeFile(JSON.stringify({ pid: process.pid, at: Date.now() }));
+      await file.close();
+      return;
+    } catch (rawCaughtValue: unknown) {
+      const error = asCaughtError(rawCaughtValue);
+      if (error.code !== "EEXIST") { throw error; }
+      if (Date.now() - startedAt > timeoutMs) {
+        throw new Error(`withGlobalPluginLock: timeout acquiring ${pathname} after ${timeoutMs}ms`, { cause: rawCaughtValue });
+      }
+      await new Promise((resolve) => setTimeout(resolve, Math.min(retryEveryMs * Math.max(1, attempt), 200)));
+      attempt++;
+    }
+  }
 }
 
-// The plugin install lock guards CLIMIER_HOME/plugins, not project state, so it
-// reuses the file-lock primitive without entering the project mutation frontier.
 export async function withGlobalPluginLock<T>(fn: () => Promise<T>, opts: LockOptions = {}): Promise<T> {
-  await ensurePluginsHome();
-  return withFileLock(globalPluginLockPath(), "withGlobalPluginLock", fn, opts);
+  const pathname = globalPluginLockPath();
+  await fs.mkdir(pluginsHome(), { recursive: true });
+  await acquirePluginLock(pathname, opts.timeoutMs ?? 10_000, opts.retryEveryMs ?? 25);
+  try {
+    return await fn();
+  } finally {
+    try { await fs.unlink(pathname); } catch {}
+  }
 }
