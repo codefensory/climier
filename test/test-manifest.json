@@ -10738,72 +10738,6 @@
       "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
-      "path": "test/log.test.mjs",
-      "name": "append accepts a note field",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.mjs",
-      "name": "append adds an entry with ts, agent, action",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.mjs",
-      "name": "append adds multiple entries in order",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.mjs",
-      "name": "append commits to the ledger without rebasing node revisions",
-      "ordinal": 1,
-      "disposition": "delete",
-      "category": "retired-surface",
-      "reason": "JSON ledger append operations are retired",
-      "replacement": "SQLite mutation tests verify atomic log and state persistence"
-    },
-    {
-      "path": "test/log.test.ts",
-      "name": "append accepts a note field",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.ts",
-      "name": "append adds an entry with ts, agent, action",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.ts",
-      "name": "append adds multiple entries in order",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.ts",
-      "name": "append commits to the ledger without rebasing node revisions",
-      "ordinal": 1,
-      "disposition": "delete",
-      "category": "retired-surface",
-      "reason": "JSON ledger append operations are retired",
-      "replacement": "SQLite mutation tests verify atomic log and state persistence"
-    },
-    {
-      "path": "test/log.test.ts",
-      "name": "append uses a SQLite transaction without rebasing node revisions",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
       "path": "test/manifest-client.test.ts",
       "name": "manifest client fails closed when the network is unavailable",
       "ordinal": 1,
@@ -13549,140 +13483,140 @@
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: adds plugin_id when ctx.pluginId is a non-empty string",
+      "name": "prepareLogEntry: adds plugin_id when ctx.pluginId is a non-empty string",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: never mutates the entry passed in by the caller",
+      "name": "prepareLogEntry: never mutates the entry passed in by the caller",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: omits plugin_id when ctx is undefined",
+      "name": "prepareLogEntry: omits plugin_id when ctx is undefined",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is empty / whitespace",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is empty / whitespace",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is missing",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is missing",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is not a string",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is not a string",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: rejects when entry is not an object (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry is not an object (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: rejects when entry.action is missing (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry.action is missing (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: rejects when entry.agent is missing (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry.agent is missing (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: trims surrounding whitespace from pluginId",
+      "name": "prepareLogEntry: trims surrounding whitespace from pluginId",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: adds plugin_id when ctx.pluginId is a non-empty string",
+      "name": "prepareLogEntry: adds plugin_id when ctx.pluginId is a non-empty string",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: never mutates the entry passed in by the caller",
+      "name": "prepareLogEntry: never mutates the entry passed in by the caller",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: omits plugin_id when ctx is undefined",
+      "name": "prepareLogEntry: omits plugin_id when ctx is undefined",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is empty / whitespace",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is empty / whitespace",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is missing",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is missing",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is not a string",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is not a string",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: rejects when entry is not an object (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry is not an object (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: rejects when entry.action is missing (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry.action is missing (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: rejects when entry.agent is missing (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry.agent is missing (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: trims surrounding whitespace from pluginId",
+      "name": "prepareLogEntry: trims surrounding whitespace from pluginId",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
@@ -13745,7 +13679,7 @@
     },
     {
       "path": "test/plugin-log-seam-residual-invariant.test.mjs",
-      "name": "plugin-log-seam: append() CLI path still works after the seam is added",
+      "name": "plugin-log-seam: retired append() path stays gone",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-invariant.test.mjs"
@@ -13761,7 +13695,7 @@
     },
     {
       "path": "test/plugin-log-seam-residual-invariant.test.ts",
-      "name": "plugin-log-seam: append() CLI path still works after the seam is added",
+      "name": "plugin-log-seam: retired append() path stays gone",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-invariant.test.mjs"
@@ -29058,6 +28992,561 @@
       "category": "legacy-workflow",
       "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
       "coverage_removed": true
+    },
+    {
+      "path": "test/status-history.test.ts",
+      "name": "CLI: status --status filters are case-insensitive",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-dispatch-lazy.test.ts",
+      "name": "dispatch boot does not statically load local operation and state graphs",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "every built-in mutation declares an explicit snapshot closure",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "remaining operation closures activate and include graph, scope, initiative, and plugin roots",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "edge.add closure follows long BLOCKS paths so cycle errors match full snapshots",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure mutations reject globally duplicated stored edges",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure mutations reject unrelated self-edges, invalid edge types, and BLOCKS cycles",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure mutations do not reject a healthy unrelated BLOCKS graph",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "SQL closure validation covers every canonical edge invariant",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "SQL closure validation matches full-state edge invariant errors and details",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "node kind changes invalidate the cached SQL edge proof",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure SQL preserves canonical kind rules without imposing subkind rules",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure mutations reject globally dangling stored edges",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure mutations validate edge kinds for loaded endpoint nodes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "task.accept closure includes readiness dependents and supersedes chains but excludes unrelated state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "the declared accept closure commits the readiness delta without loading unrelated nodes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "a 52-operation sequence is byte-identical with full and declared snapshots, including delta replay",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "gate, knowledge, edge, initiative, and plugin closures are byte-identical to full snapshots",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure commits preserve the full-state node revision high-water mark",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "task.update keeps cycle detection over paths outside the one-hop target edges",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "task.create closure preserves the complete missing-initiative error details",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "a selected policy evaluates declared-closure mutations against the complete snapshot",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "an undeclared or mismatched mutation closure retains the complete snapshot",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-api.test.ts",
+      "name": "UI HTTP endpoints authenticate, project, and return the pure projections",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-api.test.ts",
+      "name": "UI snapshot uses revision ETags, 304, and cached negotiated compression",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-api.test.ts",
+      "name": "UI snapshot brotli stays interactive on a multi-megabyte body",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-api.test.ts",
+      "name": "UI HTTP endpoints use the existing auth, query, and project errors",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-api.test.ts",
+      "name": "UI API accepts local project, auth, and snapshot adapters",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-events.test.ts",
+      "name": "UI events authenticate, send heartbeats, and emit only changed revisions",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-events.test.ts",
+      "name": "UI events share a project watcher and close it after the last client",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-events.test.ts",
+      "name": "UI events preserve auth and project errors before opening a stream",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/ui-revision-watcher.test.ts",
+      "name": "revision watcher polls the SQLite state revision after directory changes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/ui-revision-watcher.test.ts",
+      "name": "revision watcher re-resolves the SQLite state path and closes its handles",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-log-delta.test.ts",
+      "name": "SQLite changes since a revision are exact and replay to the current snapshot",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-log-delta.test.ts",
+      "name": "SQLite delta history requires a snapshot before the current retained base",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-reads.test.ts",
+      "name": "local read command adapters use point queries, never the full-state reader",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-reads.test.ts",
+      "name": "context knowledge candidates are scoped in SQLite before hydration",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-reads.test.ts",
+      "name": "status summary SQL counts preserve scoped filters and default persisted statuses",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-reads.test.ts",
+      "name": "point-read CLI views retain the canonical read-model JSON and ordering",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "point reads match complete SQLite state and preserve node property order",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "count maps preserve first appearance order from the complete state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "v3 SQLite databases migrate edge lookup columns and indexes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "v4 databases acquire count indexes and filtered counts search them without changing the schema version",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "point reads match a prose-heavy representative project across all six APIs",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "10,000-node point reads use indexed bounded work and match full-state projections",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-writes.test.ts",
+      "name": "SQLite state writes touch only changed collection rows",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-writes.test.ts",
+      "name": "in-place updateState mutations persist node, edge, removal, and log changes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-writes.test.ts",
+      "name": "a revision without a new audit entry still records its state delta",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-writes.test.ts",
+      "name": "50 incremental SQLite writes equal full replacements and retain an exact delta chain",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-export-remote.test.ts",
+      "name": "state export from a remote backend matches the complete local schema-1 export",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-export-remote.test.ts",
+      "name": "state export rejects a remote state projection instead of exporting it",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-export-remote.test.ts",
+      "name": "remote state remains the same read-model projection",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-log-compaction.test.ts",
+      "name": "state compact keeps the newest N log entries and per-node summaries visible in history",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-log-compaction.test.ts",
+      "name": "repeated compaction merges checkpoints and state export survives restore",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-log-compaction.test.ts",
+      "name": "state compact defaults to retaining the latest 1000 log entries",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-log-compaction.test.ts",
+      "name": "state compact rejects invalid retention and requires an actor",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/status-history.test.ts",
+      "name": "CLI: status --status accepts persisted and derived statuses in any case",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "a database written by a newer release fails loud instead of being downgraded",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/backend-remote-reads.test.ts",
+      "name": "backend-remote-reads: readChanges sends the requested revision to the delta endpoint",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/backend-remote-reads.test.ts",
+      "name": "backend-remote-reads: readChanges requires a non-negative safe integer revision",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-graph.test.ts",
+      "name": "graph indexes preserve typed incoming and outgoing edge order",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-batch.test.ts",
+      "name": "core batch unions declared closures and matches full-snapshot results",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-batch.test.ts",
+      "name": "core batch falls back to the full snapshot when any step is undeclared",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-batch.test.ts",
+      "name": "core batch closure preserves BLOCKS cycles spanning earlier draft edges",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-batch.test.ts",
+      "name": "core batch closure preserves the global node revision high-water mark",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-accept.test.ts",
+      "name": "task.accept computes newly ready tasks without scanning all nodes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-accept.test.ts",
+      "name": "task.accept reports dependents of canceled tasks superseded by the accepted task",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-derivation.test.ts",
+      "name": "indexed task derivation memoizes satisfaction while preserving cycles and unknown blockers",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/read-model.test.ts",
+      "name": "unsatisfied blocker ids match the full blocking projection including unknown nodes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/reads-log-query.test.ts",
+      "name": "server changes read requires one non-negative safe integer revision",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/reads-transfers.test.ts",
+      "name": "HTTP delta reads return only revisions after since without changing full-state reads",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/reads-transfers.test.ts",
+      "name": "HTTP delta sync replays a committed kernel mutation to the full state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "SQLite readState can skip audit rows for projections that do not consume them",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "SQLite v2 migration preserves state and requires a fresh snapshot for old history",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/log.test.mjs",
+      "name": "append accepts a note field",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.mjs",
+      "name": "append adds an entry with ts, agent, action",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.mjs",
+      "name": "append adds multiple entries in order",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.mjs",
+      "name": "append commits to the ledger without rebasing node revisions",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "JSON ledger append operations are retired",
+      "replacement": "SQLite mutation tests verify atomic log and state persistence"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "append accepts a note field",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "append adds an entry with ts, agent, action",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "append adds multiple entries in order",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "append commits to the ledger without rebasing node revisions",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "JSON ledger append operations are retired",
+      "replacement": "SQLite mutation tests verify atomic log and state persistence"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "append uses a SQLite transaction without rebasing node revisions",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "prepareLogEntry adds the canonical ts and keeps caller fields",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "prepareLogEntry records only a non-empty plugin id",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "prepareLogEntry rejects entries without action or agent",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "storage/log.ts exposes no state write path",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "an empty database file is treated as damage, not as a fresh project",
+      "ordinal": 1,
+      "disposition": "keep"
     }
   ]
 }

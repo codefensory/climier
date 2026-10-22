@@ -19,6 +19,11 @@ export const knownFlags = [
 
 const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
 
+// Status filters are documented as case-insensitive; compare in one case.
+function statusFilter(flags) {
+  return typeof flags.status === "string" ? flags.status.toLowerCase() : undefined;
+}
+
 function parseStaleMs(flags) {
   if (flags["stale-ms"] === undefined || flags["stale-ms"] === true) {return DEFAULT_STALE_MS;}
   const n = parseInt(flags["stale-ms"], 10);
@@ -70,7 +75,7 @@ function remoteStatusFilters(flags) {
   return {
     initiative: flags.initiative || undefined,
     kind: flags.kind || undefined,
-    status: flags.status || undefined,
+    status: statusFilter(flags),
     domain: flags.domain || undefined,
     claimedBy: flags["claimed-by"] || undefined,
     ...remoteStatusOptions(flags),
@@ -92,7 +97,7 @@ async function readLocalStatus(statePath, flags) {
     const filters = {
       initiative: flags.initiative || undefined,
       kind: flags.kind || undefined,
-      status: flags.status || undefined,
+      status: statusFilter(flags),
       domain: flags.domain || undefined,
       "claimed-by": flags["claimed-by"] || undefined,
       "stale-ms": parseStaleMs(flags),

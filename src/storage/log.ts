@@ -1,5 +1,6 @@
-import { emptyState, readState, sqliteStateFile } from "./state.ts";
-import { withSqliteTransaction, writeSqliteState } from "./sqlite/store.ts";
+// Canonical log entry shape. Persisting an entry is the kernel's job: this
+// module only shapes and validates entries, so a log write cannot happen
+// outside the mutation transaction.
 
 function resolvedPluginId(ctx) {
   const pluginId = ctx && typeof ctx.pluginId === "string" ? ctx.pluginId.trim() : "";
@@ -14,29 +15,4 @@ export function prepareLogEntry(entry, ctx = {}) {
   const pluginId = resolvedPluginId(ctx);
   if (pluginId) { out.plugin_id = pluginId; }
   return out;
-}
-
-function validateAppendEntry(entry) {
-  if (!entry || typeof entry !== "object") { throw new Error("append: entry must be an object"); }
-  if (!entry.action) { throw new Error("append: entry.action is required"); }
-  if (!entry.agent) { throw new Error("append: entry.agent is required"); }
-}
-
-export async function append(projectDir, entry) {
-  validateAppendEntry(entry);
-  const preparedEntry = prepareLogEntry(entry);
-  return withSqliteTransaction(sqliteStateFile(projectDir), async () => {
-    const state = await readState(projectDir) || emptyState();
-    const next = {
-      ...state,
-      revision: state.revision + 1,
-      log: [...(Array.isArray(state.log) ? state.log : []), preparedEntry],
-    };
-    return writeSqliteState(sqliteStateFile(projectDir), next, state);
-  });
-}
-
-export async function appendWithContext(projectDir, entry, ctx = {}) {
-  validateAppendEntry(entry);
-  return append(projectDir, prepareLogEntry(entry, ctx));
 }

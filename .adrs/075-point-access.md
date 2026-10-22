@@ -71,6 +71,14 @@ el motor.
 Lo que no cambia: la forma del estado en disco, los ids, la dirección de `BLOCKS`,
 los códigos de error, la salida JSON de cada comando y la garantía de atomicidad.
 
+**Excepción declarada al closure acotado.** Un `batch` que pueda agregar aristas
+`BLOCKS` (o cambiar `blocked_by`) valida las invariantes de arista de forma global:
+lee todas las aristas `BLOCKS` y los nodos endpoint antes de aplicar. Es el precio
+de no aceptar una arista colgante fuera del closure, y está en
+`readDeclaredBatchMutationSnapshot` (`src/kernel/mutation/execute/closure.ts`). El
+resto de las operaciones —y de los batches— se mantienen dentro de su closure
+declarado; el límite de confianza de (4) aplica a esas rutas, no a esta.
+
 ## Consecuencias
 
 - A favor: latencia plana al crecer el DAG, los objetivos de ADR-074 §Verificación

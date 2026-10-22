@@ -305,3 +305,35 @@ test("a project with only tasks.json is rejected with explicit migration guidanc
     });
   } finally { await rmTempProject(dir); }
 });
+
+test("a database written by a newer release fails loud instead of being downgraded", async () => {
+  const dir = await createTempProject();
+  const state = canonicalState();
+  try {
+    const { readState, stateFile } = await import("../src/storage/state.ts");
+    const { writeSqliteState } = await import("../src/storage/sqlite/store.ts");
+    await writeCanonicalState(dir, state);
+    const file = stateFile(dir);
+    const { Database } = await import(SQLITE_MODULE);
+    const database = new Database(file);
+    try { database.exec("PRAGMA user_version = 99"); }
+    finally { database.close(); }
+    await assert.rejects(readState(dir), /storage: unsupported SQLite schema version 99/);
+    await assert.rejects(writeSqliteState(file, { ...state, revision: 5 }), /storage: unsupported SQLite schema version 99/);
+    const after = new Database(file);
+    try { assert.equal(after.query("PRAGMA user_version").get().user_version, 99); }
+    finally { after.close(); }
+  } finally { await rmTempProject(dir); }
+});
+
+test("an empty database file is treated as damage, not as a fresh project", async () => {
+  const dir = await createTempProject();
+  try {
+    const { readState, stateFile } = await import("../src/storage/state.ts");
+    const file = stateFile(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, Buffer.alloc(0));
+    await assert.rejects(readState(dir), /storage: file at .* is empty or not a database/);
+    assert.equal((await fs.stat(file)).size, 0, "the truncated file must be left untouched for recovery");
+  } finally { await rmTempProject(dir); }
+});

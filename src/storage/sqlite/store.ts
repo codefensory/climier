@@ -163,7 +163,10 @@ async function assertDatabaseFile(file: string) {
   try {
     const header = Buffer.alloc(SQLITE_HEADER.length);
     const { bytesRead } = await handle.read(header, 0, header.length, 0);
-    if (bytesRead > 0 && (bytesRead !== header.length || !header.equals(SQLITE_HEADER))) {
+    // An existing empty file is damage, not a fresh project: SQLite never leaves
+    // a zero-length database behind, so recovering from it is a human decision.
+    if (bytesRead === 0) { throw new Error(`storage: file at ${file} is empty or not a database`); }
+    if (bytesRead !== header.length || !header.equals(SQLITE_HEADER)) {
       throw new Error(`storage: file at ${file} is corrupt or not a database`);
     }
   } finally {

@@ -130,6 +130,13 @@ preserve the project files and restore a verified canonical backup or contact
 the maintainer.
 `init --force` is a deliberate reset only.
 
+The canonical state schema is separate from the internal SQLite layout
+(`PRAGMA user_version`). The layout upgrades in place, atomically, when a command
+opens a database written by an older build; that upgrade is one-way, and an older
+release that opens a newer database fails with `unsupported SQLite schema
+version` instead of downgrading it. The explicit-migration rule below is about the
+canonical schema, not the layout.
+
 The project's human-facing **display name** is separate from the opaque
 `project_id`. It lives in the checkout's `.climier.json` (`name`, written by
 `rename`/`link --name`), is mirrored to `~/.climier/projects/<id>/project.json`
@@ -213,7 +220,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
    implicit read/write conversion. Any future schema change needs an explicit
    migration and tests; never silently accept an unknown form or use
    `init --force` as a conversion shortcut.
-6. **Multi-agent safety.** Any new state mutation must enter through the kernel mutation frontier (or an explicitly documented setup/recovery path) and commit in a SQLite transaction. Any new "log" must be committed with the state change it describes. If you split them, a concurrent op can interleave and the log will lie.
+6. **Multi-agent safety.** Any new state mutation must enter through the kernel mutation frontier (or an explicitly documented setup/recovery path) and commit in a SQLite transaction. Any new "log" must be committed with the state change it describes. If you split them, a concurrent op can interleave and the log will lie. `init`, `restore`, and `state compact` are full-state operations that still enter through `mutate()` (`src/kernel/state-operations.ts`). Only two paths replace the state directly, with their own preconditions, and they are not a template for new mutations: `state migrate` (`src/storage/sqlite/migrate.ts`) and the transfer port (`kernel/transfer.ts` → `storage/transfer.ts`, ADR-032).
 7. **Task lifecycle.** `climierflow` owns implementation, review, submission, and acceptance transitions. `resolve` is reserved for gates; `release`, `reopen`, and `cancel` remain administrative lifecycle operations.
 8. **No boolean flags before the command.** The CLI parser treats `--force init` as `--force=init`. New boolean flags must be used as `--flag=true` or after the command. Document any new boolean flag with this caveat.
 9. **English only in code, but the CLI output tolerates any UTF-8.** Titles, bodies, notes, and any free-text field can be in any language. Don't filter or escape based on locale.

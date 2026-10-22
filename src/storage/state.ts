@@ -304,6 +304,8 @@ function buildSnapshotId(reason) {
 }
 
 async function tryChmod(target, mode) {
+  // Best-effort by contract: chmod is a no-op on Windows beyond the read-only
+  // bit and can fail with EPERM/ENOTSUP on locked-down filesystems.
   try { await fs.chmod(target, mode); } catch {}
 }
 
@@ -343,6 +345,8 @@ export async function createSnapshot(projectDir, reason) {
 async function readSnapshotMetadata(dir, name) {
   if (!name.endsWith(".meta.json")) { return null; }
   const id = name.slice(0, -".meta.json".length);
+  // An incomplete or unreadable pair is skipped by design: `snapshots` and
+  // `restore` list only verified metadata, and a corrupt pair stays on disk.
   try { await fs.access(path.join(dir, `${id}.json`)); } catch { return null; }
   let metadata;
   try { metadata = JSON.parse(await fs.readFile(path.join(dir, `${id}.meta.json`), "utf8")); } catch { return null; }

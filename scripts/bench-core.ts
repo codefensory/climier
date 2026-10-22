@@ -1,13 +1,15 @@
 #!/usr/bin/env bun
 // Core profile harness.
 //
-//   bun scripts/bench-core.ts                          # fixture real, una pasada
+//   bun scripts/bench-core.ts                          # sintetico por defecto (594 nodos)
+//   bun scripts/bench-core.ts --fixture <tasks.json>    # corpus real propio
 //   bun scripts/bench-core.ts --iterations 9
 //   bun scripts/bench-core.ts --sweep 600,2000,5000,10000   # escala sintetica
 //   bun scripts/bench-core.ts --synth 20000 --json
 //
-// Builds a throwaway CLIMIER_HOME, migrates the fixture to SQLite, then measures
-// end-to-end (process) and in-process (layers) on the same copy.
+// Builds a throwaway CLIMIER_HOME, migrates the corpus to SQLite, then measures
+// end-to-end (process) and in-process (layers) on the same copy. The default is
+// synthetic so the ADR measurements reproduce on any machine.
 
 /* oxlint-disable complexity, max-lines, max-lines-per-function, max-statements -- linear measurement sequence: one readable pass per recorded stage keeps a report reproducible. */
 
@@ -42,7 +44,8 @@ for (let i = 0; i < argv.length; i += 1) {
 const projectRoot = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
 const cli = path.join(projectRoot, "bin", "climier.ts");
 const dispatchUrl = new URL("../src/cli/dispatch.ts", import.meta.url).href;
-const realFixture = path.join(os.homedir(), ".climier/projects/b4e2c579bbb81669/tasks.json");
+// Node count of the corpus the ADRs measured; keeps the zero-argument run reproducible.
+const DEFAULT_SYNTH_NODES = 594;
 
 function median(values: number[]): number {
   const sorted = values.toSorted((a, b) => a - b);
@@ -391,7 +394,9 @@ async function measureSweep(sizes: number[], runs: number): Promise<Report[]> {
   return reports;
 }
 
-function resolveFixture(synth: string | undefined): Fixture {
+function resolveFixture(synthOption: string | undefined): Fixture {
+  const fixture = options.get("fixture");
+  const synth = synthOption ?? (fixture ? undefined : String(DEFAULT_SYNTH_NODES));
   if (synth) {
     const size = Number(synth);
     const { state, counts } = syntheticState(size);
@@ -399,7 +404,12 @@ function resolveFixture(synth: string | undefined): Fixture {
     fs.writeFileSync(file, JSON.stringify(state));
     return { label: `synthetic ${size}`, file, counts };
   }
-  const file = options.get("fixture") ?? realFixture;
+  const file = fixture;
+  // "true" is the parser's sentinel for a flag given without a value.
+  if (typeof file !== "string" || file === "true") {
+    console.error("bench-core: --fixture requires a path to a canonical tasks.json");
+    process.exit(1);
+  }
   if (!fs.existsSync(file)) {
     console.error(`bench-core: fixture not found: ${file}`);
     process.exit(1);

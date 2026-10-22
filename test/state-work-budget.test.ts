@@ -100,11 +100,12 @@ function assertWorkBudget(operation: string, work, stateBytes: number, budget) {
     `${operation}: expected at most ${budget.structuredClones} structuredClone calls, observed ${work.structuredClones}`);
 }
 
-// Measured read debt: each route parses the canonical state twice; context and history clone once.
+// Reads never materialize the canonical state: point queries return rows, so
+// the parse budget is zero and clone budgets stay explicit per route.
 const READ_BUDGETS = {
-  status: { stateParses: 2, parseBytes: 2, stringifyCalls: 1, stringifyBytes: 1, structuredClones: 0 },
-  context: { stateParses: 2, parseBytes: 2, stringifyCalls: 1, stringifyBytes: 1, structuredClones: 1 },
-  history: { stateParses: 2, parseBytes: 2, stringifyCalls: 1, stringifyBytes: 1, structuredClones: 1 },
+  status: { stateParses: 0, parseBytes: 0, stringifyCalls: 1, stringifyBytes: 1, structuredClones: 0 },
+  context: { stateParses: 0, parseBytes: 0, stringifyCalls: 1, stringifyBytes: 1, structuredClones: 1 },
+  history: { stateParses: 0, parseBytes: 0, stringifyCalls: 1, stringifyBytes: 1, structuredClones: 1 },
 };
 
 test("one mutation does not parse or serialize a full JSON state", async () => {

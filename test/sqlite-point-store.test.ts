@@ -322,10 +322,7 @@ test("10,000-node point reads use indexed bounded work and match full-state proj
     assert.ok(complete);
     const oneNodeRows = await countResultRows(() => readSqliteNode(file, "T-point-42"));
     assert.ok(oneNodeRows <= 20, `readSqliteNode read ${oneNodeRows} rows`);
-    const started = performance.now();
     const node = await readSqliteNode(file, "T-point-42");
-    const elapsedMs = performance.now() - started;
-    assert.ok(elapsedMs <= 25, `readSqliteNode took ${elapsedMs.toFixed(3)} ms (loose timing guard; row budget is deterministic)`);
     assert.equal(JSON.stringify(node), JSON.stringify(complete.nodes["T-point-42"]));
 
     const ids = ["T-point-42", "T-point-43", "T-point-9999", "missing"];

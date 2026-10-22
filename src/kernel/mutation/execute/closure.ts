@@ -343,6 +343,9 @@ export async function readDeclaredBatchMutationSnapshot(
     (snapshot.state.edges as Array<Record<string, unknown>>).forEach((edge, index) => positionedEdges.set(positions[index] ?? index, edge));
   }
   if (batchMayAddBlocks(operations)) {
+    // Declared exception to the bounded closure: edge invariants are global, so a
+    // batch that may add BLOCKS edges validates every stored BLOCKS edge and its
+    // endpoints. Other batches stay within their declared closure.
     const file = sqliteStateFile(projectDir);
     const rows = await readSqliteMutationBlocksEdges(file) as EdgeRow[];
     const ids = rows.flatMap(({ position, edge }) => {

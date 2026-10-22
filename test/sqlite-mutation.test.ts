@@ -36,13 +36,15 @@ test("SQLite log append uses a database transaction without JSON sidecars", asyn
   try {
     const { readState, sqliteStateFile } = await import("../src/storage/state.ts");
     const { writeSqliteState } = await import("../src/storage/sqlite/store.ts");
-    const { append } = await import("../src/storage/log.ts");
-    await writeSqliteState(sqliteStateFile(projectDir), { ...emptyState(), revision: 1 });
-    await append(projectDir, { action: "manual", agent: "worker" });
+    const node = { id: "T1", kind: "resolvable", subkind: "task", title: "one", status: "open", revision: 1 };
+    await writeSqliteState(sqliteStateFile(projectDir), { ...emptyState(), revision: 1, nodes: { T1: node } });
+    const result = await runCli(["add-note", "T1", "hello", "--as", "worker"], { cwd: projectDir });
+    assert.equal(result.code, 0, result.stdout);
     const state = await readState(projectDir);
     assert.equal(state.revision, 2);
     assert.equal(state.log.length, 1);
-    assert.equal(state.log[0].action, "manual");
+    assert.equal(state.log[0].action, "add-note");
+    assert.equal(state.log[0].agent, "worker");
     const jsonFile = jsonStateFilePath(projectDir);
     await assert.rejects(fs.access(jsonFile), { code: "ENOENT" });
     await assert.rejects(fs.access(path.join(path.dirname(jsonFile), "revision-ledger.json")), { code: "ENOENT" });

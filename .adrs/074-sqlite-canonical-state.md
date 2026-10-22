@@ -107,3 +107,39 @@ recursiva de SQLite), y todo motor nativo que rompa `bun build --compile` de los
   commits confirmados y no queda estado parcial.
 - `climier state migrate` sobre una copia del proyecto real + `state export`
   reproducible (dos exportaciones idénticas).
+
+### Cómo reproducir las medidas
+
+```bash
+bun scripts/bench-core.ts --iterations 5          # corpus sintético de 594 nodos
+bun scripts/bench-core.ts --fixture <tasks.json>  # corpus real propio (--fixture es obligatorio)
+```
+
+El default es sintético a propósito: sin `--fixture` no hay ninguna ruta de máquina
+del autor en el harness, así la tabla de arriba se puede re-medir en cualquier
+checkout.
+
+Dos avisos sobre las cifras:
+
+- La tabla de §Contexto son medidas **del prototipo de store** (`bun:sqlite`
+  directo, sin `read-model` encima). El harness actual mide las capas reales y da
+  otros órdenes de magnitud: `status` in-process ~4–8 ms y `add-note` in-process
+  ~3,6 ms sobre el corpus sintético de 594 nodos. No se pueden comparar fila a fila.
+- Con ese mismo corpus, la meta end-to-end de §Verificación **no se cumple para
+  `add-note`**: 34–50 ms medidos entre corridas de `--iterations 5` (mediana ~38 ms)
+  contra los ≤ 30 ms objetivo. `status` entra: 24–35 ms (mediana ~24 ms) contra
+  ≤ 35 ms, aunque en máquinas más lentas el margen se agota. Son cifras de una
+  máquina concreta (Linux x64, Bun 1.4.2): re-medir antes de citarlas. Queda como
+  deuda abierta, no como verificación cumplida.
+
+### Upgrade del layout interno
+
+El esquema SQLite interno (`PRAGMA user_version`) se actualiza **in place al abrir
+la base**, dentro de una única `database.transaction`, cuando detecta un layout
+anterior (versiones 0–3).
+No es la migración explícita de §Decisión: esa se refiere al estado canónico
+schema-1 en JSON. Consecuencia: el upgrade es de una sola vía — una release
+anterior que abra un proyecto ya actualizado falla con "unsupported SQLite schema
+version" en lugar de degradarlo. Los upgrades 1→4 y el rechazo de una versión
+desconocida están cubiertos por `test/sqlite-store.test.ts` y
+`test/sqlite-point-store.test.ts`.
