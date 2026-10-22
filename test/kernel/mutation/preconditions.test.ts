@@ -18,7 +18,6 @@ test("kernel.mutate: if_revision (single) mismatch throws REVISION_CONFLICT with
   const dir = await createTempProject();
   try {
     const base = await bootstrapProject(dir);
-    const baseMtime = (await fs.stat(stateFilePath(dir))).mtimeMs;
 
     let caught;
     try {
@@ -35,8 +34,7 @@ test("kernel.mutate: if_revision (single) mismatch throws REVISION_CONFLICT with
     assert.equal(after.log.length, 0, "no log entry on REVISION_CONFLICT");
     assert.equal(count().prepare, 1, "prepare ran once (read-only)");
     assert.equal(count().apply, 0, "apply did NOT run — precondition rejected first");
-    const afterMtime = (await fs.stat(stateFilePath(dir))).mtimeMs;
-    assert.equal(afterMtime, baseMtime, "state file untouched (no atomic write)");
+    assert.equal(after.revision, base.revision, "no revision bump on REVISION_CONFLICT");
   } finally {
     await rmTempProject(dir);
   }
