@@ -175,7 +175,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | Command | File | Mutates? | Needs `--as`? |
 |---|---|---|---|
 | `init [--force]` | `cli/commands/init.ts` | yes (creates/overwrites state) | required with `--force` only |
-| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `cli/commands/status.ts` | no | no |
+| `status [--initiative X] [--kind resolvable\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `cli/commands/status.ts` | no | no |
 | `context <id>` | `cli/commands/context.ts` | no | no |
 | `search "<query>" [--all]` | `cli/commands/search.ts` | no | no |
 | `history <id> [--limit N]` | `cli/commands/history.ts` | no | no |

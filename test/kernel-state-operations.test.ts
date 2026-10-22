@@ -52,7 +52,7 @@ test("kernel state.init_force rejects policy before snapshot or write", async ()
     const original = baseState();
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
     await writeCanonicalState(dir, original);
-    const before = await fs.readFile(stateFilePath(dir), "utf8");
+    const before = await readState(dir);
     await assert.rejects(
       () => initState({
         projectDir: dir,
@@ -62,7 +62,7 @@ test("kernel state.init_force rejects policy before snapshot or write", async ()
       }),
       (err) => errorLike(err).code === "POLICY_DENIED",
     );
-    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
+    assert.deepEqual(await readState(dir), before);
     assert.deepEqual(await fs.readdir(await snapshotDir(dir)).catch(() => []), []);
   } finally { await rmTempProject(dir); }
 });
@@ -169,7 +169,7 @@ test("kernel state.restore rejects malformed v5 snapshot before policy or pre-sn
     await fs.writeFile(path.join(dirPath, "bad-v5.json"), JSON.stringify(malformed));
     await fs.writeFile(path.join(dirPath, "bad-v5.meta.json"), JSON.stringify({ id: "bad-v5" }));
     let policyCalls = 0;
-    const before = await fs.readFile(stateFilePath(dir), "utf8");
+    const before = await readState(dir);
     await assert.rejects(
       () => restoreState({
         projectDir: dir,
@@ -180,7 +180,7 @@ test("kernel state.restore rejects malformed v5 snapshot before policy or pre-sn
       (err) => errorLike(err).code === "INVALID_STATUS",
     );
     assert.equal(policyCalls, 0);
-    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
+    assert.deepEqual(await readState(dir), before);
     assert.deepEqual((await fs.readdir(dirPath)).toSorted(), ["bad-v5.json", "bad-v5.meta.json"]);
   } finally { await rmTempProject(dir); }
 });
@@ -194,9 +194,9 @@ test("kernel state.restore rejects malformed target without writing or snapshott
     await fs.mkdir(dirPath, { recursive: true });
     await fs.writeFile(path.join(dirPath, "bad.json"), "not json");
     await fs.writeFile(path.join(dirPath, "bad.meta.json"), JSON.stringify({ id: "bad" }));
-    const before = await fs.readFile(stateFilePath(dir), "utf8");
+    const before = await readState(dir);
     await assert.rejects(() => restoreState({ projectDir: dir, snapshotId: "bad", actor: "alice" }), (err) => errorLike(err).code === "INVALID_STATUS");
-    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
+    assert.deepEqual(await readState(dir), before);
     assert.deepEqual((await fs.readdir(dirPath)).toSorted(), ["bad.json", "bad.meta.json"]);
   } finally { await rmTempProject(dir); }
 });

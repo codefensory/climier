@@ -679,7 +679,7 @@ Main dashboard.
 Supported filters:
 
 - `--initiative X`
-- `--kind task|gate|knowledge`
+- `--kind resolvable|knowledge` (tasks and gates are both `resolvable`)
 - `--status X`
 - `--domain X`
 - `--claimed-by X`
@@ -853,7 +853,7 @@ Output shape:
 Reasons:
 
 - `force-init` — taken by `init --force` over a previous state file
-- `corrupt-recovery` — taken by `init` when the existing file was corrupt JSON
+- `corrupt-recovery` — taken by `init` when the existing state is corrupt (a legacy `tasks.json` or a damaged database)
 - `pre-restore` — taken by `restore` of the state that is about to be displaced
 
 No flags.
