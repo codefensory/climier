@@ -201,7 +201,9 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/add-edge.ts` | yes | required |
 | `remove-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/remove-edge.ts` | yes | required |
 | `snapshots` | `cli/commands/snapshots.ts` | no (read-only) | no |
-| `state` | `cli/commands/state.ts` | no (read-only) | no |
+| `state` / `state export` | `cli/commands/state.ts` | no (read-only) | no |
+| `state compact [--keep N]` | `cli/commands/state.ts` | yes (SQLite transaction; logged) | required |
+| `state migrate --as <agent> --yes` | `cli/commands/state.ts` | yes (explicit JSON → SQLite import; verified backup) | required |
 | `restore <id> --as <agent>` | `cli/commands/restore.ts` | yes (SQLite transaction; canonical schema-1 snapshot; pre-snapshot) | required |
 | `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | `cli/commands/batch.ts` | yes | required |
 | `link <origin> [--replace=true] [--name "<name>"]` | `cli/commands/link.ts` | yes | required |
