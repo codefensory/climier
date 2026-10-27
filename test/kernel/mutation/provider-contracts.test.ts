@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath } from "../../helpers.ts";
 import { bootstrapProject, importKernel, createTaskProvider, updateNodeProvider } from "./helpers.ts";
 
-function assertUnchangedAfterNoop(out, state, baseMtime, finalStat) {
+function assertUnchangedAfterNoop(out, state, baseRevision) {
   assert.equal(out.idempotent, true, "no diff ⇒ idempotent");
   assert.equal(out.log_entry, null, "no log entry on idempotent op");
   assert.equal(out.effects && out.effects.hint, "noop-but-allowed", "effects pass through even when no write happens");
@@ -14,7 +14,7 @@ function assertUnchangedAfterNoop(out, state, baseMtime, finalStat) {
   assert.equal(out.diff.removed_edges.length, 0);
   assert.equal(state.nodes.T1.revision, 3, "no revision bump on idempotent op");
   assert.equal(state.log.length, 0);
-  assert.equal(finalStat.mtimeMs, baseMtime, "no state file write on idempotent op");
+  assert.equal(state.revision, baseRevision, "no revision bump on idempotent op");
 }
 
 function assertCreatedTask(out, finalState) {
@@ -133,14 +133,14 @@ test("kernel.mutate: idempotent op (no diff) bumps nothing, writes nothing, appe
         return { result: null, effects: { hint: "noop-but-allowed" } };
       },
     };
-    const baseMtime = (await fs.stat(stateFilePath(dir))).mtimeMs;
+    const baseRevision = (await readStateHelper(dir)).revision;
     const out = await mutate({
       projectDir: dir,
       request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
       provider,
     });
     const after = await readStateHelper(dir);
-    assertUnchangedAfterNoop(out, after, baseMtime, await fs.stat(stateFilePath(dir)));
+    assertUnchangedAfterNoop(out, after, baseRevision);
   } finally {
     await rmTempProject(dir);
   }

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, writeFencedState, readState as readRawState, stateFilePath } from "../../helpers.ts";
+import { createTempProject, rmTempProject, importFresh, writeCanonicalState, readState as readRawState, stateFilePath } from "../../helpers.ts";
 import { baseState, seedState, freshApi } from "./fixtures.ts";
 
 type TestError = { code?: string; details: Record<string, unknown>; message?: string };
@@ -213,13 +213,12 @@ test("api.query.node reflects a state mutation (read without lock picks the late
   try {
     await seedState(dir);
     const api = await freshApi(dir);
-    // Replace through the fenced fixture helper to simulate another agent's update.
+    // Replace through the canonical fixture helper to simulate another agent's update.
     const replacement = baseState();
     replacement.nodes.T1.title = "T1 (mutated)";
     const current = await readRawState(dir);
     replacement.revision = current.revision;
-    replacement.fence_generation = current.fence_generation;
-    await writeFencedState(dir, replacement);
+    await writeCanonicalState(dir, replacement);
     const expected = await readRawState(dir);
     const out = await api.query.node("T1");
     assert.equal(out.node.title, "T1 (mutated)");

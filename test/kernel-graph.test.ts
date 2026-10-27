@@ -18,8 +18,9 @@ type Edge = { from: string; to: string; type: string };
 type State = { version: number; nodes?: Record<string, Record<string, string>>; edges?: Edge[] | null | string; log: unknown[] };
 type GraphModule = {
   edgesArray: (state: State) => Edge[];
-  incoming: (state: State, id: string, type?: string) => Edge[];
-  outgoing: (state: State, id: string, type?: string) => Edge[];
+  createGraphIndexes: (state: State) => unknown;
+  incoming: (state: State, id: string, type?: string, indexes?: unknown) => Edge[];
+  outgoing: (state: State, id: string, type?: string, indexes?: unknown) => Edge[];
   relations: (state: State, id: string, type?: string) => Edge[];
 };
 type EdgesModule = { blocksEdge: (from: string, to: string) => Edge };
@@ -77,6 +78,23 @@ test("incoming: filters by type when provided", async () => {
   assert.equal(incoming(state, "B", "BLOCKS").length, 1);
   assert.equal(incoming(state, "B", "SUPERSEDES").length, 1);
   assert.equal(incoming(state, "B", "DERIVED_FROM").length, 0);
+});
+
+test("graph indexes preserve typed incoming and outgoing edge order", async () => {
+  const { createGraphIndexes, incoming, outgoing } = await graphModule();
+  const state = makeState({}, [
+    { from: "A", to: "Z", type: "BLOCKS" },
+    { from: "B", to: "Z", type: "BLOCKS" },
+    { from: "Z", to: "C", type: "SUPERSEDES" },
+    { from: "D", to: "Z", type: "SUPERSEDES" },
+    { from: "X", to: "Z", type: "INFORMS" },
+  ]);
+  const indexes = createGraphIndexes(state);
+
+  assert.deepEqual(incoming(state, "Z", "BLOCKS", indexes).map((edge) => edge.from), ["A", "B"]);
+  assert.deepEqual(incoming(state, "Z", "SUPERSEDES", indexes).map((edge) => edge.from), ["D"]);
+  assert.deepEqual(outgoing(state, "Z", "SUPERSEDES", indexes).map((edge) => edge.to), ["C"]);
+  assert.deepEqual(incoming(state, "Z", "INFORMS", indexes).map((edge) => edge.from), ["X"]);
 });
 
 test("incoming: empty / missing edges yields []", async () => {

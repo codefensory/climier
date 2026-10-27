@@ -909,8 +909,10 @@
       "path": "test/adversarial.test.mjs",
       "name": "init rejects a pre-release tasks shape with migration guidance, not --force",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-adversarial.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "pre-release JSON state is no longer supported by runtime storage",
+      "replacement": "adversarial tests cover schema-1 migration guidance"
     },
     {
       "path": "test/adversarial.test.mjs",
@@ -1266,8 +1268,16 @@
       "path": "test/adversarial.test.ts",
       "name": "init rejects a pre-release tasks shape with migration guidance, not --force",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/adversarial.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "pre-release JSON state is no longer supported by runtime storage",
+      "replacement": "adversarial tests cover schema-1 migration guidance"
+    },
+    {
+      "path": "test/adversarial.test.ts",
+      "name": "init rejects a tasks.json-only project with explicit migration guidance",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/adversarial.test.ts",
@@ -1921,105 +1931,165 @@
       "name": "baseline scopes use the configured origin and project id independently",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "confirmed pull with a baseline write failure reports the installed local revision",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "confirmed transfer with a baseline write failure reports the changed side and revision",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "explicit remote HTTP and auth/protocol errors are preserved without fallback or ambiguity",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "first manual pull installs the remote snapshot and persists the confirmed baseline",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "first manual push imports the local snapshot and persists the confirmed baseline",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "force pull omits local CAS while replacing the destination and recording the new baseline",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "force push omits expected remote revision and updates baseline only after confirmation",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "manual pull then offline local work and push uses and advances the shared baseline",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "pull maps a non-pristine destination without baseline to TRANSFER_BASE_UNKNOWN",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "pull maps stale local CAS to TRANSFER_LOCAL_CHANGED without advancing the baseline",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "pull rejects a local write racing with the remote export",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "push timeout and network failures report ambiguous outcomes without advancing baseline",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "push uses the last confirmed remote revision for remote CAS and preserves structured conflicts",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-manual-transfer.test.ts",
       "name": "service rejects non-remote, incomplete and invalid transfer requests before I/O",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/application-manual-transfer.test.mjs"
+      "move_from": "test/application-manual-transfer.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "changeLocalTitle writes a revision-advanced canonical snapshot to simulate a committed local race",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/application-operation-bridge.test.mjs",
@@ -2260,6 +2330,12 @@
     },
     {
       "path": "test/architecture/import-boundaries.test.ts",
+      "name": "a prohibited import from a declared src-root module is detected",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/architecture/import-boundaries.test.ts",
       "name": "application matches the declared architectural graph",
       "ordinal": 1,
       "disposition": "keep"
@@ -2285,6 +2361,12 @@
     {
       "path": "test/architecture/import-boundaries.test.ts",
       "name": "contracts matches the declared architectural graph",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/architecture/import-boundaries.test.ts",
+      "name": "every module at the root of src is a declared boundary",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -2326,6 +2408,12 @@
     {
       "path": "test/architecture/import-boundaries.test.ts",
       "name": "kernel matches the declared architectural graph",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/architecture/import-boundaries.test.ts",
+      "name": "operation-source.ts matches the declared architectural graph",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -2743,8 +2831,10 @@
       "path": "test/bugs.test.mjs",
       "name": "bug: withLock creates the state directory if missing",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/bugs.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/bugs.test.ts",
@@ -2764,8 +2854,10 @@
       "path": "test/bugs.test.ts",
       "name": "bug: withLock creates the state directory if missing",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/bugs.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/check-commit-msg.test.ts",
@@ -3126,7 +3218,10 @@
       "path": "test/cli-dispatch.test.ts",
       "name": "CLI: retired state importer is unknown and absent from help",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the explicit JSON importer CLI surface is retired",
+      "replacement": "adversarial tests cover the explicit state migrate instruction"
     },
     {
       "path": "test/cli-dispatch.test.ts",
@@ -4496,8 +4591,10 @@
       "path": "test/command-ui.test.mjs",
       "name": "ui keeps corrupt-state errors before starting the local server",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/command-ui.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the test was replaced by the SQLite migration-required UI guard",
+      "replacement": "command-ui tests cover tasks.json-only rejection"
     },
     {
       "path": "test/command-ui.test.mjs",
@@ -4541,8 +4638,16 @@
       "path": "test/command-ui.test.ts",
       "name": "ui keeps corrupt-state errors before starting the local server",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/command-ui.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the test was replaced by the SQLite migration-required UI guard",
+      "replacement": "command-ui tests cover tasks.json-only rejection"
+    },
+    {
+      "path": "test/command-ui.test.ts",
+      "name": "ui rejects a tasks.json-only project before starting the local server",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/command-ui.test.ts",
@@ -4789,6 +4894,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/context-contract.test.mjs"
+    },
+    {
+      "path": "test/context-contract.test.ts",
+      "name": "context: allowed_actions for a non-choice gate names the bare resolve",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/context-contract.test.ts",
@@ -5808,6 +5919,12 @@
       "move_from": "test/execution-contract.test.mjs"
     },
     {
+      "path": "test/help-coverage.test.ts",
+      "name": "--help documents every accepted flag of every command",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/helpers-in-process.test.mjs",
       "name": "in-process and spawn harnesses agree on exit codes and envelopes",
       "ordinal": 1,
@@ -5951,15 +6068,19 @@
       "path": "test/init.test.mjs",
       "name": "init: --force replaces an existing canonical v1 state and preserves ledger high-water",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON revision ledger is retired",
+      "replacement": "adversarial tests cover force-init on SQLite state"
     },
     {
       "path": "test/init.test.mjs",
       "name": "init: creates empty canonical v1 state and ledger when none exists",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "SQLite state creation no longer maintains a JSON ledger",
+      "replacement": "state CLI tests cover canonical SQLite state creation"
     },
     {
       "path": "test/init.test.mjs",
@@ -6014,84 +6135,148 @@
       "path": "test/init.test.ts",
       "name": "CLI: init --no-warnings works before and after the command",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/init.test.ts",
       "name": "CLI: init rejects --v2 flag",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "move_from": "test/init.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/init.test.ts",
       "name": "CLI: insecure remote HTTP init returns the warning in its JSON envelope",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "move_from": "test/init.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
+    },
+    {
+      "path": "test/init.test.ts",
+      "name": "init: --force replaces an existing canonical SQLite state",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/init.test.ts",
       "name": "init: --force replaces an existing canonical v1 state and preserves ledger high-water",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON revision ledger is retired",
+      "replacement": "adversarial tests cover force-init on SQLite state"
+    },
+    {
+      "path": "test/init.test.ts",
+      "name": "init: creates an empty canonical v1 SQLite state when none exists",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/init.test.ts",
       "name": "init: creates empty canonical v1 state and ledger when none exists",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "SQLite state creation no longer maintains a JSON ledger",
+      "replacement": "state CLI tests cover canonical SQLite state creation"
     },
     {
       "path": "test/init.test.ts",
       "name": "init: fails if state already exists (no overwrite)",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "move_from": "test/init.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/init.test.ts",
       "name": "init: HTTPS and loopback remote init omit warnings",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "move_from": "test/init.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/init.test.ts",
       "name": "init: ignores unknown flags and still creates an empty canonical v1 state",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "move_from": "test/init.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/init.test.ts",
       "name": "init: insecure remote HTTP returns a warning after successful provisioning",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "move_from": "test/init.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/init.test.ts",
       "name": "init: refuses to overwrite an existing valid state without --force",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "move_from": "test/init.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/init.test.ts",
       "name": "init: remote errors preserve local sentinels and force fails before filesystem access",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "move_from": "test/init.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/init.test.ts",
       "name": "init: remote init preserves local sentinels and omits the server path",
       "ordinal": 1,
       "disposition": "move",
-      "move_from": "test/init.test.mjs"
+      "move_from": "test/init.test.mjs",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds malformed SQLite bytes to ensure init refuses destructive recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/initiative-validation.test.mjs",
@@ -7030,8 +7215,10 @@
       "path": "test/json-output.test.mjs",
       "name": "contract: storage errors have a stable structured code",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/json-output.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the storage error contract now specifically guides JSON migration",
+      "replacement": "JSON output tests cover tasks.json-only migration guidance"
     },
     {
       "path": "test/json-output.test.mjs",
@@ -7100,8 +7287,16 @@
       "path": "test/json-output.test.ts",
       "name": "contract: storage errors have a stable structured code",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/json-output.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the storage error contract now specifically guides JSON migration",
+      "replacement": "JSON output tests cover tasks.json-only migration guidance"
+    },
+    {
+      "path": "test/json-output.test.ts",
+      "name": "contract: tasks.json-only storage errors guide explicit migration",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/json-output.test.ts",
@@ -7118,6 +7313,18 @@
       "move_from": "test/json-output.test.mjs"
     },
     {
+      "path": "test/kernel-dirty-diff.test.ts",
+      "name": "dirty edge diff cancels add-then-remove and remove-then-add sequences",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-dirty-diff.test.ts",
+      "name": "mutation diff compares only node, edge, and initiative ids touched by the draft",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/kernel-edges.test.mjs",
       "name": "blocksEdge: direction is 'blocker BLOCKS blocked' (first arg is the blocker)",
       "ordinal": 1,
@@ -7963,8 +8170,10 @@
       "path": "test/kernel-mutation-batch.test.mjs",
       "name": "core batch starts from canonical state and persists through the fenced commit",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-mutation-batch.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the test now asserts a canonical SQLite state commit",
+      "replacement": "core batch starts from canonical state and commits through SQLite"
     },
     {
       "path": "test/kernel-mutation-batch.test.mjs",
@@ -8003,10 +8212,18 @@
     },
     {
       "path": "test/kernel-mutation-batch.test.ts",
+      "name": "core batch starts from canonical state and commits through SQLite",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-batch.test.ts",
       "name": "core batch starts from canonical state and persists through the fenced commit",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-mutation-batch.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the test now asserts a canonical SQLite state commit",
+      "replacement": "core batch starts from canonical state and commits through SQLite"
     },
     {
       "path": "test/kernel-mutation-batch.test.ts",
@@ -8117,8 +8334,10 @@
       "path": "test/kernel-policy-errors.test.mjs",
       "name": "kernel.mutate: same-chain nested mutate still rejected with INVALID_EXECUTION_CONTRACT (AsyncLocalStorage guard preserved)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-policy-errors.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/kernel-policy-errors.test.ts",
@@ -8192,17 +8411,27 @@
     },
     {
       "path": "test/kernel-policy-errors.test.ts",
+      "name": "kernel.mutate: nested mutation is rejected inside an active SQLite transaction",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-policy-errors.test.ts",
       "name": "kernel.mutate: same-chain nested mutate still rejected with INVALID_EXECUTION_CONTRACT (AsyncLocalStorage guard preserved)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-policy-errors.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel ordinary providers reject future state while trusted init keeps version errors recoverable",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-state-operations.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "future schemas are rejected at the SQLite storage boundary",
+      "replacement": "SQLite store validation tests cover incompatible state"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
@@ -8215,15 +8444,19 @@
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.init recovers corrupt bytes through an existing fenced ledger without policy or actor",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-state-operations.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "corrupt SQLite state is preserved for manual recovery instead of resetting",
+      "replacement": "plugin compatibility tests cover fail-closed corrupt database initialization"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.init_force recovers future state by snapshotting raw bytes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-state-operations.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "force-init cannot overwrite an unrecognized SQLite state shape",
+      "replacement": "SQLite store tests cover fail-closed unknown schema handling"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
@@ -8243,15 +8476,19 @@
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.restore installs a canonical snapshot through the fenced state path",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-state-operations.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "restore now installs canonical state through SQLite",
+      "replacement": "kernel state.restore installs a canonical snapshot through SQLite"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.restore recovers over future current state, preserving raw pre-restore snapshot",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-state-operations.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "restore refuses invalid current SQLite state rather than overwriting it",
+      "replacement": "kernel state restore tests cover validation before mutation"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
@@ -8285,8 +8522,10 @@
       "path": "test/kernel-state-operations.test.ts",
       "name": "kernel ordinary providers reject future state while trusted init keeps version errors recoverable",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-state-operations.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "future schemas are rejected at the SQLite storage boundary",
+      "replacement": "SQLite store validation tests cover incompatible state"
     },
     {
       "path": "test/kernel-state-operations.test.ts",
@@ -8299,15 +8538,19 @@
       "path": "test/kernel-state-operations.test.ts",
       "name": "kernel state.init recovers corrupt bytes through an existing fenced ledger without policy or actor",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-state-operations.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "corrupt SQLite state is preserved for manual recovery instead of resetting",
+      "replacement": "plugin compatibility tests cover fail-closed corrupt database initialization"
     },
     {
       "path": "test/kernel-state-operations.test.ts",
       "name": "kernel state.init_force recovers future state by snapshotting raw bytes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-state-operations.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "force-init cannot overwrite an unrecognized SQLite state shape",
+      "replacement": "SQLite store tests cover fail-closed unknown schema handling"
     },
     {
       "path": "test/kernel-state-operations.test.ts",
@@ -8325,17 +8568,27 @@
     },
     {
       "path": "test/kernel-state-operations.test.ts",
+      "name": "kernel state.restore installs a canonical snapshot through SQLite",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-state-operations.test.ts",
       "name": "kernel state.restore installs a canonical snapshot through the fenced state path",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-state-operations.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "restore now installs canonical state through SQLite",
+      "replacement": "kernel state.restore installs a canonical snapshot through SQLite"
     },
     {
       "path": "test/kernel-state-operations.test.ts",
       "name": "kernel state.restore recovers over future current state, preserving raw pre-restore snapshot",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-state-operations.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "restore refuses invalid current SQLite state rather than overwriting it",
+      "replacement": "kernel state restore tests cover validation before mutation"
     },
     {
       "path": "test/kernel-state-operations.test.ts",
@@ -8950,8 +9203,10 @@
       "path": "test/kernel-transfer.test.mjs",
       "name": "kernel transfer expected revision mismatch preserves destination state and ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-transfer.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "transfer conflict checks use SQLite state revisions without a ledger",
+      "replacement": "kernel transfer expected revision mismatch preserves destination state"
     },
     {
       "path": "test/kernel-transfer.test.mjs",
@@ -8985,15 +9240,19 @@
       "path": "test/kernel-transfer.test.mjs",
       "name": "kernel transfer recovery delegates to fenced ledger before source capture",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-transfer.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON ledger recovery path is retired",
+      "replacement": "kernel transfer tests validate the SQLite revision directly"
     },
     {
       "path": "test/kernel-transfer.test.mjs",
       "name": "kernel transfer rejects a fenced source whose state regressed from its ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-transfer.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "there is no secondary ledger revision to regress against",
+      "replacement": "transfer baseline tests cover SQLite state revision conflicts"
     },
     {
       "path": "test/kernel-transfer.test.ts",
@@ -9032,10 +9291,18 @@
     },
     {
       "path": "test/kernel-transfer.test.ts",
+      "name": "kernel transfer expected revision mismatch preserves destination state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-transfer.test.ts",
       "name": "kernel transfer expected revision mismatch preserves destination state and ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-transfer.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "transfer conflict checks use SQLite state revisions without a ledger",
+      "replacement": "kernel transfer expected revision mismatch preserves destination state"
     },
     {
       "path": "test/kernel-transfer.test.ts",
@@ -9069,15 +9336,19 @@
       "path": "test/kernel-transfer.test.ts",
       "name": "kernel transfer recovery delegates to fenced ledger before source capture",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-transfer.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON ledger recovery path is retired",
+      "replacement": "kernel transfer tests validate the SQLite revision directly"
     },
     {
       "path": "test/kernel-transfer.test.ts",
       "name": "kernel transfer rejects a fenced source whose state regressed from its ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel-transfer.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "there is no secondary ledger revision to regress against",
+      "replacement": "transfer baseline tests cover SQLite state revision conflicts"
     },
     {
       "path": "test/kernel/mutation/contract-guards.test.mjs",
@@ -9319,15 +9590,19 @@
       "path": "test/kernel/mutation/persistence-recovery.test.mjs",
       "name": "direct mutation executor requires the active lock capability supplied by mutate",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "kernel mutation internals no longer expose an alternate executor entry",
+      "replacement": "provider-contract tests cover mutations through the canonical facade"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.mjs",
       "name": "kernel mutation writes provider changes through the ledger commit over a canonical state",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "kernel mutations now persist directly through the SQLite state store",
+      "replacement": "kernel mutation tests cover atomic node, log, and revision commits"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.mjs",
@@ -9340,50 +9615,64 @@
       "path": "test/kernel/mutation/persistence-recovery.test.mjs",
       "name": "kernel.mutate recovers a pending fenced commit before checking caller CAS",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON ledger pending-commit recovery path is retired",
+      "replacement": "SQLite mutation tests cover one atomic state and log transaction"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.mjs",
       "name": "kernel.mutate: failing call writes nothing — final on-disk state equals pre-call snapshot",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the recovery assertion now compares logical SQLite snapshots",
+      "replacement": "kernel.mutate rejected-call tests assert unchanged SQLite state"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.mjs",
       "name": "kernel.mutate: provider.apply throws after prepare succeeds ⇒ no state mutation, no log entry",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "mutation failure tests now assert logical SQLite state preservation",
+      "replacement": "kernel.mutate provider.apply tests verify no draft is persisted"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.mjs",
       "name": "kernel.mutate: provider.prepare throws ⇒ no state mutation, no log entry, lock released",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "mutation failure tests now assert logical SQLite state preservation",
+      "replacement": "kernel.mutate provider.prepare tests verify state is unchanged"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.mjs",
       "name": "kernel.mutate: state + log are persisted together; final on-disk state has both",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the persistence test now asserts the root and node revisions too",
+      "replacement": "kernel.mutate commits node, log, and revision together"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.ts",
       "name": "direct mutation executor requires the active lock capability supplied by mutate",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "kernel mutation internals no longer expose an alternate executor entry",
+      "replacement": "provider-contract tests cover mutations through the canonical facade"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.ts",
       "name": "kernel mutation writes provider changes through the ledger commit over a canonical state",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "kernel mutations now persist directly through the SQLite state store",
+      "replacement": "kernel mutation tests cover atomic node, log, and revision commits"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.ts",
@@ -9396,43 +9685,79 @@
       "path": "test/kernel/mutation/persistence-recovery.test.ts",
       "name": "kernel.mutate recovers a pending fenced commit before checking caller CAS",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON ledger pending-commit recovery path is retired",
+      "replacement": "SQLite mutation tests cover one atomic state and log transaction"
+    },
+    {
+      "path": "test/kernel/mutation/persistence-recovery.test.ts",
+      "name": "kernel.mutate: a rejected call leaves the logical SQLite snapshot unchanged",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.ts",
       "name": "kernel.mutate: failing call writes nothing — final on-disk state equals pre-call snapshot",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the recovery assertion now compares logical SQLite snapshots",
+      "replacement": "kernel.mutate rejected-call tests assert unchanged SQLite state"
+    },
+    {
+      "path": "test/kernel/mutation/persistence-recovery.test.ts",
+      "name": "kernel.mutate: node, log, and revision are committed together",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.ts",
       "name": "kernel.mutate: provider.apply throws after prepare succeeds ⇒ no state mutation, no log entry",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "mutation failure tests now assert logical SQLite state preservation",
+      "replacement": "kernel.mutate provider.apply tests verify no draft is persisted"
+    },
+    {
+      "path": "test/kernel/mutation/persistence-recovery.test.ts",
+      "name": "kernel.mutate: provider.apply throws without persisting its draft",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.ts",
       "name": "kernel.mutate: provider.prepare throws ⇒ no state mutation, no log entry, lock released",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "mutation failure tests now assert logical SQLite state preservation",
+      "replacement": "kernel.mutate provider.prepare tests verify state is unchanged"
+    },
+    {
+      "path": "test/kernel/mutation/persistence-recovery.test.ts",
+      "name": "kernel.mutate: provider.prepare throws without changing state",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.ts",
       "name": "kernel.mutate: state + log are persisted together; final on-disk state has both",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/persistence-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the persistence test now asserts the root and node revisions too",
+      "replacement": "kernel.mutate commits node, log, and revision together"
     },
     {
       "path": "test/kernel/mutation/policy-concurrency.test.mjs",
       "name": "kernel.mutate: policy receives fenced semantic snapshots without fence_generation for single and batch",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/policy-concurrency.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "policy snapshots no longer include JSON fence metadata",
+      "replacement": "policy tests validate the canonical mutation request contract"
     },
     {
       "path": "test/kernel/mutation/policy-concurrency.test.mjs",
@@ -9459,15 +9784,25 @@
       "path": "test/kernel/mutation/policy-concurrency.test.mjs",
       "name": "kernel.mutate: two concurrent mutate calls serialise under the project lock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/policy-concurrency.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/kernel/mutation/policy-concurrency.test.ts",
       "name": "kernel.mutate: policy receives fenced semantic snapshots without fence_generation for single and batch",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/policy-concurrency.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "policy snapshots no longer include JSON fence metadata",
+      "replacement": "policy tests validate the canonical mutation request contract"
+    },
+    {
+      "path": "test/kernel/mutation/policy-concurrency.test.ts",
+      "name": "kernel.mutate: policy receives semantic SQLite snapshots for single and batch",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/kernel/mutation/policy-concurrency.test.ts",
@@ -9494,8 +9829,16 @@
       "path": "test/kernel/mutation/policy-concurrency.test.ts",
       "name": "kernel.mutate: two concurrent mutate calls serialise under the project lock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/kernel/mutation/policy-concurrency.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
+    },
+    {
+      "path": "test/kernel/mutation/policy-concurrency.test.ts",
+      "name": "kernel.mutate: two concurrent mutate calls serialize under SQLite transactions",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/kernel/mutation/preconditions.test.mjs",
@@ -9746,8 +10089,10 @@
       "path": "test/lifecycle.test.mjs",
       "name": "CLI: pre-release states are rejected with structural migration guidance",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-lifecycle.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "pre-release JSON states are not accepted by the SQLite runtime",
+      "replacement": "state migration tests validate explicit schema-1 conversion"
     },
     {
       "path": "test/lifecycle.test.mjs",
@@ -9998,8 +10343,10 @@
       "path": "test/lifecycle.test.ts",
       "name": "CLI: pre-release states are rejected with structural migration guidance",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lifecycle.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "pre-release JSON states are not accepted by the SQLite runtime",
+      "replacement": "state migration tests validate explicit schema-1 conversion"
     },
     {
       "path": "test/lifecycle.test.ts",
@@ -10021,6 +10368,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/lifecycle.test.mjs"
+    },
+    {
+      "path": "test/lifecycle.test.ts",
+      "name": "CLI: tasks.json-only projects are rejected with explicit migration guidance",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/lifecycle.test.ts",
@@ -10191,9 +10544,18 @@
     },
     {
       "path": "test/local-projects.test.ts",
-      "name": "listProjectIds lists storage dirs with state or ledger and skips the rest",
+      "name": "listProjectIds lists projects with SQLite state and skips other storage dirs",
       "ordinal": 1,
       "disposition": "keep"
+    },
+    {
+      "path": "test/local-projects.test.ts",
+      "name": "listProjectIds lists storage dirs with state or ledger and skips the rest",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "project discovery no longer searches for JSON state or ledgers",
+      "replacement": "local-projects tests cover SQLite-only project discovery"
     },
     {
       "path": "test/local-projects.test.ts",
@@ -10204,6 +10566,15 @@
     {
       "path": "test/local-projects.test.ts",
       "name": "readStateByProjectId rejects a state without a ledger instead of guessing",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the revision ledger is retired",
+      "replacement": "local-projects tests cover direct canonical SQLite reads"
+    },
+    {
+      "path": "test/local-projects.test.ts",
+      "name": "readStateByProjectId rejects a tasks.json-only project with migration guidance",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -10217,175 +10588,154 @@
       "path": "test/lock.test.mjs",
       "name": "stale lock recovery requires verified manual removal before schema-1 operation resumes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock acquires and releases on success",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock blocks concurrent acquires; second waits then succeeds",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock does not auto-clear an old lock file",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock preserves active project capabilities across nested A-to-B-to-A scopes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock releases on mutator error (no deadlock)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock reuses only the live same-project capability in nested async scope",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.mjs",
       "name": "withLock times out if holder never releases",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions.",
+      "replacement": "SQLite writer-concurrency and crash-injection tests"
     },
     {
       "path": "test/lock.test.ts",
       "name": "project-id locks contend with the project writer lock",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "stale lock recovery requires verified manual removal before schema-1 operation resumes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock acquires and releases on success",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock blocks concurrent acquires; second waits then succeeds",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock does not auto-clear an old lock file",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock preserves active project capabilities across nested A-to-B-to-A scopes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock releases on mutator error (no deadlock)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock reuses only the live same-project capability in nested async scope",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/lock.test.ts",
       "name": "withLock times out if holder never releases",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/lock.test.mjs"
-    },
-    {
-      "path": "test/log.test.mjs",
-      "name": "append accepts a note field",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.mjs",
-      "name": "append adds an entry with ts, agent, action",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.mjs",
-      "name": "append adds multiple entries in order",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.mjs",
-      "name": "append commits to the ledger without rebasing node revisions",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.ts",
-      "name": "append accepts a note field",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.ts",
-      "name": "append adds an entry with ts, agent, action",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.ts",
-      "name": "append adds multiple entries in order",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
-    },
-    {
-      "path": "test/log.test.ts",
-      "name": "append commits to the ledger without rebasing node revisions",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/log.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "replacement": "SQLite writer-concurrency and crash-injection tests",
+      "reason": "Project file-lock behavior is retired in favor of SQLite transactions."
     },
     {
       "path": "test/manifest-client.test.ts",
@@ -10750,6 +11100,12 @@
     },
     {
       "path": "test/package.test.ts",
+      "name": "package: the CLI ships no runtime dependencies",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/package.test.ts",
       "name": "package: the UI test suite is gone with its script and loader",
       "ordinal": 1,
       "disposition": "move",
@@ -11073,12 +11429,12 @@
       "path": "test/plugin-compat.test.mjs",
       "name": "init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "guard",
-      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
-      "replacement": "keep while the guard is required",
-      "move_from": "test/plugin-compat.test.mjs"
+      "motive": "`init --force fails closed on a corrupt SQLite database` proves destructive initialization preserves invalid database bytes",
+      "reason": "force-init now preserves and rejects corrupt SQLite state",
+      "replacement": "plugin compatibility tests cover fail-closed corrupt database initialization"
     },
     {
       "path": "test/plugin-compat.test.mjs",
@@ -11144,14 +11500,24 @@
     },
     {
       "path": "test/plugin-compat.test.ts",
-      "name": "init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()",
+      "name": "init --force fails closed on a corrupt SQLite database",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugin-compat.test.mjs",
+      "disposition": "keep",
       "lane": "raw",
       "category": "guard",
-      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
+      "motive": "`init --force fails closed on a corrupt SQLite database` proves destructive initialization preserves invalid database bytes",
       "replacement": "keep while the guard is required"
+    },
+    {
+      "path": "test/plugin-compat.test.ts",
+      "name": "init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()",
+      "ordinal": 1,
+      "disposition": "delete",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "`init --force fails closed on a corrupt SQLite database` proves destructive initialization preserves invalid database bytes",
+      "reason": "force-init now preserves and rejects corrupt SQLite state",
+      "replacement": "plugin compatibility tests cover fail-closed corrupt database initialization"
     },
     {
       "path": "test/plugin-compat.test.ts",
@@ -11161,7 +11527,7 @@
       "move_from": "test/plugin-compat.test.mjs",
       "lane": "raw",
       "category": "guard",
-      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
+      "motive": "`init --force fails closed on a corrupt SQLite database` proves destructive initialization preserves invalid database bytes",
       "replacement": "keep while the guard is required"
     },
     {
@@ -11172,7 +11538,7 @@
       "move_from": "test/plugin-compat.test.mjs",
       "lane": "raw",
       "category": "guard",
-      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
+      "motive": "`init --force fails closed on a corrupt SQLite database` proves destructive initialization preserves invalid database bytes",
       "replacement": "keep while the guard is required"
     },
     {
@@ -11183,7 +11549,7 @@
       "move_from": "test/plugin-compat.test.mjs",
       "lane": "raw",
       "category": "guard",
-      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
+      "motive": "`init --force fails closed on a corrupt SQLite database` proves destructive initialization preserves invalid database bytes",
       "replacement": "keep while the guard is required"
     },
     {
@@ -11194,7 +11560,7 @@
       "move_from": "test/plugin-compat.test.mjs",
       "lane": "raw",
       "category": "guard",
-      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
+      "motive": "`init --force fails closed on a corrupt SQLite database` proves destructive initialization preserves invalid database bytes",
       "replacement": "keep while the guard is required"
     },
     {
@@ -13117,140 +13483,140 @@
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: adds plugin_id when ctx.pluginId is a non-empty string",
+      "name": "prepareLogEntry: adds plugin_id when ctx.pluginId is a non-empty string",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: never mutates the entry passed in by the caller",
+      "name": "prepareLogEntry: never mutates the entry passed in by the caller",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: omits plugin_id when ctx is undefined",
+      "name": "prepareLogEntry: omits plugin_id when ctx is undefined",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is empty / whitespace",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is empty / whitespace",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is missing",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is missing",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is not a string",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is not a string",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: rejects when entry is not an object (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry is not an object (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: rejects when entry.action is missing (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry.action is missing (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: rejects when entry.agent is missing (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry.agent is missing (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.mjs",
-      "name": "appendWithContext: trims surrounding whitespace from pluginId",
+      "name": "prepareLogEntry: trims surrounding whitespace from pluginId",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: adds plugin_id when ctx.pluginId is a non-empty string",
+      "name": "prepareLogEntry: adds plugin_id when ctx.pluginId is a non-empty string",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: never mutates the entry passed in by the caller",
+      "name": "prepareLogEntry: never mutates the entry passed in by the caller",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: omits plugin_id when ctx is undefined",
+      "name": "prepareLogEntry: omits plugin_id when ctx is undefined",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is empty / whitespace",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is empty / whitespace",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is missing",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is missing",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: omits plugin_id when ctx.pluginId is not a string",
+      "name": "prepareLogEntry: omits plugin_id when ctx.pluginId is not a string",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: rejects when entry is not an object (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry is not an object (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: rejects when entry.action is missing (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry.action is missing (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: rejects when entry.agent is missing (validation propagates)",
+      "name": "prepareLogEntry: rejects when entry.agent is missing (validation propagates)",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-append.test.ts",
-      "name": "appendWithContext: trims surrounding whitespace from pluginId",
+      "name": "prepareLogEntry: trims surrounding whitespace from pluginId",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-append.test.mjs"
@@ -13313,7 +13679,7 @@
     },
     {
       "path": "test/plugin-log-seam-residual-invariant.test.mjs",
-      "name": "plugin-log-seam: append() CLI path still works after the seam is added",
+      "name": "plugin-log-seam: retired append() path stays gone",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-invariant.test.mjs"
@@ -13322,22 +13688,32 @@
       "path": "test/plugin-log-seam-residual-invariant.test.mjs",
       "name": "plugin-log-seam: handlers still observe withLock → updateState → append order (one log per handler call)",
       "ordinal": 1,
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
+    },
+    {
+      "path": "test/plugin-log-seam-residual-invariant.test.ts",
+      "name": "plugin-log-seam: retired append() path stays gone",
+      "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-log-seam-residual-invariant.test.mjs"
     },
     {
       "path": "test/plugin-log-seam-residual-invariant.test.ts",
-      "name": "plugin-log-seam: append() CLI path still works after the seam is added",
+      "name": "plugin-log-seam: handlers still append one log per call inside the SQLite transaction",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugin-log-seam-residual-invariant.test.mjs"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-log-seam-residual-invariant.test.ts",
       "name": "plugin-log-seam: handlers still observe withLock → updateState → append order (one log per handler call)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugin-log-seam-residual-invariant.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugin-log-seam-residual-lifecycle.test.mjs",
@@ -15202,8 +15578,10 @@
       "path": "test/plugin-policy-seam-state-ops.test.mjs",
       "name": "seam-init: corrupt-recovery (no --force) needs no actor and never invokes the policy",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugin-policy-seam-state-ops.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "only projects with canonical SQLite state can initialize at runtime",
+      "replacement": "state-ops tests cover tasks.json-only explicit migration guidance"
     },
     {
       "path": "test/plugin-policy-seam-state-ops.test.mjs",
@@ -15314,8 +15692,10 @@
       "path": "test/plugin-policy-seam-state-ops.test.ts",
       "name": "seam-init: corrupt-recovery (no --force) needs no actor and never invokes the policy",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugin-policy-seam-state-ops.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "only projects with canonical SQLite state can initialize at runtime",
+      "replacement": "state-ops tests cover tasks.json-only explicit migration guidance"
     },
     {
       "path": "test/plugin-policy-seam-state-ops.test.ts",
@@ -15323,6 +15703,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/plugin-policy-seam-state-ops.test.mjs"
+    },
+    {
+      "path": "test/plugin-policy-seam-state-ops.test.ts",
+      "name": "seam-init: tasks.json-only projects require explicit migration without invoking policy",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-policy-seam-state-ops.test.ts",
@@ -16028,22 +16414,28 @@
       "path": "test/plugins/api/data-isolation.test.mjs",
       "name": "data.set takes the project lock (concurrent set + take both succeed without corruption)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugins/api/data-isolation.test.mjs",
       "name": "two plugins writing concurrently (node data + project data) preserve both keyspaces under withLock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugins/api/data-isolation.test.mjs",
       "name": "two plugins writing the SAME keyspace (project) serialize under withLock and both writes land",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugins/api/data-isolation.test.ts",
@@ -16166,24 +16558,48 @@
     },
     {
       "path": "test/plugins/api/data-isolation.test.ts",
+      "name": "data.set and take transactions both succeed without corruption",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/plugins/api/data-isolation.test.ts",
       "name": "data.set takes the project lock (concurrent set + take both succeed without corruption)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
+    },
+    {
+      "path": "test/plugins/api/data-isolation.test.ts",
+      "name": "two plugins writing concurrently (node data + project data) preserve both keyspaces in SQLite",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/plugins/api/data-isolation.test.ts",
       "name": "two plugins writing concurrently (node data + project data) preserve both keyspaces under withLock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
+    },
+    {
+      "path": "test/plugins/api/data-isolation.test.ts",
+      "name": "two plugins writing the SAME keyspace (project) serialize in SQLite and both writes land",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/plugins/api/data-isolation.test.ts",
       "name": "two plugins writing the SAME keyspace (project) serialize under withLock and both writes land",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/plugins/api/data-isolation.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test description was updated to reflect SQLite transaction semantics.",
+      "replacement": "Current SQLite transaction concurrency tests"
     },
     {
       "path": "test/plugins/api/runtime-query.test.mjs",
@@ -16552,8 +16968,10 @@
       "path": "test/project-storage.test.mjs",
       "name": "storage: project metadata makes sibling worktrees share the same state and lock path",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/project-storage.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test name or behavior was retired by the SQLite transaction cutover.",
+      "replacement": "Updated SQLite transaction and writer-concurrency coverage"
     },
     {
       "path": "test/project-storage.test.mjs",
@@ -16573,8 +16991,16 @@
       "path": "test/project-storage.test.ts",
       "name": "storage: project metadata makes sibling worktrees share the same state and lock path",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/project-storage.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test name or behavior was retired by the SQLite transaction cutover.",
+      "replacement": "Updated SQLite transaction and writer-concurrency coverage"
+    },
+    {
+      "path": "test/project-storage.test.ts",
+      "name": "storage: project metadata makes sibling worktrees share the same state path",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/project-storage.test.ts",
@@ -17019,6 +17445,12 @@
     },
     {
       "path": "test/provider-gate-lifecycle.test.ts",
+      "name": "gate.resolve closes a non-choice gate without a recorded decision",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-gate-lifecycle.test.ts",
       "name": "gate.resolve is a no-op for already-ready tasks and surfaces dependents",
       "ordinal": 1,
       "disposition": "move",
@@ -17030,6 +17462,18 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/provider-gate-lifecycle.test.mjs"
+    },
+    {
+      "path": "test/provider-gate-lifecycle.test.ts",
+      "name": "gate.resolve rejects partial decision text on a non-choice gate",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-gate-lifecycle.test.ts",
+      "name": "gate.resolve treats a missing resolution_mode as 'choice'",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/provider-gate-lifecycle.test.ts",
@@ -19616,6 +20060,24 @@
       "replacement": "covered by dispatch and retired-surface checks"
     },
     {
+      "path": "test/resolve-cli.test.ts",
+      "name": "resolve: --note is not a flag",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/resolve-cli.test.ts",
+      "name": "resolve: a choice gate still requires both flags",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/resolve-cli.test.ts",
+      "name": "resolve: a labor gate resolves without --choice/--rationale",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/retired-surfaces.test.mjs",
       "name": "provider allowlists retain kind-specific fields",
       "ordinal": 1,
@@ -19635,6 +20097,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/retired-surfaces.test.mjs"
+    },
+    {
+      "path": "test/retired-surfaces.test.ts",
+      "name": "legacy top-level importer stays retired while explicit SQLite migration is scoped under state",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/retired-surfaces.test.ts",
@@ -19667,7 +20135,10 @@
       "path": "test/retired-surfaces.test.ts",
       "name": "the one-time state importer is absent from the CLI and storage",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the importer-specific surface test is retired with the importer",
+      "replacement": "adversarial tests cover explicit migration guidance"
     },
     {
       "path": "test/search.test.mjs",
@@ -19808,6 +20279,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/server-auth-store.test.mjs"
+    },
+    {
+      "path": "test/server-auth-store.test.ts",
+      "name": "auth store skips the directory fsync on win32 and fsyncs elsewhere",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/server-auth-store.test.ts",
@@ -21488,6 +21965,115 @@
       "move_from": "test/snapshots-restore.test.mjs"
     },
     {
+      "path": "test/sqlite-mutation.test.ts",
+      "name": "20 SIGKILLs during SQLite mutations retain confirmed commits without partial state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-mutation.test.ts",
+      "name": "50 concurrent SQLite CLI mutations serialize on the database revision and retain every note",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-mutation.test.ts",
+      "name": "concurrent SQLite CLI mutations serialize on the database revision and retain every note",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test name or behavior was retired by the SQLite transaction cutover.",
+      "replacement": "Updated SQLite transaction and writer-concurrency coverage"
+    },
+    {
+      "path": "test/sqlite-mutation.test.ts",
+      "name": "runtime source has no file-lock, lock capability, or generation-fence path",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-mutation.test.ts",
+      "name": "SQLite log append uses a database transaction without JSON sidecars",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-mutation.test.ts",
+      "name": "SQLite manual transfer replaces an existing database without JSON sidecars",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "a project with only tasks.json is rejected with explicit migration guidance",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds inline schema-1 SQLite tables to prove the supported storage upgrade path",
+      "replacement": "the schema-1 SQLite upgrade remains covered by this test"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "normal CLI creation, mutation, reads, and export use SQLite only",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds inline schema-1 SQLite tables to prove the supported storage upgrade path",
+      "replacement": "the schema-1 SQLite upgrade remains covered by this test"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "SQLite state store creates, mutates, and reads canonical state",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds inline schema-1 SQLite tables to prove the supported storage upgrade path",
+      "replacement": "the schema-1 SQLite upgrade remains covered by this test"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "SQLite status does not query the content-addressed bodies table",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds inline schema-1 SQLite tables to prove the supported storage upgrade path",
+      "replacement": "the schema-1 SQLite upgrade remains covered by this test"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "SQLite stores bodies by content hash and show/context hydrate exact text",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds inline schema-1 SQLite tables to prove the supported storage upgrade path",
+      "replacement": "the schema-1 SQLite upgrade remains covered by this test"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "SQLite upgrades inline schema-1 bodies without changing the exported state",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds inline schema-1 SQLite tables to prove the supported storage upgrade path",
+      "replacement": "the schema-1 SQLite upgrade remains covered by this test"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "state export returns complete schema-1 state from the SQLite database",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds inline schema-1 SQLite tables to prove the supported storage upgrade path",
+      "replacement": "the schema-1 SQLite upgrade remains covered by this test"
+    },
+    {
       "path": "test/state-cli.test.mjs",
       "name": "CLI help and reserved namespaces include state",
       "ordinal": 1,
@@ -21528,6 +22114,48 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/state-cli.test.mjs"
+    },
+    {
+      "path": "test/state-migrate.test.ts",
+      "name": "a tasks.json-only project requires explicit migration and is never imported on read",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-migrate.test.ts",
+      "name": "explicit migration is advertised under state, not as a top-level importer",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-migrate.test.ts",
+      "name": "state migrate backs up and imports schema-1 JSON with a reproducible export",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-migrate.test.ts",
+      "name": "state migrate flags cannot be silently ignored by read subcommands",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-migrate.test.ts",
+      "name": "state migrate refuses a changed or unverifiable backup instead of overwriting it",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-migrate.test.ts",
+      "name": "state migrate requires explicit confirmation and does not write before it",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-migrate.test.ts",
+      "name": "state migrate strips retired fence_generation from SQLite state and export",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/state-operation-adapters.test.mjs",
@@ -21582,8 +22210,10 @@
       "path": "test/state-resilience-regression.test.mjs",
       "name": "SANDBOX FILES: orchestrator-created state file lives under the sandbox home with private umask (0700/0600)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state-resilience-regression.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the sandbox test now explicitly names the SQLite state file",
+      "replacement": "SANDBOX FILES: SQLite state lives under the sandbox home with private umask (0700/0600)"
     },
     {
       "path": "test/state-resilience-regression.test.ts",
@@ -21610,8 +22240,16 @@
       "path": "test/state-resilience-regression.test.ts",
       "name": "SANDBOX FILES: orchestrator-created state file lives under the sandbox home with private umask (0700/0600)",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state-resilience-regression.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the sandbox test now explicitly names the SQLite state file",
+      "replacement": "SANDBOX FILES: SQLite state lives under the sandbox home with private umask (0700/0600)"
+    },
+    {
+      "path": "test/state-resilience-regression.test.ts",
+      "name": "SANDBOX FILES: SQLite state lives under the sandbox home with private umask (0700/0600)",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/state-revision-cas.test.mjs",
@@ -21694,8 +22332,10 @@
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: preserves raw bytes verbatim for non-JSON content",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state-snapshots.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "runtime state snapshots are now captured from canonical SQLite state",
+      "replacement": "snapshot tests cover canonical state JSON exports"
     },
     {
       "path": "test/state-snapshots.test.mjs",
@@ -21743,8 +22383,10 @@
       "path": "test/state-snapshots.test.mjs",
       "name": "init --force on existing valid v4 state: snapshot reason=force-init, raw preserves bytes verbatim",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state-snapshots.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "init no longer accepts or snapshots legacy JSON state at runtime",
+      "replacement": "snapshot tests cover force-init snapshots from canonical SQLite state"
     },
     {
       "path": "test/state-snapshots.test.mjs",
@@ -21771,8 +22413,10 @@
       "path": "test/state-snapshots.test.mjs",
       "name": "init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recovery, raw preserves garbage",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state-snapshots.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "corrupt SQLite state cannot be recoverably reset by init",
+      "replacement": "plugin compatibility tests cover preservation of corrupt database bytes"
     },
     {
       "path": "test/state-snapshots.test.mjs",
@@ -21868,8 +22512,10 @@
       "path": "test/state-snapshots.test.ts",
       "name": "createSnapshot: preserves raw bytes verbatim for non-JSON content",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state-snapshots.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "runtime state snapshots are now captured from canonical SQLite state",
+      "replacement": "snapshot tests cover canonical state JSON exports"
     },
     {
       "path": "test/state-snapshots.test.ts",
@@ -21908,6 +22554,12 @@
     },
     {
       "path": "test/state-snapshots.test.ts",
+      "name": "init --force on existing SQLite state snapshots its logical state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-snapshots.test.ts",
       "name": "init --force on existing v4 state: snapshot reason=force-init, raw preserves the pre-reset state",
       "ordinal": 1,
       "disposition": "move",
@@ -21917,8 +22569,10 @@
       "path": "test/state-snapshots.test.ts",
       "name": "init --force on existing valid v4 state: snapshot reason=force-init, raw preserves bytes verbatim",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state-snapshots.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "init no longer accepts or snapshots legacy JSON state at runtime",
+      "replacement": "snapshot tests cover force-init snapshots from canonical SQLite state"
     },
     {
       "path": "test/state-snapshots.test.ts",
@@ -21945,8 +22599,10 @@
       "path": "test/state-snapshots.test.ts",
       "name": "init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recovery, raw preserves garbage",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state-snapshots.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "corrupt SQLite state cannot be recoverably reset by init",
+      "replacement": "plugin compatibility tests cover preservation of corrupt database bytes"
     },
     {
       "path": "test/state-snapshots.test.ts",
@@ -22012,26 +22668,38 @@
       "move_from": "test/state-snapshots.test.mjs"
     },
     {
+      "path": "test/state-work-budget.test.ts",
+      "name": "one mutation does not parse or serialize a full JSON state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-work-budget.test.ts",
+      "name": "status, context, and history stay within state work budgets",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/state.test.mjs",
       "name": "canonical-only ledger protocols load without the migration module",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "motive": "seeds schema-1 tasks.json for explicit migrate and guards runtime writes from legacy JSON state",
+      "reason": "runtime JSON and ledger storage protocols are retired",
+      "replacement": "state tests cover explicit migration and SQLite-only runtime persistence"
     },
     {
       "path": "test/state.test.mjs",
       "name": "canonical-only reader rejects versions 2 through 5 while retaining classification",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
@@ -22046,12 +22714,12 @@
       "path": "test/state.test.mjs",
       "name": "direct state writers reject ledger-backed and fenced projects before mutation",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
@@ -22077,34 +22745,34 @@
       "path": "test/state.test.mjs",
       "name": "readState accepts canonical v1 state when its revision ledger is present",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
       "name": "readState classifies pre-release v1 structure before checking its version",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
       "name": "readState fails closed for ledger-only projects and recovers exact pending bootstrap",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
@@ -22128,45 +22796,45 @@
       "path": "test/state.test.mjs",
       "name": "readState rejects canonical v1 state without fence or ledger",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
       "name": "readState rejects incomplete canonical v1 state",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
       "name": "readState returns null if file missing",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
       "name": "unknown future schema version is rejected on read and write",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
@@ -22235,23 +22903,23 @@
       "path": "test/state.test.mjs",
       "name": "writeState rejects a v1-shaped object with a clear error",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
       "name": "writeState rejects a v2 object missing the v2 collections",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires",
-      "move_from": "test/state.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.mjs",
@@ -22266,34 +22934,34 @@
       "path": "test/state.test.ts",
       "name": "canonical-only ledger protocols load without the migration module",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "motive": "seeds schema-1 tasks.json for explicit migrate and guards runtime writes from legacy JSON state",
+      "reason": "runtime JSON and ledger storage protocols are retired",
+      "replacement": "state tests cover explicit migration and SQLite-only runtime persistence"
     },
     {
       "path": "test/state.test.ts",
       "name": "canonical-only reader rejects versions 2 through 5 while retaining classification",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.ts",
       "name": "direct state writers reject ledger-backed and fenced projects before mutation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.ts",
@@ -22303,106 +22971,166 @@
       "move_from": "test/state.test.mjs",
       "lane": "raw",
       "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
+      "motive": "seeds schema-1 tasks.json for explicit migrate and guards runtime writes from legacy JSON state",
       "replacement": "no replacement until the importer lane retires"
     },
     {
       "path": "test/state.test.ts",
       "name": "readState accepts canonical v1 state when its revision ledger is present",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.ts",
       "name": "readState classifies pre-release v1 structure before checking its version",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.ts",
       "name": "readState fails closed for ledger-only projects and recovers exact pending bootstrap",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.ts",
       "name": "readState rejects canonical v1 state without fence or ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.ts",
       "name": "readState rejects incomplete canonical v1 state",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.ts",
       "name": "readState returns null if file missing",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
+    },
+    {
+      "path": "test/state.test.ts",
+      "name": "readState returns null if the SQLite database is missing",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds schema-1 tasks.json for explicit migrate and guards runtime writes from legacy JSON state",
+      "replacement": "no replacement until the importer lane retires"
+    },
+    {
+      "path": "test/state.test.ts",
+      "name": "tasks.json-only projects require explicit migration",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds schema-1 tasks.json for explicit migrate and guards runtime writes from legacy JSON state",
       "replacement": "no replacement until the importer lane retires"
     },
     {
       "path": "test/state.test.ts",
       "name": "unknown future schema version is rejected on read and write",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
+    },
+    {
+      "path": "test/state.test.ts",
+      "name": "unknown schema versions are rejected on write",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds schema-1 tasks.json for explicit migrate and guards runtime writes from legacy JSON state",
+      "replacement": "no replacement until the importer lane retires"
+    },
+    {
+      "path": "test/state.test.ts",
+      "name": "writeState and readState round-trip canonical state through SQLite",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds schema-1 tasks.json for explicit migrate and guards runtime writes from legacy JSON state",
       "replacement": "no replacement until the importer lane retires"
     },
     {
       "path": "test/state.test.ts",
       "name": "writeState rejects a v1-shaped object with a clear error",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/state.test.ts",
       "name": "writeState rejects a v2 object missing the v2 collections",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/state.test.mjs",
+      "disposition": "delete",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
+    },
+    {
+      "path": "test/state.test.ts",
+      "name": "writeState rejects incomplete canonical schema",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds schema-1 tasks.json for explicit migrate and guards runtime writes from legacy JSON state",
+      "replacement": "no replacement until the importer lane retires"
+    },
+    {
+      "path": "test/state.test.ts",
+      "name": "writeState rejects the pre-canonical shape",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "seeds schema-1 tasks.json for explicit migrate and guards runtime writes from legacy JSON state",
       "replacement": "no replacement until the importer lane retires"
     },
     {
@@ -22759,441 +23487,568 @@
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "commit crash before durable stage or pending leaves source state and ledger unchanged",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "commit pending recovery rejects missing or altered durable stage without clearing pending",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "commit recovery fails closed when state diverges from both pending fingerprints",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "commit recovery fails closed when the durable ledger advances beyond the pending reservation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "commit recovery resumes exact source or destination fingerprints idempotently",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "fenced commit preserves generation and requires strictly monotonic state and node revisions",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "fenced commit rejects created or modified nodes without advancing their revisions",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "fenced commit requires an active capability and commits under the existing lock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "fenced commit reserves at least all candidate revisions and persists exact state/log bytes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "fenced read rejects absent and forged capabilities before storage access",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "fenced read rejects malformed, downgraded, generation, and revision-mismatched state",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "fenced read requires an active capability and reads without reacquiring the held lock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
       "name": "lock context is opaque, active only for its project and invocation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "commit crash before durable stage or pending leaves source state and ledger unchanged",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "commit pending recovery rejects missing or altered durable stage without clearing pending",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "commit recovery fails closed when state diverges from both pending fingerprints",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "commit recovery fails closed when the durable ledger advances beyond the pending reservation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "commit recovery resumes exact source or destination fingerprints idempotently",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "directory sync is skipped on Windows, where directory handles cannot be fsynced",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON ledger commit implementation is retired",
+      "replacement": "SQLite store tests cover atomic canonical commits"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "fenced commit preserves generation and requires strictly monotonic state and node revisions",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "fenced commit rejects created or modified nodes without advancing their revisions",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "fenced commit requires an active capability and commits under the existing lock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "fenced commit reserves at least all candidate revisions and persists exact state/log bytes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "fenced read rejects absent and forged capabilities before storage access",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "fenced read rejects malformed, downgraded, generation, and revision-mismatched state",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "fenced read requires an active capability and reads without reacquiring the held lock",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-commit.test.ts",
       "name": "lock context is opaque, active only for its project and invocation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-commit.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.mjs",
       "name": "fenced recovery fails closed for divergent state and adulterated stage",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.mjs",
       "name": "fenced recovery rebases stale legacy state above local high-water and preserves generation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.mjs",
       "name": "fenced recovery refuses to reconstruct an absent or invalid local ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.mjs",
       "name": "fenced recovery rejects invalid lock capabilities before storage access",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.mjs",
       "name": "fenced recovery resumes only exact pending source or destination after crashes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.mjs",
       "name": "recovery checkpoint is invalidated durably before a normal fenced commit",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.mjs",
       "name": "recovery pending with an explicit candidate still requires its matching fingerprint",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.mjs",
       "name": "recovery without a candidate retries durable null input fingerprints",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.ts",
       "name": "fenced recovery fails closed for divergent state and adulterated stage",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.ts",
       "name": "fenced recovery rebases stale legacy state above local high-water and preserves generation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.ts",
       "name": "fenced recovery refuses to reconstruct an absent or invalid local ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.ts",
       "name": "fenced recovery rejects invalid lock capabilities before storage access",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.ts",
       "name": "fenced recovery resumes only exact pending source or destination after crashes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.ts",
       "name": "recovery checkpoint is invalidated durably before a normal fenced commit",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.ts",
       "name": "recovery pending with an explicit candidate still requires its matching fingerprint",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-recovery.test.ts",
       "name": "recovery without a candidate retries durable null input fingerprints",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-recovery.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.mjs",
       "name": "fenced replace fails closed for divergent ledger, state, or adulterated stage",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.mjs",
       "name": "fenced replace rebases a canonical candidate above local high-water and preserves generation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.mjs",
       "name": "fenced replace refuses absent/corrupt ledger and invalid current fenced state",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.mjs",
       "name": "fenced replace rejects invalid lock capabilities before storage access",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.mjs",
       "name": "fenced replace rejects unsupported candidates before changing durable files",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.mjs",
       "name": "fenced replace resumes from exact source or destination across durable crash points",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.mjs",
       "name": "replace checkpoint is invalidated durably before installing a replacement",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.ts",
       "name": "fenced replace fails closed for divergent ledger, state, or adulterated stage",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.ts",
       "name": "fenced replace rebases a canonical candidate above local high-water and preserves generation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.ts",
       "name": "fenced replace refuses absent/corrupt ledger and invalid current fenced state",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.ts",
       "name": "fenced replace rejects invalid lock capabilities before storage access",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.ts",
       "name": "fenced replace rejects unsupported candidates before changing durable files",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.ts",
       "name": "fenced replace resumes from exact source or destination across durable crash points",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger-replace.test.ts",
       "name": "replace checkpoint is invalidated durably before installing a replacement",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger-replace.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap creates an initial canonical v1 state under an active lock without reacquiring",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap does not overwrite an existing state or ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap recovers interrupted initial publication without divergent state or ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap rejects a retry with a different initial-state fingerprint",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap rejects invalid lock capabilities before storage access",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "ledger bootstrap fails closed for corrupt or missing ledger after fencing",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
@@ -23253,8 +24108,10 @@
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock fenced read fails closed for ledger-only projects unless bootstrap is pending",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
@@ -23269,22 +24126,28 @@
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock fenced read rejects expired and foreign lock capabilities",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock fenced read rejects legacy forms even when a ledger exists",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock fenced read returns null without creating paths for an absent project",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.mjs",
@@ -23317,78 +24180,100 @@
       "path": "test/storage-ledger.test.ts",
       "name": "fenced bootstrap creates an initial canonical v1 state under an active lock without reacquiring",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.ts",
       "name": "fenced bootstrap does not overwrite an existing state or ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.ts",
       "name": "fenced bootstrap recovers interrupted initial publication without divergent state or ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.ts",
       "name": "fenced bootstrap rejects a retry with a different initial-state fingerprint",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.ts",
       "name": "fenced bootstrap rejects invalid lock capabilities before storage access",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.ts",
       "name": "ledger bootstrap fails closed for corrupt or missing ledger after fencing",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.ts",
       "name": "under-lock fenced read fails closed for ledger-only projects unless bootstrap is pending",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.ts",
       "name": "under-lock fenced read rejects expired and foreign lock capabilities",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.ts",
       "name": "under-lock fenced read rejects legacy forms even when a ledger exists",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-ledger.test.ts",
       "name": "under-lock fenced read returns null without creating paths for an absent project",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-ledger.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-lock-log-layout.test.mjs",
       "name": "lock storage has a canonical module and no root shim",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-lock-log-layout.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test name or behavior was retired by the SQLite transaction cutover.",
+      "replacement": "Updated SQLite transaction and writer-concurrency coverage"
     },
     {
       "path": "test/storage-lock-log-layout.test.mjs",
@@ -23401,8 +24286,10 @@
       "path": "test/storage-lock-log-layout.test.ts",
       "name": "lock storage has a canonical module and no root shim",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-lock-log-layout.test.mjs"
+      "disposition": "delete",
+      "category": "sqlite-transaction-cutover",
+      "reason": "The test name or behavior was retired by the SQLite transaction cutover.",
+      "replacement": "Updated SQLite transaction and writer-concurrency coverage"
     },
     {
       "path": "test/storage-lock-log-layout.test.ts",
@@ -23410,6 +24297,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/storage-lock-log-layout.test.mjs"
+    },
+    {
+      "path": "test/storage-lock-log-layout.test.ts",
+      "name": "project storage lock module is retired",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/storage-paths.test.mjs",
@@ -23541,85 +24434,127 @@
       "path": "test/storage-state-read-v5.test.mjs",
       "name": "readState delegates canonical state validation to the fenced ledger reader",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
       "name": "readState fails closed when a canonical ledger is missing or corrupt",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
       "name": "readState fails closed when canonical state diverges from the ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
       "name": "readState recovers exact pending bootstrap",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
       "name": "readState rejects versions 2 through 5 with recovery guidance",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
       "name": "readState resumes an exact pending fenced commit",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.ts",
       "name": "readState delegates canonical state validation to the fenced ledger reader",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.ts",
       "name": "readState fails closed when a canonical ledger is missing or corrupt",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.ts",
       "name": "readState fails closed when canonical state diverges from the ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.ts",
       "name": "readState recovers exact pending bootstrap",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.ts",
       "name": "readState rejects versions 2 through 5 with recovery guidance",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/storage-state-read-v5.test.ts",
       "name": "readState resumes an exact pending fenced commit",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/storage-state-read-v5.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
+    },
+    {
+      "path": "test/structural-equality.test.ts",
+      "name": "node equality preserves primitive comparison and ignores undefined-valued fields",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/structural-equality.test.ts",
+      "name": "structural equality ignores object key order but preserves array order",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/structural-equality.test.ts",
+      "name": "structural equality matches JSON omission and array-null behavior",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/supersede.test.mjs",
@@ -24915,8 +25850,10 @@
       "path": "test/update.test.mjs",
       "name": "update: rejects update on a future state with the public incompatibility code",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-update.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/update.test.mjs",
@@ -25003,6 +25940,12 @@
     },
     {
       "path": "test/update.test.ts",
+      "name": "update: does not implicitly import a future tasks.json state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/update.test.ts",
       "name": "update: idempotent bridge result retains the current node revision",
       "ordinal": 1,
       "disposition": "move",
@@ -25040,8 +25983,10 @@
       "path": "test/update.test.ts",
       "name": "update: rejects update on a future state with the public incompatibility code",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/update.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/update.test.ts",
@@ -25645,8 +26590,10 @@
       "path": "test/v2-adversarial.test.mjs",
       "name": "init rejects a pre-release tasks shape with migration guidance, not --force",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-adversarial.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "pre-release JSON state is no longer supported by runtime storage",
+      "replacement": "adversarial tests cover schema-1 migration guidance"
     },
     {
       "path": "test/v2-adversarial.test.mjs",
@@ -26853,8 +27800,10 @@
       "path": "test/v2-lifecycle.test.mjs",
       "name": "CLI: pre-release states are rejected with structural migration guidance",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-lifecycle.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "pre-release JSON states are not accepted by the SQLite runtime",
+      "replacement": "state migration tests validate explicit schema-1 conversion"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
@@ -27560,8 +28509,10 @@
       "path": "test/v2-update.test.mjs",
       "name": "update: rejects update on a future state with the public incompatibility code",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-update.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/v2-update.test.mjs",
@@ -27658,29 +28609,37 @@
       "path": "test/v5-fixture-helper.test.mjs",
       "name": "exampleState is a canonical version 1 fixture installed through the canonical lane",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v5-fixture-helper.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/v5-fixture-helper.test.mjs",
       "name": "writeFencedState bootstraps and replaces consistent fixtures through storage APIs",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v5-fixture-helper.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/v5-fixture-helper.test.ts",
       "name": "exampleState is a canonical version 1 fixture installed through the canonical lane",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v5-fixture-helper.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/v5-fixture-helper.test.ts",
       "name": "writeFencedState bootstraps and replaces consistent fixtures through storage APIs",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v5-fixture-helper.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired",
+      "replacement": "current SQLite state and explicit migration tests"
     },
     {
       "path": "test/v5-read-consumers.test.mjs",
@@ -27719,23 +28678,23 @@
       "path": "test/v5-read-consumers.test.mjs",
       "name": "read consumers reject future state versions",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "guard",
       "motive": "seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal",
-      "replacement": "keep while the guard is required",
-      "move_from": "test/v5-read-consumers.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/v5-read-consumers.test.mjs",
       "name": "read consumers reject legacy state versions with a migration hint",
       "ordinal": 1,
-      "disposition": "move",
+      "disposition": "delete",
       "lane": "raw",
       "category": "guard",
       "motive": "seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal",
-      "replacement": "keep while the guard is required",
-      "move_from": "test/v5-read-consumers.test.mjs"
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
     },
     {
       "path": "test/v5-read-consumers.test.ts",
@@ -27774,8 +28733,29 @@
       "path": "test/v5-read-consumers.test.ts",
       "name": "read consumers reject future state versions",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v5-read-consumers.test.mjs",
+      "disposition": "delete",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal",
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
+    },
+    {
+      "path": "test/v5-read-consumers.test.ts",
+      "name": "read consumers reject legacy state versions with a migration hint",
+      "ordinal": 1,
+      "disposition": "delete",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal",
+      "replacement": "current SQLite state and explicit migration tests",
+      "reason": "the JSON state or revision-ledger behavior covered by this case is retired"
+    },
+    {
+      "path": "test/v5-read-consumers.test.ts",
+      "name": "SQLite storage rejects future state versions",
+      "ordinal": 1,
+      "disposition": "keep",
       "lane": "raw",
       "category": "guard",
       "motive": "seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal",
@@ -27783,10 +28763,9 @@
     },
     {
       "path": "test/v5-read-consumers.test.ts",
-      "name": "read consumers reject legacy state versions with a migration hint",
+      "name": "SQLite storage rejects noncanonical schema versions",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v5-read-consumers.test.mjs",
+      "disposition": "keep",
       "lane": "raw",
       "category": "guard",
       "motive": "seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal",
@@ -28013,6 +28992,561 @@
       "category": "legacy-workflow",
       "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
       "coverage_removed": true
+    },
+    {
+      "path": "test/status-history.test.ts",
+      "name": "CLI: status --status filters are case-insensitive",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-dispatch-lazy.test.ts",
+      "name": "dispatch boot does not statically load local operation and state graphs",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "every built-in mutation declares an explicit snapshot closure",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "remaining operation closures activate and include graph, scope, initiative, and plugin roots",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "edge.add closure follows long BLOCKS paths so cycle errors match full snapshots",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure mutations reject globally duplicated stored edges",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure mutations reject unrelated self-edges, invalid edge types, and BLOCKS cycles",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure mutations do not reject a healthy unrelated BLOCKS graph",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "SQL closure validation covers every canonical edge invariant",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "SQL closure validation matches full-state edge invariant errors and details",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "node kind changes invalidate the cached SQL edge proof",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure SQL preserves canonical kind rules without imposing subkind rules",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure mutations reject globally dangling stored edges",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure mutations validate edge kinds for loaded endpoint nodes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "task.accept closure includes readiness dependents and supersedes chains but excludes unrelated state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "the declared accept closure commits the readiness delta without loading unrelated nodes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "a 52-operation sequence is byte-identical with full and declared snapshots, including delta replay",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "gate, knowledge, edge, initiative, and plugin closures are byte-identical to full snapshots",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "closure commits preserve the full-state node revision high-water mark",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "task.update keeps cycle detection over paths outside the one-hop target edges",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "task.create closure preserves the complete missing-initiative error details",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "a selected policy evaluates declared-closure mutations against the complete snapshot",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-closure.test.ts",
+      "name": "an undeclared or mismatched mutation closure retains the complete snapshot",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-api.test.ts",
+      "name": "UI HTTP endpoints authenticate, project, and return the pure projections",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-api.test.ts",
+      "name": "UI snapshot uses revision ETags, 304, and cached negotiated compression",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-api.test.ts",
+      "name": "UI snapshot brotli stays interactive on a multi-megabyte body",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-api.test.ts",
+      "name": "UI HTTP endpoints use the existing auth, query, and project errors",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-api.test.ts",
+      "name": "UI API accepts local project, auth, and snapshot adapters",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-events.test.ts",
+      "name": "UI events authenticate, send heartbeats, and emit only changed revisions",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-events.test.ts",
+      "name": "UI events share a project watcher and close it after the last client",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/ui-events.test.ts",
+      "name": "UI events preserve auth and project errors before opening a stream",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/ui-revision-watcher.test.ts",
+      "name": "revision watcher polls the SQLite state revision after directory changes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/ui-revision-watcher.test.ts",
+      "name": "revision watcher re-resolves the SQLite state path and closes its handles",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-log-delta.test.ts",
+      "name": "SQLite changes since a revision are exact and replay to the current snapshot",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-log-delta.test.ts",
+      "name": "SQLite delta history requires a snapshot before the current retained base",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-reads.test.ts",
+      "name": "local read command adapters use point queries, never the full-state reader",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-reads.test.ts",
+      "name": "context knowledge candidates are scoped in SQLite before hydration",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-reads.test.ts",
+      "name": "status summary SQL counts preserve scoped filters and default persisted statuses",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-reads.test.ts",
+      "name": "point-read CLI views retain the canonical read-model JSON and ordering",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "point reads match complete SQLite state and preserve node property order",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "count maps preserve first appearance order from the complete state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "v3 SQLite databases migrate edge lookup columns and indexes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "v4 databases acquire count indexes and filtered counts search them without changing the schema version",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "point reads match a prose-heavy representative project across all six APIs",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-store.test.ts",
+      "name": "10,000-node point reads use indexed bounded work and match full-state projections",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-writes.test.ts",
+      "name": "SQLite state writes touch only changed collection rows",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-writes.test.ts",
+      "name": "in-place updateState mutations persist node, edge, removal, and log changes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-writes.test.ts",
+      "name": "a revision without a new audit entry still records its state delta",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-point-writes.test.ts",
+      "name": "50 incremental SQLite writes equal full replacements and retain an exact delta chain",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-export-remote.test.ts",
+      "name": "state export from a remote backend matches the complete local schema-1 export",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-export-remote.test.ts",
+      "name": "state export rejects a remote state projection instead of exporting it",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-export-remote.test.ts",
+      "name": "remote state remains the same read-model projection",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-log-compaction.test.ts",
+      "name": "state compact keeps the newest N log entries and per-node summaries visible in history",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-log-compaction.test.ts",
+      "name": "repeated compaction merges checkpoints and state export survives restore",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-log-compaction.test.ts",
+      "name": "state compact defaults to retaining the latest 1000 log entries",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/state-log-compaction.test.ts",
+      "name": "state compact rejects invalid retention and requires an actor",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/status-history.test.ts",
+      "name": "CLI: status --status accepts persisted and derived statuses in any case",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "a database written by a newer release fails loud instead of being downgraded",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/backend-remote-reads.test.ts",
+      "name": "backend-remote-reads: readChanges sends the requested revision to the delta endpoint",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/backend-remote-reads.test.ts",
+      "name": "backend-remote-reads: readChanges requires a non-negative safe integer revision",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-graph.test.ts",
+      "name": "graph indexes preserve typed incoming and outgoing edge order",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-batch.test.ts",
+      "name": "core batch unions declared closures and matches full-snapshot results",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-batch.test.ts",
+      "name": "core batch falls back to the full snapshot when any step is undeclared",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-batch.test.ts",
+      "name": "core batch closure preserves BLOCKS cycles spanning earlier draft edges",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-mutation-batch.test.ts",
+      "name": "core batch closure preserves the global node revision high-water mark",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-accept.test.ts",
+      "name": "task.accept computes newly ready tasks without scanning all nodes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-accept.test.ts",
+      "name": "task.accept reports dependents of canceled tasks superseded by the accepted task",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-derivation.test.ts",
+      "name": "indexed task derivation memoizes satisfaction while preserving cycles and unknown blockers",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/read-model.test.ts",
+      "name": "unsatisfied blocker ids match the full blocking projection including unknown nodes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/reads-log-query.test.ts",
+      "name": "server changes read requires one non-negative safe integer revision",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/reads-transfers.test.ts",
+      "name": "HTTP delta reads return only revisions after since without changing full-state reads",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/reads-transfers.test.ts",
+      "name": "HTTP delta sync replays a committed kernel mutation to the full state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "SQLite readState can skip audit rows for projections that do not consume them",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "SQLite v2 migration preserves state and requires a fresh snapshot for old history",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/log.test.mjs",
+      "name": "append accepts a note field",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.mjs",
+      "name": "append adds an entry with ts, agent, action",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.mjs",
+      "name": "append adds multiple entries in order",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.mjs",
+      "name": "append commits to the ledger without rebasing node revisions",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "JSON ledger append operations are retired",
+      "replacement": "SQLite mutation tests verify atomic log and state persistence"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "append accepts a note field",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "append adds an entry with ts, agent, action",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "append adds multiple entries in order",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "append commits to the ledger without rebasing node revisions",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "JSON ledger append operations are retired",
+      "replacement": "SQLite mutation tests verify atomic log and state persistence"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "append uses a SQLite transaction without rebasing node revisions",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "kernel-mutation-frontier",
+      "reason": "storage/log.ts append() is retired so every log entry commits inside the kernel mutation transaction.",
+      "replacement": "test/log.test.ts (prepareLogEntry) and test/sqlite-mutation.test.ts (log commits with the mutation)"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "prepareLogEntry adds the canonical ts and keeps caller fields",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "prepareLogEntry records only a non-empty plugin id",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "prepareLogEntry rejects entries without action or agent",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/log.test.ts",
+      "name": "storage/log.ts exposes no state write path",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/sqlite-store.test.ts",
+      "name": "an empty database file is treated as damage, not as a fresh project",
+      "ordinal": 1,
+      "disposition": "keep"
     }
   ]
 }

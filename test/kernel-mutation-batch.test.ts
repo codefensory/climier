@@ -7,18 +7,19 @@ import {
   rmTempProject,
   readState as readStateRaw,
   writeCanonicalState as writeStateHelper,
+  writeState as writeRawStateHelper,
   stateFilePath,
 } from "./helpers.ts";
 import { createBuiltinOperationRegistry, executeBatch as executeBatchRaw } from "../src/application/operations/index.ts";
+import { buildRegistry } from "../src/application/operations/registry.ts";
 import { mutate } from "../src/kernel/mutate.ts";
-import { bootstrapFencedState } from "../src/storage/ledger.ts";
 
 const registry = createBuiltinOperationRegistry();
 
 type NodeRecord = { id: string; revision: number; title?: string };
 type Edge = { from: string; to: string; type: string };
 type LogEntry = { action?: string; agent?: string; operations: Array<{ op: string }> };
-type State = { version: number; fence_generation: number; revision: number; nodes: Record<string, NodeRecord>; edges: Edge[]; log: LogEntry[] };
+type State = { version: number; revision: number; nodes: Record<string, NodeRecord>; edges: Edge[]; log: LogEntry[] };
 type BatchResult = { ok: boolean; revision_before: number; revision_after: number; results: Array<Record<string, unknown>> };
 type ErrorLike = { code?: string; details?: Record<string, unknown> };
 function errorLike(error: unknown): ErrorLike {
@@ -35,17 +36,16 @@ async function verifyCanonicalBatch(dir: string, readFencedState: (dir: string) 
   const out = await executeBatch({
     projectDir: dir,
     actor: "alice",
-    if_state_revision: 8,
+    if_state_revision: 7,
     operations: repair,
     source: { registry, mutate },
   });
-  assert.equal(out.revision_before, 8);
-  assert.equal(out.revision_after, 9);
+  assert.equal(out.revision_before, 7);
+  assert.equal(out.revision_after, 8);
   const state = await readFencedState(dir);
   assert.equal(state.version, 1);
-  assert.equal(state.fence_generation, 1);
-  assert.equal(state.nodes.T3.revision, 9);
-  assert.equal(state.revision, 9);
+  assert.equal(state.nodes.T3.revision, 8);
+  assert.equal(state.revision, 8);
   assert.equal(state.log.length, 1);
 }
 
@@ -61,7 +61,6 @@ async function bootstrap(dir) {
     initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
   });
-  await bootstrapFencedState(dir);
 }
 
 const repair = [
@@ -74,12 +73,11 @@ const repair = [
   { op: "edge.add", input: { from: "T3", to: "T2", type: "BLOCKS" } },
 ];
 
-test("core batch starts from canonical state and persists through the fenced commit", async () => {
+test("core batch starts from canonical state and commits through SQLite", async () => {
   const dir = await createTempProject();
   try {
     await bootstrap(dir);
-    const { readFencedState: rawReadFencedState } = await import("../src/storage/ledger.ts");
-    const readFencedState = rawReadFencedState as (dir: string) => Promise<State>;
+    const readFencedState = readStateHelper;
     await verifyCanonicalBatch(dir, readFencedState);
 
     const secondDir = await createTempProject();
@@ -96,13 +94,185 @@ test("core batch starts from canonical state and persists through the fenced com
       assert.equal(second.revision_before, before.revision);
       const committed = await readFencedState(secondDir);
       assert.equal(committed.version, 1);
-      assert.equal(committed.fence_generation, before.fence_generation);
       assert.equal(committed.revision, before.revision + 1);
     } finally {
       await rmTempProject(secondDir);
     }
   } finally {
     await rmTempProject(dir);
+  }
+});
+
+test("core batch unions declared closures and matches full-snapshot results", async () => {
+  const fastDir = await createTempProject();
+  const fullDir = await createTempProject();
+  const base = {
+    version: 1,
+    revision: 4,
+    nodes: {
+      T1: { id: "T1", kind: "resolvable", subkind: "task", title: "one", initiative: "kernel", status: "open", revision: 3 },
+      T2: { id: "T2", kind: "resolvable", subkind: "task", title: "two", initiative: "kernel", status: "open", revision: 2 },
+      UNRELATED: { id: "UNRELATED", kind: "resolvable", subkind: "task", title: "unrelated", initiative: "elsewhere", status: "open", revision: 4 },
+    },
+    edges: [],
+    initiatives: { kernel: { desc: "kernel" }, elsewhere: { desc: "elsewhere" } },
+    log: [],
+  };
+  const originalDate = globalThis.Date;
+  const fixedNow = "2026-10-21T18:00:00.000Z";
+  class FixedDate extends originalDate {
+    constructor(...args: any[]) { super(args.length > 0 ? args[0] : fixedNow); }
+    static now() { return originalDate.parse(fixedNow); }
+  }
+  try {
+    await writeStateHelper(fastDir, base);
+    await writeStateHelper(fullDir, base);
+    let observedNodeIds: string[] | null = null;
+    const wrappedRegistry = buildRegistry(registry.ops.map((id) => {
+      const entry = registry.lookup(id)!;
+      if (id !== "edge.add") { return entry; }
+      return {
+        ...entry,
+        provider: {
+          ...entry.provider,
+          async prepare(args) {
+            observedNodeIds = Object.keys(args.snapshot.nodes).toSorted();
+            return entry.provider.prepare(args);
+          },
+        },
+      };
+    }));
+    const fullRegistry = buildRegistry(registry.ops.map((id) => {
+      const { kind, provider } = registry.lookup(id)!;
+      return { id, kind, provider };
+    }));
+    const operations = [
+      { op: "task.update", input: { id: "T1", if_revision: 3, changes: { title: "one updated" } } },
+      { op: "edge.add", input: { from: "T1", to: "T2", type: "BLOCKS" } },
+    ];
+    globalThis.Date = FixedDate as DateConstructor;
+    const fast = await executeBatch({
+      projectDir: fastDir, actor: "alice", operations, source: { registry: wrappedRegistry, mutate },
+    });
+    const full = await executeBatch({
+      projectDir: fullDir, actor: "alice", operations, source: { registry: fullRegistry, mutate },
+    });
+    globalThis.Date = originalDate;
+    assert.deepEqual(observedNodeIds, ["T1", "T2"]);
+    assert.deepEqual(fast, full);
+    assert.deepEqual(await readStateHelper(fastDir), await readStateHelper(fullDir));
+  } finally {
+    globalThis.Date = originalDate;
+    await rmTempProject(fastDir);
+    await rmTempProject(fullDir);
+  }
+});
+
+test("core batch falls back to the full snapshot when any step is undeclared", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeStateHelper(dir, {
+      version: 1,
+      revision: 1,
+      nodes: {
+        T1: { id: "T1", kind: "resolvable", subkind: "task", title: "one", initiative: "kernel", status: "open", revision: 1 },
+        UNRELATED: { id: "UNRELATED", kind: "resolvable", subkind: "task", title: "unrelated", initiative: "other", status: "open", revision: 1 },
+      },
+      edges: [],
+      initiatives: { kernel: { desc: "kernel" }, other: { desc: "other" } },
+      log: [],
+    });
+    let observedNodes: string[] = [];
+    const custom = {
+      id: "custom.inspect",
+      kind: "core" as const,
+      provider: {
+        async prepare({ snapshot }: { snapshot: { nodes: Record<string, unknown> } }) {
+          observedNodes = Object.keys(snapshot.nodes).toSorted();
+          return { target: { id: "T1" } };
+        },
+        async apply() { return { result: null }; },
+      },
+    };
+    const customRegistry = buildRegistry([
+      ...registry.ops.map((id) => registry.lookup(id)!),
+      custom,
+    ]);
+    await executeBatch({
+      projectDir: dir,
+      actor: "alice",
+      operations: [{ op: "custom.inspect", input: {} }],
+      source: { registry: customRegistry, mutate },
+    });
+    assert.deepEqual(observedNodes, ["T1", "UNRELATED"]);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("core batch closure preserves BLOCKS cycles spanning earlier draft edges", async () => {
+  const fastDir = await createTempProject();
+  const fullDir = await createTempProject();
+  const base = {
+    version: 1,
+    revision: 4,
+    nodes: Object.fromEntries(["A", "B", "X", "Y", "C", "UNRELATED"].map((id, index) => [id, {
+      id, kind: "resolvable", subkind: "task", title: id, initiative: "kernel", status: "open", revision: index + 1,
+    }])),
+    edges: [
+      { from: "X", to: "Y", type: "BLOCKS" },
+      { from: "Y", to: "C", type: "BLOCKS" },
+      { from: "C", to: "A", type: "BLOCKS" },
+    ],
+    initiatives: { kernel: { desc: "kernel" } },
+    log: [],
+  };
+  try {
+    await writeStateHelper(fastDir, base);
+    await writeStateHelper(fullDir, base);
+    let observedNodes: string[] | null = null;
+    const wrappedRegistry = buildRegistry(registry.ops.map((id) => {
+      const entry = registry.lookup(id)!;
+      if (id !== "edge.add") { return entry; }
+      return {
+        ...entry,
+        provider: {
+          ...entry.provider,
+          async prepare(args) {
+            observedNodes = Object.keys(args.snapshot.nodes).toSorted();
+            return entry.provider.prepare(args);
+          },
+        },
+      };
+    }));
+    const fullRegistry = buildRegistry(registry.ops.map((id) => {
+      const { kind, provider } = registry.lookup(id)!;
+      return { id, kind, provider };
+    }));
+    const operations = [
+      { op: "edge.add", input: { from: "B", to: "X", type: "BLOCKS" } },
+      { op: "edge.add", input: { from: "A", to: "B", type: "BLOCKS" } },
+    ];
+    async function failure(projectDir: string, operationRegistry: typeof registry) {
+      try {
+        await executeBatch({ projectDir, actor: "alice", operations, source: { registry: operationRegistry, mutate } });
+        return null;
+      } catch (error) {
+        const value = error as { code?: string; details?: Record<string, unknown> };
+        return { code: value.code, details: value.details };
+      }
+    }
+    const fastError = await failure(fastDir, wrappedRegistry);
+    const fullError = await failure(fullDir, fullRegistry);
+    assert.deepEqual(fastError, fullError);
+    assert.equal((fastError?.details?.cause as Record<string, unknown>)?.code, "CYCLE_DETECTED");
+    assert.deepEqual(((fastError?.details?.cause as Record<string, unknown>)?.details as Record<string, unknown>)?.cycle,
+      ["A", "B", "X", "Y", "C", "A"]);
+    assert.deepEqual(observedNodes, ["A", "B", "C", "X", "Y"]);
+    assert.deepEqual(await readStateHelper(fastDir), await readStateHelper(fullDir));
+  } finally {
+    await rmTempProject(fastDir);
+    await rmTempProject(fullDir);
   }
 });
 
@@ -113,13 +283,13 @@ test("core batch composes built-ins on one draft and writes one core.batch revis
     const out = await executeBatch({
       projectDir: dir,
       actor: "alice",
-      if_state_revision: 8,
+      if_state_revision: 7,
       operations: repair,
       source: { registry, mutate },
     });
     assert.equal(out.ok, true);
-    assert.equal(out.revision_before, 8);
-    assert.equal(out.revision_after, 9);
+    assert.equal(out.revision_before, 7);
+    assert.equal(out.revision_after, 8);
     assert.equal(out.results.length, 4);
     assert.deepEqual(out.results.map((entry) => entry.op), repair.map((entry) => entry.op));
 
@@ -128,8 +298,8 @@ test("core batch composes built-ins on one draft and writes one core.batch revis
       { from: "T1", to: "T3", type: "BLOCKS" },
       { from: "T3", to: "T2", type: "BLOCKS" },
     ]);
-    assert.equal(state.nodes.T3.revision, 9);
-    assert.equal(state.revision, 9);
+    assert.equal(state.nodes.T3.revision, 8);
+    assert.equal(state.revision, 8);
     assert.equal(state.log.length, 1);
     assert.equal(state.log[0].action, "core.batch");
     assert.equal(state.log[0].agent, "alice");
@@ -147,21 +317,21 @@ test("core batch internal CAS uses the same state-fenced node revisions as its f
     const out = await executeBatch({
       projectDir: dir,
       actor: "alice",
-      if_state_revision: 8,
+      if_state_revision: 7,
       operations: [
         repair[0],
-        { op: "task.update", input: { id: "T3", if_revision: 9, changes: { title: "three revised" } } },
-        { op: "task.update", input: { id: "T1", if_revision: 8, changes: { title: "one revised" } } },
-        { op: "task.update", input: { id: "T1", if_revision: 9, changes: { title: "one revised twice" } } },
+        { op: "task.update", input: { id: "T3", if_revision: 8, changes: { title: "three revised" } } },
+        { op: "task.update", input: { id: "T1", if_revision: 3, changes: { title: "one revised" } } },
+        { op: "task.update", input: { id: "T1", if_revision: 8, changes: { title: "one revised twice" } } },
       ],
       source: { registry, mutate },
     });
 
     assert.equal(out.ok, true);
     const state = await readStateHelper(dir);
-    assert.equal(state.nodes.T3.revision, 9);
-    assert.equal(state.nodes.T1.revision, 9);
-    assert.equal(state.revision, 9);
+    assert.equal(state.nodes.T3.revision, 8);
+    assert.equal(state.nodes.T1.revision, 8);
+    assert.equal(state.revision, 8);
     assert.ok(state.revision >= Math.max(...Object.values(state.nodes).map((node) => node.revision)));
   } finally {
     await rmTempProject(dir);
@@ -177,7 +347,7 @@ test("core batch rolls back every draft change when a later operation fails", as
       executeBatch({
         projectDir: dir,
         actor: "alice",
-        if_state_revision: 8,
+        if_state_revision: 7,
         operations: [
           ...repair.slice(0, 3),
           { op: "edge.add", input: { from: "T1", to: "T3", type: "BLOCKS" } },
@@ -197,9 +367,38 @@ test("core batch rolls back every draft change when a later operation fails", as
     const after = await fs.readFile(stateFilePath(dir));
     assert.deepEqual(after, before);
     const state = await readStateHelper(dir);
-    assert.equal(state.revision, 8);
+    assert.equal(state.revision, 7);
     assert.equal(state.log.length, 0);
     assert.equal(state.nodes.T3, undefined);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("core batch closure preserves the global node revision high-water mark", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeRawStateHelper(dir, {
+      version: 1,
+      revision: 1,
+      nodes: {
+        T1: { id: "T1", kind: "resolvable", subkind: "task", title: "one", initiative: "kernel", status: "open", revision: 1 },
+        UNRELATED: { id: "UNRELATED", kind: "resolvable", subkind: "task", title: "unrelated", initiative: "other", status: "open", revision: 99 },
+      },
+      edges: [],
+      initiatives: { kernel: { desc: "kernel" }, other: { desc: "other" } },
+      log: [],
+    });
+    const out = await executeBatch({
+      projectDir: dir,
+      actor: "alice",
+      operations: [{ op: "task.update", input: { id: "T1", if_revision: 1, changes: { title: "updated" } } }],
+      source: { registry, mutate },
+    });
+    assert.equal(out.revision_after, 99);
+    const state = await readStateHelper(dir);
+    assert.equal(state.nodes.T1.revision, 2);
+    assert.equal(state.revision, 99);
   } finally {
     await rmTempProject(dir);
   }
@@ -213,13 +412,13 @@ test("core batch with only no-ops keeps revision and log unchanged", async () =>
     const out = await executeBatch({
       projectDir: dir,
       actor: "alice",
-      if_state_revision: 8,
+      if_state_revision: 7,
       operations: [{ op: "edge.remove", input: { from: "missing", to: "also-missing", type: "BLOCKS" } }],
       source: { registry, mutate },
     });
     assert.equal(out.ok, true);
-    assert.equal(out.revision_before, 8);
-    assert.equal(out.revision_after, 8);
+    assert.equal(out.revision_before, 7);
+    assert.equal(out.revision_after, 7);
     assert.equal(out.results[0].idempotent, true);
     assert.deepEqual(await fs.readFile(stateFilePath(dir)), before);
   } finally {

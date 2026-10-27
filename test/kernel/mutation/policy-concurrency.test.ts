@@ -33,20 +33,19 @@ function assertPolicyDenied(error, decidedWith, state, base) {
 }
 
 function assertSemanticSnapshot(snapshot, expectedRevision, expectedFields) {
-  assert.equal(Object.hasOwn(snapshot, "fence_generation"), false, "policy must not see the internal fence");
   assert.equal(snapshot.version, 1);
   assert.equal(snapshot.revision, expectedRevision, "policy sees the current semantic snapshot revision");
   assert.deepEqual(snapshot, expectedFields, "projection preserves every other semantic field");
 }
 
-async function setupFencedPolicyProject(dir, mutate, readFencedState) {
+async function setupPolicyProject(dir, mutate, readState) {
   await bootstrapProject(dir, addPluginFixture);
   await mutate({
     projectDir: dir,
     request: { action: "task.update", actor: "alice", input: {} },
     provider: updateNodeProvider({ id: "T1", newTitle: "fenced v5 baseline" }).provider,
   });
-  const initial = await readFencedState(dir);
+  const initial = await readState(dir);
   assert.equal(initial.version, 1, "test policy uses a canonical fixture");
   return initial;
 }
@@ -65,7 +64,7 @@ function capturePolicySnapshots(snapshots) {
     }),
     apply: async ({ tx }) => {
       applyCount += 1;
-      tx.updateNode("T1", { title: `policy snapshot fenced ${applyCount}` });
+      tx.updateNode("T1", { title: `policy snapshot ${applyCount}` });
       return { result: null };
     },
   };
@@ -97,14 +96,12 @@ function assertPolicySnapshots(snapshots, initial, beforeBatch) {
   assert.equal(snapshots.length, 2, "single and batch both reach policy");
   for (const [index, snapshot] of snapshots.entries()) {
     const expected = { ...(index === 0 ? policyFields(initial) : beforeBatch) };
-    delete expected.fence_generation;
     assertSemanticSnapshot(snapshot, index === 0 ? initial.revision : beforeBatch.revision, expected);
   }
 }
 
 function assertPersistedPolicyState(persisted, initial) {
   assert.equal(persisted.version, 1);
-  assert.equal(persisted.fence_generation, initial.fence_generation, "persisted state retains its fence generation");
   assert.equal(persisted.revision, initial.revision + 2);
   assert.deepEqual(persisted.plugins, initial.plugins);
 }
@@ -204,17 +201,17 @@ test("kernel.mutate: policyAction.decide runs against the FRESH snapshot under t
   }
 });
 
-test("kernel.mutate: policy receives fenced semantic snapshots without fence_generation for single and batch", async () => {
+test("kernel.mutate: policy receives semantic SQLite snapshots for single and batch", async () => {
   const { mutate } = await importKernel();
-  const { readFencedState } = await import("../../../src/storage/ledger.ts");
+  const readStoredState = readStateHelper;
   const dir = await createTempProject();
   try {
-    const initial = await setupFencedPolicyProject(dir, mutate, readFencedState);
+    const initial = await setupPolicyProject(dir, mutate, readStoredState);
     const snapshots: Array<Record<string, unknown>> = [];
     const { policyAction, provider } = capturePolicySnapshots(snapshots);
-    const beforeBatch = await runSingleAndBatchPolicyMutation({ dir, mutate, readFencedState, provider, policyAction });
+    const beforeBatch = await runSingleAndBatchPolicyMutation({ dir, mutate, readFencedState: readStoredState, provider, policyAction });
     assertPolicySnapshots(snapshots, initial, beforeBatch);
-    const persisted = await readFencedState(dir);
+    const persisted = await readStoredState(dir);
     assertPersistedPolicyState(persisted, initial);
   } finally {
     await rmTempProject(dir);
@@ -223,17 +220,17 @@ test("kernel.mutate: policy receives fenced semantic snapshots without fence_gen
 
 // Idempotency (no diff ⇒ no write, no log)
 
-test("kernel.mutate: two concurrent mutate calls serialise under the project lock", async () => {
+test("kernel.mutate: two concurrent mutate calls serialize under SQLite transactions", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
     await bootstrapProject(dir);
     const provider1 = updateNodeProvider({ id: "T1", newTitle: "first-arrives" }).provider;
     const provider2 = updateNodeProvider({ id: "T1", newTitle: "second-arrives" }).provider;
-    // Fire both at once. They DO NOT race because withLock spins.
+    // Fire both at once. Their transactions serialize without losing revisions.
     // req1 carries if_revision=3 (matches the initial snapshot).
     // req2 carries if_revision=4 — it only matches if req1 has already
-    // bumped T1 from 3 to 4 by the time req2 acquires the lock.
+    // bumped T1 from 3 to 4 by the time req2 reads the transaction snapshot.
     const req1 = mutate({
       projectDir: dir,
       request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
@@ -247,7 +244,7 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
     const settled = await Promise.allSettled([req1, req2]);
 
     // mutations must NOT be flagged as nested. REVISION_CONFLICT is
-    // still acceptable when req2 acquires the lock first and its
+    // still acceptable when req2 starts first and its
     // if_revision=4 doesn't match the initial snapshot rev=3.
     for (const r of settled) {
       if (r.status === "rejected") {
@@ -256,7 +253,7 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
       }
     }
     const after = await readStateHelper(dir);
-    // Two possible orderings under withLock serialisation:
+    // Two possible orderings under SQLite transaction serialization:
     //   (A) req1 first: req1 applies 3→4 ("first-arrives"); req2
     //       sees rev=4, applies 4→5 ("second-arrives"). Final rev=5.
     //   (B) req2 first: req2's if_revision=4 doesn't match snapshot

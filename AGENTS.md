@@ -1,6 +1,6 @@
 # climier — Agent Notes
 
-You are working on **climier**, a task DAG CLI for coordinating work across agents, sessions, or humans. Each repo gets stable metadata in `.climier.json`; the live JSON state for that project lives under `~/.climier/projects/<project-id>/tasks.json` (or `$CLIMIER_HOME/projects/<project-id>/tasks.json`).
+You are working on **climier**, a task DAG CLI for coordinating work across agents, sessions, or humans. Each repo gets stable metadata in `.climier.json`; canonical runtime state lives in `~/.climier/projects/<project-id>/state.sqlite` (or `$CLIMIER_HOME/projects/<project-id>/state.sqlite`). Schema-1 JSON is used only by explicit migration, export, and restore workflows.
 
 This file tells you how the code is organized, the rules you must follow, and the non-obvious decisions baked into the design. Read it before touching anything.
 
@@ -10,7 +10,7 @@ This file tells you how the code is organized, the rules you must follow, and th
 - ESM modules (`"type": "module"` in `package.json`).
 - Tests use `node:test`; `npm test` runs them through the sharded Bun runner.
 - Entry point: `bin/climier.ts`. Library code: `src/`. Tests: `test/`.
-- The CLI resolves a project root (CWD by default, `--project <dir>` to override), reads `<project>/.climier.json`, and then operates on the matching live state file under `~/.climier/projects/<project-id>/tasks.json`.
+- The CLI resolves a project root (CWD by default, `--project <dir>` to override), reads `<project>/.climier.json`, and then operates on the matching SQLite database under `~/.climier/projects/<project-id>/state.sqlite`.
 
 ## Architecture
 
@@ -52,7 +52,7 @@ src/
     registry.ts                        # Immutable process-local operation/provider index
     builtins.ts                        # Canonical task/gate/knowledge/core operation catalog
   kernel/                              # Transaction, graph, mutation frontier, and state operations
-    mutate.ts                          # Stable mutate facade; owns lock/re-entrancy boundary
+    mutate.ts                          # Stable mutate facade; owns the SQLite transaction boundary
     transaction.ts                     # In-memory draft transaction
     graph.ts, edges.ts                 # DAG traversal and edge semantics
     state-operations.ts                # Typed project/plugin state operations
@@ -61,10 +61,9 @@ src/
     task/, gate/, knowledge/, core/     # prepare/apply providers and read semantics
     plugin-data/                       # Typed plugin-scoped state providers
   read-model/                          # Pure status, blocking, knowledge, and informing projections
-  storage/                             # Project metadata, canonical state, ledger, locks, snapshots, and logs
+  storage/                             # Project metadata, canonical SQLite state, snapshots, and logs
     paths.ts, state.ts                 # Project resolution and schema-1 state guards/read helpers
-    lock.ts, log.ts                    # Locking and log primitives
-    ledger/                            # Revision fence, migration, recovery, and atomic commits
+    sqlite/                            # SQLite schema, transactions, and explicit migration
   server/                              # Authenticated remote HTTP runtime and typed API projections
   plugins/                             # Plugin host, discovery, policy, and compatibility adapters
   cli/
@@ -91,9 +90,10 @@ Boundary rules:
 - `providers/` expose typed `{ prepare, apply }` operations. They validate and
   apply domain behavior against a transaction draft but do not import adapters,
   storage, locks, logs, or the registry.
-- `kernel/mutation/` owns the single locked mutation pipeline: fresh snapshot,
+- `kernel/mutation/` owns the mutation pipeline: fresh snapshot,
   preconditions/policy, provider plan, draft validation, diff/revisions, and
-  atomic state-plus-log commit. `kernel/mutate.ts` remains the stable facade.
+  atomic state-plus-log commit inside a SQLite transaction. `kernel/mutate.ts`
+  remains the stable facade.
 - `read-model/` composes graph and provider semantics into read-only views; it
   has no argv, filesystem, mutation, or logging concerns.
 - `plugins/` is the host/adapter boundary. Plugin core actions consume the
@@ -104,18 +104,16 @@ Boundary rules:
 
 When adding behavior, keep normalization in the adapter, reusable semantics in
 providers, orchestration in Application Operations, and transaction/persistence
-in the kernel. Do not recreate a second registry, lock path, or mutation
-frontier in a command or plugin.
+in the kernel. Do not recreate a second registry, transaction boundary, or
+mutation frontier in a command or plugin.
 
 ### The state shape
 
-The repository uses one canonical schema-1 state plus its revision fence and
-ledger:
+The repository stores one canonical schema-1 state in SQLite:
 
 ```js
 {
   version: 1,
-  fence_generation: 1,
   revision: 0,
   initiatives: { "auth-migration": { desc, created_at } },
   nodes: { "T-auth-1": { id, kind, subkind, title, status, ... } },
@@ -124,12 +122,20 @@ ledger:
 }
 ```
 
-Every writer also maintains `revision-ledger.json` beside the state. The ledger,
-lock, state, and log are committed atomically. The one-time schema-1 import
-window is complete and the importer is retired. Current releases accept only
-canonical schema-1 state; if older or incomplete files are found, preserve the
-project files and restore a verified canonical backup or contact the maintainer.
+State rows, log entries, and the project revision are committed atomically by
+SQLite. JSON is used only by the explicit `state migrate`, `state export`, and
+`restore` workflows; runtime reads and writes use SQLite. Current releases
+accept only canonical schema-1 state; if older or incomplete files are found,
+preserve the project files and restore a verified canonical backup or contact
+the maintainer.
 `init --force` is a deliberate reset only.
+
+The canonical state schema is separate from the internal SQLite layout
+(`PRAGMA user_version`). The layout upgrades in place, atomically, when a command
+opens a database written by an older build; that upgrade is one-way, and an older
+release that opens a newer database fails with `unsupported SQLite schema
+version` instead of downgrading it. The explicit-migration rule below is about the
+canonical schema, not the layout.
 
 The project's human-facing **display name** is separate from the opaque
 `project_id`. It lives in the checkout's `.climier.json` (`name`, written by
@@ -149,8 +155,8 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 
 ### The two non-obvious invariants
 
-1. **Atomicity: every mutating operation enters through `kernel/mutate.ts` and its `withLock` → atomic state write pipeline.** Two agents in parallel can't corrupt the file. The `withLock` lock file lives next to the active state file (`~/.climier/projects/<project-id>/.lock`), is created with `fs.openSync(..., 'wx')` (fails on EEXIST), and is re-acquired in a spin loop with a 10s default timeout. Stale lock files (process died) are NOT auto-cleared — that is documented as the known ceiling of the file-lock strategy.
-2. **Logging is part of the mutation.** The kernel mutation coordinator builds the log entry and commits the state plus log atomically in one locked write. Do not split state and log persistence across locks or reimplement either concern in an adapter/provider.
+1. **Atomicity: every state mutation enters through `kernel/mutate.ts` and runs in a SQLite `BEGIN IMMEDIATE` transaction with `busy_timeout`.** SQLite serializes concurrent writers, and state changes, log entries, and the project revision commit together. The project mutation path has no file lock or generation fence.
+2. **Logging is part of the mutation.** The kernel mutation coordinator builds the log entry and commits the state plus log atomically in the same SQLite transaction. Do not split state and log persistence across transactions or reimplement either concern in an adapter/provider.
 
 ### Derived state and the DAG
 
@@ -169,7 +175,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | Command | File | Mutates? | Needs `--as`? |
 |---|---|---|---|
 | `init [--force]` | `cli/commands/init.ts` | yes (creates/overwrites state) | required with `--force` only |
-| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `cli/commands/status.ts` | no | no |
+| `status [--initiative X] [--kind resolvable\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `cli/commands/status.ts` | no | no |
 | `context <id>` | `cli/commands/context.ts` | no | no |
 | `search "<query>" [--all]` | `cli/commands/search.ts` | no | no |
 | `history <id> [--limit N]` | `cli/commands/history.ts` | no | no |
@@ -196,7 +202,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `remove-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/remove-edge.ts` | yes | required |
 | `snapshots` | `cli/commands/snapshots.ts` | no (read-only) | no |
 | `state` | `cli/commands/state.ts` | no (read-only) | no |
-| `restore <id> --as <agent>` | `cli/commands/restore.ts` | yes (locked; canonical schema-1 snapshot; pre-snapshot) | required |
+| `restore <id> --as <agent>` | `cli/commands/restore.ts` | yes (SQLite transaction; canonical schema-1 snapshot; pre-snapshot) | required |
 | `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | `cli/commands/batch.ts` | yes | required |
 | `link <origin> [--replace=true] [--name "<name>"]` | `cli/commands/link.ts` | yes | required |
 | `rename "<name>"` | `cli/commands/rename.ts` | yes (project metadata; local + linked server) | no |
@@ -214,7 +220,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
    implicit read/write conversion. Any future schema change needs an explicit
    migration and tests; never silently accept an unknown form or use
    `init --force` as a conversion shortcut.
-6. **Multi-agent safety.** Any new state mutation must enter through the kernel mutation frontier (or an explicitly documented setup/recovery path) and be serialized by `withLock`. Any new "log" must be committed with the state change it describes. If you split them, a concurrent op can interleave and the log will lie.
+6. **Multi-agent safety.** Any new state mutation must enter through the kernel mutation frontier (or an explicitly documented setup/recovery path) and commit in a SQLite transaction. Any new "log" must be committed with the state change it describes. If you split them, a concurrent op can interleave and the log will lie. `init`, `restore`, and `state compact` are full-state operations that still enter through `mutate()` (`src/kernel/state-operations.ts`). Only two paths replace the state directly, with their own preconditions, and they are not a template for new mutations: `state migrate` (`src/storage/sqlite/migrate.ts`) and the transfer port (`kernel/transfer.ts` → `storage/transfer.ts`, ADR-032).
 7. **Task lifecycle.** `climierflow` owns implementation, review, submission, and acceptance transitions. `resolve` is reserved for gates; `release`, `reopen`, and `cancel` remain administrative lifecycle operations.
 8. **No boolean flags before the command.** The CLI parser treats `--force init` as `--force=init`. New boolean flags must be used as `--flag=true` or after the command. Document any new boolean flag with this caveat.
 9. **English only in code, but the CLI output tolerates any UTF-8.** Titles, bodies, notes, and any free-text field can be in any language. Don't filter or escape based on locale.
@@ -290,8 +296,8 @@ Do not put domain rules or persistence in the CLI layer.
 4. **Preserve the mutation frontier.** Hosts call
    `executeOperation({ projectDir, actor, operation, input, source })`, which
    looks up the provider and delegates once to `kernel/mutate.ts`. The kernel
-   owns locking, policy timing, revisions, diffs, validation, and the atomic
-   state-plus-log write.
+   owns the SQLite transaction, policy timing, revisions, diffs, validation,
+   and the atomic state-plus-log write.
 5. **Run the proportional provider, registry, and integration tests**, then
    `npm test` when the shared operation or kernel contract is affected.
 
@@ -339,7 +345,7 @@ Do not put domain rules or persistence in the CLI layer.
 - **Positional args for things, flags for options.** `climier take T1 --as alice` not `--id T1 --agent alice`.
 - **CSV in flag values.** `--tags "ts,sql"` not `--tag ts --tag sql`. Trim and filter empty strings.
 - **Pure projections live in `read-model/` and pure domain semantics live in `providers/`.** No I/O or side effects. Test them with literal snapshots, no temp dirs.
-- **Imperative wrappers in `storage/state.ts` and `storage/lock.ts`.** These touch the filesystem. They are tested via `helpers.ts` (temp dirs).
+- **Imperative wrappers in `storage/state.ts` and `storage/sqlite/`.** These touch the filesystem or database. They are tested via `helpers.ts` (temp dirs).
 - **Adapters return data, not console.log.** `bin/climier.ts` is the only place that prints (except for errors).
 - **Comments declare constraints, not narration.** Remove line-by-line narration, provenance, task/ADR justification, commented-out code, decorative banners, and documentation mirrors. Keep only restrictions the code cannot express.
 
@@ -481,6 +487,12 @@ Each shell-tool invocation is independent: a `cd` from one invocation does not
 carry into the next. Every runner worktree command must prefix the path with
 `cd <worktree> &&` (or use absolute paths) and verify `pwd` plus the branch in
 that same invocation. Never run worktree tests from the main checkout.
+**A fresh worktree has no `node_modules`.** `git worktree add` materializes only
+tracked files, so run `bun install --frozen-lockfile` inside the worktree before
+any test; `test/types-drift.test.ts` needs the `ts-morph` devDependency and the
+suite fails without it. Do not delete `node_modules` when you finish a task in a
+shared worktree: the validator runs the suite in that same worktree, and a
+missing dependency turns a correct change into an environment FAIL.
 Tests must be bounded and targeted. Use the repository core test runner or an
 explicit file list with a timeout; do not use `--test-skip-pattern` as a way to
 exclude files.

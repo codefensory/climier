@@ -1,126 +1,35 @@
-import { asCaughtError } from "../../../contracts/errors.ts";
-
-
-import fs from "node:fs/promises";
-import path from "node:path";
-import { readState, stateFile, createSnapshot, isFencedStateVersion } from "../../../storage/state.ts";
-import { bootstrapFencedStateUnderLock, recoverFencedStateUnderLock, replaceFencedStateUnderLock } from "../../../storage/ledger.ts";
+import { readState, stateFile, sqliteStateFile, createSnapshot } from "../../../storage/state.ts";
+import { writeSqliteState } from "../../../storage/sqlite/store.ts";
 import { prepareLogEntry } from "../../../storage/log.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
 import { commandLabel, runPolicy, checkStateRevision } from "./shared.ts";
 
-async function inspectStateFile(statePath) {
-  try {
-    return { raw: await fs.readFile(statePath), exists: true };
-  } catch (rawCaughtValue: unknown) {
-  {
-    const error = asCaughtError(rawCaughtValue);
-    if (error.code === "ENOENT") {
-      return { raw: null, exists: false };
-    }
-    throw error;
-
-  }}
-}
-
-async function hasFencedLedger(statePath) {
-  try {
-    await fs.access(path.join(path.dirname(statePath), "revision-ledger.json"));
-    return true;
-  } catch (rawCaughtValue: unknown) {
-  {
-    const error = asCaughtError(rawCaughtValue);
-    if (error.code === "ENOENT") {
-      return false;
-    }
-    throw error;
-
-  }}
-}
-
-async function loadCurrentState(projectDir, exists) {
-  if (!exists) {
-    return { currentState: null, stateError: null };
-  }
-  try {
-    return { currentState: await readState(projectDir), stateError: null };
-  } catch (rawCaughtValue: unknown) {
-  {
-    const error = asCaughtError(rawCaughtValue);
-    const recoverable = ["CLIMIER_CORRUPT_STATE", "CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_LEDGER_STATE_MISMATCH"].includes(error.code ?? "");
-    if (!recoverable) {
-      throw error;
-    }
-    return { currentState: null, stateError: error };
-
-  }}
-}
-
-function snapshotNodes(state) {
-  return state && state.nodes ? { ...state.nodes } : {};
-}
-
-function snapshotEdges(state) {
-  return state && Array.isArray(state.edges) ? state.edges.slice() : [];
-}
-
-function snapshotInitiatives(state) {
-  return state && state.initiatives ? { ...state.initiatives } : {};
-}
-
-function snapshotPlugins(state) {
-  if (state && Object.prototype.hasOwnProperty.call(state, "plugins")) {
-    return { plugins: state.plugins };
-  }
-  return {};
-}
-
-function snapshotRevision(state) {
-  return state && Number.isInteger(state.revision) ? state.revision : 0;
-}
-
 type MutationSnapshot = Record<string, unknown> & {
   state: Record<string, unknown> | null;
-  raw: Buffer | null;
   exists: boolean;
-  stateError: { code?: string } | null;
-  fencedCorrupt?: boolean;
+  stateError: null;
   nodes: Record<string, unknown>;
   edges: unknown[];
   initiatives: Record<string, unknown>;
   revision: number;
 };
 
-function stateSnapshot({ currentState, raw, exists, stateError, fencedLedger }: {
-  currentState: Record<string, unknown> | null;
-  raw: Buffer | null;
-  exists: boolean;
-  stateError: { code?: string } | null;
-  fencedLedger: boolean;
-}): MutationSnapshot {
-  const snapshot: MutationSnapshot = {
-    state: currentState,
-    raw,
-    exists,
-    stateError,
-    nodes: snapshotNodes(currentState),
-    edges: snapshotEdges(currentState),
-    initiatives: snapshotInitiatives(currentState),
-    ...snapshotPlugins(currentState),
-    revision: snapshotRevision(currentState),
-  };
-  if (stateError?.code === "CLIMIER_CORRUPT_STATE" && exists && fencedLedger) {
-    snapshot.fencedCorrupt = true;
-  }
-  return Object.freeze(snapshot) as MutationSnapshot;
+function snapshotOf(state: Record<string, unknown> | null): MutationSnapshot {
+  return Object.freeze({
+    state,
+    exists: state !== null,
+    stateError: null,
+    nodes: state?.nodes && typeof state.nodes === "object" ? { ...state.nodes } : {},
+    edges: Array.isArray(state?.edges) ? state.edges.slice() : [],
+    initiatives: state?.initiatives && typeof state.initiatives === "object" ? { ...state.initiatives } : {},
+    ...(state && Object.hasOwn(state, "plugins") ? { plugins: state.plugins } : {}),
+    revision: state && Number.isInteger(state.revision) ? state.revision as number : 0,
+  }) as MutationSnapshot;
 }
 
-async function loadMutationSnapshot(projectDir, statePath) {
-  const file = await inspectStateFile(statePath);
-  const fencedLedger = await hasFencedLedger(statePath);
-  const loaded = await loadCurrentState(projectDir, file.exists);
-  const snapshot = stateSnapshot({ ...file, currentState: loaded.currentState as Record<string, unknown> | null, stateError: loaded.stateError, fencedLedger });
-  return { snapshot, currentState: loaded.currentState };
+async function loadMutationSnapshot(projectDir: string) {
+  const currentState = await readState(projectDir) as Record<string, unknown> | null;
+  return { snapshot: snapshotOf(currentState), currentState };
 }
 
 async function prepareStatePlan({ stateOperation, projectDir, snapshot, request, commandName }) {
@@ -140,70 +49,15 @@ async function applyStateOperation({ stateOperation, snapshot, plan, request, co
 }
 
 async function savePlanSnapshot({ projectDir, plan, exists, statePath, commandName }) {
-  if (!plan.snapshotReason) {
-    return null;
-  }
+  if (!plan.snapshotReason) { return null; }
   if (!exists) {
     throwV2("INVALID_STATUS", `${commandName}: cannot snapshot a missing current state`, { state_file: statePath });
   }
   return createSnapshot(projectDir, plan.snapshotReason);
 }
 
-async function recoverCorruptFencedState({ plan, snapshot, lockContext, projectDir, applied, snapshotMeta }) {
-  if (!plan.corruptRecovery || !snapshot.fencedCorrupt) {
-    return null;
-  }
-  const recovered = await recoverFencedStateUnderLock(lockContext, undefined, { projectDir }) as { revision: number };
-  return {
-    result: { ...applied.result, snapshot: snapshotMeta },
-    effects: applied.effects === undefined ? null : applied.effects,
-    log_entry: null,
-    idempotent: false,
-    diff: { created: [], updated: [], added_edges: [], removed_edges: [], removed_nodes: [], target_revision: recovered.revision, initiatives: { created: [], updated: [] } },
-  };
-}
-
-async function persistState({ lockContext, projectDir, fencedCurrentState, fencedCorrupt, nextState }) {
-  if (fencedCurrentState) {
-    await replaceFencedStateUnderLock(lockContext, nextState, { projectDir });
-    return;
-  }
-  const ledgerPath = path.join(path.dirname(stateFile(projectDir)), "revision-ledger.json");
-  if (nextState?.version === 1 && Number.isInteger(nextState.fence_generation)) {
-    let existingLedger = true;
-    try { await fs.access(ledgerPath); }
-    catch (rawCaughtValue: unknown) {
-  {
-    const error = asCaughtError(rawCaughtValue); if (error.code === "ENOENT") { existingLedger = false; } else { throw error; }
-  }}
-    if (existingLedger) {
-      await recoverFencedStateUnderLock(lockContext, nextState, { projectDir });
-    } else {
-      await bootstrapFencedStateUnderLock(lockContext, nextState, { projectDir, replaceExisting: true });
-    }
-    return;
-  }
-  let ledgerExists = true;
-  try { await fs.access(ledgerPath); }
-  catch (rawCaughtValue: unknown) {
-  {
-    const error = asCaughtError(rawCaughtValue); if (error.code === "ENOENT") { ledgerExists = false; } else { throw error; }
-  }}
-  if (ledgerExists) {
-    await recoverFencedStateUnderLock(lockContext, nextState, { projectDir });
-    return;
-  }
-  if (fencedCorrupt) {
-    await recoverFencedStateUnderLock(lockContext, nextState, { projectDir });
-    return;
-  }
-  await bootstrapFencedStateUnderLock(lockContext, nextState, { projectDir, replaceExisting: true });
-}
-
 function resultWithSnapshot(result, snapshotMeta) {
-  if (!snapshotMeta || !result || typeof result !== "object" || Array.isArray(result) || result.snapshot !== undefined) {
-    return result;
-  }
+  if (!snapshotMeta || !result || typeof result !== "object" || Array.isArray(result) || result.snapshot !== undefined) { return result; }
   return { ...result, snapshot: snapshotMeta };
 }
 
@@ -220,49 +74,51 @@ function stateMutationResult({ applied, logEntry, result }) {
 async function prepareApplyStateMutation({ stateOperation, projectDir, snapshot, request, commandName, policyAction }) {
   const plan = await prepareStatePlan({ stateOperation, projectDir, snapshot, request, commandName });
   checkStateRevision(request.if_state_revision, snapshot, commandName);
-  const ledgerCorruptRecovery = plan.corruptRecovery && snapshot.fencedCorrupt;
-  if (!ledgerCorruptRecovery) {
-    await runPolicy({ policyAction, snapshot, plan, request, commandName });
-  }
+  await runPolicy({ policyAction, snapshot, plan, request, commandName });
   const applied = await applyStateOperation({ stateOperation, snapshot, plan, request, commandName });
   return { plan, applied };
 }
 
+function nodeRevisions(nodes: Record<string, Record<string, unknown>>, highWaterRevision: number, preserve: boolean) {
+  if (preserve) { return nodes; }
+  return Object.fromEntries(Object.entries(nodes).map(([id, node]) => {
+    const cleanNode = { ...node };
+    delete cleanNode.revision;
+    return [id, { ...cleanNode, revision: highWaterRevision }];
+  }));
+}
+
 function createNextState({ applied, currentState, snapshot, plan, request, pluginId }) {
-  const nextState = {
-    ...applied.state,
-    revision: currentState ? snapshot.revision + 1 : applied.state.revision,
-  };
+  const nextState = { ...applied.state };
   let logEntry = null;
   if (plan.log) {
     logEntry = prepareLogEntry({ action: plan.logAction || request.action, agent: request.actor, ...plan.log }, { pluginId });
     nextState.log = [...(Array.isArray(nextState.log) ? nextState.log : []), logEntry];
   }
+  const nodes = nextState.nodes && typeof nextState.nodes === "object" ? nextState.nodes as Record<string, Record<string, unknown>> : {};
+  const highWaterRevision = Math.max(
+    Number.isInteger(currentState?.revision) ? currentState.revision as number : 0,
+    Number.isInteger(nextState.revision) ? nextState.revision as number : 0,
+    ...Object.values(nodes).map((node) => Number.isInteger(node?.revision) ? node.revision as number : 0),
+  ) + 1;
+  nextState.revision = highWaterRevision;
+  nextState.nodes = nodeRevisions(nodes, highWaterRevision, plan.preserveNodeRevisions === true);
+  if (!snapshot.plugins && !nextState.plugins) { delete nextState.plugins; }
   return { nextState, logEntry };
 }
 
-async function finishStateMutation({ plan, snapshot, lockContext, projectDir, applied, snapshotMeta, currentState, request, pluginId }) {
-  const recoveryResult = await recoverCorruptFencedState({ plan, snapshot, lockContext, projectDir, applied, snapshotMeta });
-  if (recoveryResult) {
-    return recoveryResult;
-  }
+async function finishStateMutation({ plan, projectDir, applied, snapshotMeta, currentState, snapshot, request, pluginId }) {
   const { nextState, logEntry } = createNextState({ applied, currentState, snapshot, plan, request, pluginId });
-  await persistState({
-    lockContext,
-    projectDir,
-    fencedCurrentState: Boolean(currentState && isFencedStateVersion(currentState.version)),
-    fencedCorrupt: snapshot.fencedCorrupt,
-    nextState,
-  });
+  await writeSqliteState(sqliteStateFile(projectDir), nextState, currentState);
   const result = resultWithSnapshot(applied.result === undefined ? null : applied.result, snapshotMeta);
   return stateMutationResult({ applied, logEntry, result });
 }
 
-export async function executeStateMutation({ projectDir, lockContext, request, stateOperation, policyAction, pluginId }) {
+export async function executeStateMutation({ projectDir, request, stateOperation, policyAction, pluginId }) {
   const commandName = commandLabel(request);
   const statePath = stateFile(projectDir);
-  const { snapshot, currentState } = await loadMutationSnapshot(projectDir, statePath);
+  const { snapshot, currentState } = await loadMutationSnapshot(projectDir);
   const { plan, applied } = await prepareApplyStateMutation({ stateOperation, projectDir, snapshot, request, commandName, policyAction });
   const snapshotMeta = await savePlanSnapshot({ projectDir, plan, exists: snapshot.exists, statePath, commandName });
-  return finishStateMutation({ plan, snapshot, lockContext, projectDir, applied, snapshotMeta, currentState, request, pluginId });
+  return finishStateMutation({ plan, projectDir, applied, snapshotMeta, currentState, snapshot, request, pluginId });
 }

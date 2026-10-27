@@ -1,8 +1,9 @@
 
 import { projectLogView } from "../../read-model/index.ts";
-import { readState } from "../../storage/state.ts";
+import { sqliteStateExists, stateFile } from "../../storage/state.ts";
+import { readSqliteLogEntries } from "../../storage/sqlite/store.ts";
 import type { CommandContext } from "./contracts.ts";
-import type { ReadModelSnapshot } from "../../read-model/types.ts";
+import type { ReadModelLogEntry } from "../../read-model/types.ts";
 
 export const knownFlags = ["limit", "action", "agent", "node"];
 
@@ -17,9 +18,16 @@ async function readRemoteLog(flags, backendClient) {
 }
 
 async function readLocalLog(statePath, flags) {
-  const snapshot = await readState(statePath) as ReadModelSnapshot | null;
-  if (!snapshot) {return [];}
-  return projectLogView({ snapshot, filters: flags });
+  const entries = await readSqliteLogEntries(stateFile(statePath), {
+    action: flags.action as string | undefined,
+    agent: flags.agent as string | undefined,
+    node: flags.node as string | undefined,
+  }) as ReadModelLogEntry[] | null;
+  if (!entries) {
+    await sqliteStateExists(statePath);
+    return [];
+  }
+  return projectLogView({ snapshot: { log: entries }, filters: flags });
 }
 
 export default async function log({ statePath, flags, backendClient }: CommandContext) {

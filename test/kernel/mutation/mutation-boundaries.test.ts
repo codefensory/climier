@@ -112,7 +112,7 @@ test("kernel.mutate: edges added and removed in the same apply; only-changed-edg
     // No node was changed (only edges moved) — node revisions stay put.
     const after = await readStateHelper(dir);
     assert.equal(after.nodes.T1.revision, 3);
-    assert.equal(after.nodes.G1.revision, 3);
+    assert.equal(after.nodes.G1.revision, 1);
     assert.deepEqual(after.edges, [{ from: "T1", to: "G1", type: "BLOCKS" }]);
     assert.equal(after.log.length, 1);
     assert.equal(after.log[0].edges && after.log[0].edges.added.length, 1);
@@ -143,8 +143,8 @@ test("kernel provider diff fences created and modified nodes above state revisio
       provider: createTaskProvider({ id: "T2", title: "new" }),
     });
     let state = await readStateHelper(dir);
-    assert.equal(state.nodes.T2.revision, 14);
-    assert.equal(state.revision, 14);
+    assert.equal(state.nodes.T2.revision, 13);
+    assert.equal(state.revision, 13);
 
     await mutate({
       projectDir: dir,
@@ -152,8 +152,8 @@ test("kernel provider diff fences created and modified nodes above state revisio
       provider: updateNodeProvider({ id: "T1", newTitle: "after" }).provider,
     });
     state = await readStateHelper(dir);
-    assert.equal(state.nodes.T1.revision, 15);
-    assert.equal(state.revision, 15);
+    assert.equal(state.nodes.T1.revision, 14);
+    assert.equal(state.revision, 14);
     assert.ok(state.revision >= Math.max(...(Object.values(state.nodes) as Array<{ revision: number }>).map((node) => node.revision)));
   } finally {
     await rmTempProject(dir);

@@ -1,4 +1,3 @@
-
 import os from "node:os";
 import path from "node:path";
 
@@ -9,6 +8,10 @@ export function resolveProject({ project }: { project?: string } = {}): string {
 export function climierHome(): string {
   const home = process.env.CLIMIER_HOME;
   return path.resolve(home || path.join(os.homedir(), ".climier"));
+}
+
+export function sqliteStateFileForProjectId(projectId: string): string {
+  return path.join(climierHome(), "projects", projectId, "state.sqlite");
 }
 
 export function projectMetaFile(projectDir) {

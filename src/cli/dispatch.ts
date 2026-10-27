@@ -12,11 +12,8 @@ import { parseArgv, formatError, formatOutput } from "./dispatch-parser.ts";
 export { COMMANDS, HELP_TEXT, KNOWN_COMMANDS, PACKAGE_VERSION } from "./dispatch-constants.ts";
 export { parseArgv, formatError, formatOutput } from "./dispatch-parser.ts";
 import { resolveProject, projectMetaFile } from "../storage/paths.ts";
-import { syncProjectDisplayName } from "../storage/state.ts";
-import { createBackendClient } from "../application/operations/index.ts";
-import { getOperationSource } from "../operation-source.ts";
 import { asCaughtError, exitCodeForError, normalizeCliError } from "../contracts/errors.ts";
-import { RESERVED_NAMESPACES } from "./commands/reserved-namespaces.ts";
+import { RESERVED_NAMESPACES } from "./commands/reserved-namespaces-list.ts";
 import type { CommandContext, DispatchOptions } from "./commands/contracts.ts";
 export type { CommandContext, CommandModule } from "./commands/contracts.ts";
 
@@ -25,7 +22,7 @@ type CliRunOptions = {
   write?: (value: string) => void;
   exit?: (code: number) => void;
   source?: CommandContext["source"];
-  createBackendClient?: typeof createBackendClient;
+  createBackendClient?: typeof import("../application/backend-client.ts").createBackendClient;
   dispatch?: (context: CommandContext) => Promise<unknown>;
 };
 
@@ -273,6 +270,8 @@ function isRemoteProjectConfig(projectConfig) {
     && (backend as { type?: unknown }).type === "remote";
 }
 
+const LOCAL_READ_COMMANDS = new Set(["status", "context", "search", "history", "show", "initiatives", "log", "snapshots"]);
+
 async function operationSourceForContext(source, isRemote) {
   if (source !== undefined && source !== null) {
     return source;
@@ -280,7 +279,7 @@ async function operationSourceForContext(source, isRemote) {
   if (isRemote) {
     return undefined;
   }
-  return getOperationSource();
+  return (await import("../operation-source.ts")).getOperationSource();
 }
 
 async function completeOperationSource(source, backendClient) {
@@ -292,19 +291,37 @@ async function completeOperationSource(source, backendClient) {
   return source;
 }
 
-async function addBackendContext(context, { source, backendClientFactory }) {
+function shouldSkipLocalBackend(context, projectConfig, backendClientFactory, allowed) {
+  return allowed && !isRemoteProjectConfig(projectConfig) && !backendClientFactory
+    && LOCAL_READ_COMMANDS.has(context.command);
+}
+
+async function selectBackendContext(context, projectConfig, { source, backendClientFactory, skipLocalReadBackend }) {
+  const remoteProject = isRemoteProjectConfig(projectConfig);
+  const skipLocalBackend = shouldSkipLocalBackend(context, projectConfig, backendClientFactory, skipLocalReadBackend);
+  const localSource = skipLocalBackend
+    ? source ?? undefined
+    : await operationSourceForContext(source, remoteProject);
+  let backendClient;
+  if (remoteProject || backendClientFactory || !skipLocalBackend) {
+    const factory = backendClientFactory
+      ?? (await import("../application/backend-client.ts")).createBackendClient;
+    backendClient = factory({
+      projectDir: context.projectDir,
+      projectConfig,
+      source: localSource,
+      command: context.command,
+    });
+  }
+  return { backendClient, source: await completeOperationSource(localSource, backendClient) };
+}
+
+async function addBackendContext(context, options) {
   const projectConfig = readProjectConfig(context.projectDir);
-  await syncProjectDisplayName(context.projectDir, projectConfig);
-  const localSource = await operationSourceForContext(source, isRemoteProjectConfig(projectConfig));
-  const backendClient = backendClientFactory({
-    projectDir: context.projectDir,
-    projectConfig,
-    source: localSource,
-    command: context.command,
-  });
-  const selectedSource = await completeOperationSource(localSource, backendClient);
-  Object.assign(context, { projectConfig, backendClient, source: selectedSource });
-  ensureRemoteCommandSupported({ ...context, backendClient });
+  await (await import("../storage/state.ts")).syncProjectDisplayName(context.projectDir, projectConfig);
+  const selected = await selectBackendContext(context, projectConfig, options);
+  Object.assign(context, { projectConfig, ...selected });
+  ensureRemoteCommandSupported(context);
   return context;
 }
 
@@ -332,7 +349,11 @@ async function executeParsedCli({ parsed, context, source, backendClientFactory,
       return noCommandResponse;
     }
     if (shouldAddBackendContext(parsed.command)) {
-      await addBackendContext(context, { source, backendClientFactory });
+      await addBackendContext(context, {
+        source,
+        backendClientFactory,
+        skipLocalReadBackend: dispatchCommandFn === dispatchCommand,
+      });
     }
     const result = await dispatchCommandFn(context);
     return writeCommandResult(result, parsed.command, write, exit);
@@ -347,7 +368,7 @@ function cliOptions(options: CliRunOptions = {}) {
     write: options.write ?? console.log,
     exit: options.exit ?? process.exit,
     source: options.source,
-    backendClientFactory: options.createBackendClient ?? createBackendClient,
+    backendClientFactory: options.createBackendClient,
     dispatchCommandFn: options.dispatch ?? dispatchCommand,
   };
 }

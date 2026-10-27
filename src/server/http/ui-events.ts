@@ -12,7 +12,7 @@ type UiEventsOptions = {
   authorize: (request: unknown, options?: unknown) => Promise<void>;
   readSnapshot: (project: { projectDir: string }, options?: unknown) => Promise<unknown>;
   createWatcher?: (options: Record<string, unknown>) => Watcher;
-  resolveLedger?: (options: { projectId: string; project: Project; projectDir: string }) => string;
+  resolveState?: (options: { projectId: string; project: Project; projectDir: string }) => string;
   heartbeatMs?: number;
   pollIntervalMs?: number;
   protocolVersion?: string;
@@ -62,15 +62,15 @@ export function createUiEvents({
   authorize,
   readSnapshot,
   createWatcher = (options) => createRevisionWatcher(options),
-  resolveLedger,
+  resolveState,
   heartbeatMs = DEFAULT_HEARTBEAT_MS,
   pollIntervalMs,
   protocolVersion = "1",
 }: UiEventsOptions = {} as UiEventsOptions) {
   assertDependencies({ getProject, authorize, readSnapshot });
   if (typeof createWatcher !== "function") throw new TypeError("server http ui events: createWatcher must be a function");
-  if (resolveLedger !== undefined && typeof resolveLedger !== "function") {
-    throw new TypeError("server http ui events: resolveLedger must be a function");
+  if (resolveState !== undefined && typeof resolveState !== "function") {
+    throw new TypeError("server http ui events: resolveState must be a function");
   }
   assertInterval(heartbeatMs, "heartbeatMs");
   if (pollIntervalMs !== undefined) assertInterval(pollIntervalMs, "pollIntervalMs");
@@ -90,8 +90,8 @@ export function createUiEvents({
     if (entry) return entry;
     const watcherOptions = {
       projectDir: project.projectDir as string,
-      ...(resolveLedger === undefined ? {} : {
-        resolveLedger: () => resolveLedger({ projectId, project, projectDir: project.projectDir as string }),
+      ...(resolveState === undefined ? {} : {
+        resolveState: () => resolveState({ projectId, project, projectDir: project.projectDir as string }),
       }),
       ...(pollIntervalMs === undefined ? {} : { pollIntervalMs }),
     };

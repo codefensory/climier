@@ -17,6 +17,7 @@ const READ_ROUTES: readonly [string, RegExp, readonly string[]][] = [
   ["search", /^read\/search(?:\/([^/]+))?$/, ["query", "all"]],
   ["initiatives", /^read\/initiatives$/, ["all"]],
   ["log", /^read\/log$/, ["limit", "action", "agent", "node"]],
+  ["changes", /^read\/changes$/, ["since"]],
   ["state", /^read\/state$/, []],
   ["node", /^read\/nodes\/([^/]+)$/, []],
 ];
@@ -90,6 +91,16 @@ function parseNonNegativeInt(parsed, name, httpError, options: { number?: boolea
   parsed[name] = valueAsNumber;
 }
 
+function parseSafeRevision(parsed, httpError) {
+  if (!Object.hasOwn(parsed, "since")) { return; }
+  const value = parsed.since;
+  const revision = Number(value);
+  if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(revision)) {
+    invalidQuery(httpError, "query parameter 'since' must be a non-negative safe integer", { parameter: "since", value });
+  }
+  parsed.since = revision;
+}
+
 function parseRouteNumbers(parsed, kind, httpError) {
   if (kind === "status") {
     parseNonNegativeInt(parsed, "stale-ms", httpError);
@@ -98,6 +109,8 @@ function parseRouteNumbers(parsed, kind, httpError) {
     parseNonNegativeInt(parsed, "staleMs", httpError, { number: true });
   } else if (kind === "history" || kind === "log") {
     parseNonNegativeInt(parsed, "limit", httpError);
+  } else if (kind === "changes") {
+    parseSafeRevision(parsed, httpError);
   }
 }
 
@@ -123,6 +136,9 @@ function parseReadQuery(url, route, query, httpError) {
     parsed[key] = value;
   }
   parseSearchQuery(parsed, route, httpError);
+  if (route.kind === "changes" && !Object.hasOwn(parsed, "since")) {
+    invalidQuery(httpError, "query parameter 'since' is required for changes", { parameter: "since" });
+  }
   parseAll(parsed, httpError);
   parseRouteNumbers(parsed, route.kind, httpError);
   return parsed;
@@ -199,7 +215,7 @@ function createProjectors({ deps, httpError }) {
     search: (snapshot, route, filters) => projectSearch(snapshot, filters, deps),
     initiatives: (snapshot, route, filters) => projectInitiatives(snapshot, filters, deps),
     log: (snapshot, route, filters) => deps.projectLogView({ snapshot, filters }),
-    state: (snapshot) => deps.projectSnapshot({ snapshot }),
+    state: (snapshot) => snapshot,
     node: (snapshot, route) => projectNode(snapshot, route.id, deps, httpError),
   };
 }

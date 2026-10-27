@@ -58,7 +58,7 @@ test("CLI state returns the deterministic current core projection without plugin
     const output = JSON.parse(result.stdout);
 
     assert.deepEqual(Object.keys(output), ["revision", "nodes", "edges", "derived", "plugins"]);
-    assert.equal(output.revision, 17);
+    assert.equal(output.revision, 16);
     assert.deepEqual(Object.keys(output.nodes), ["G-open", "T-z"]);
     assert.deepEqual(output.edges, [
       { from: "G-open", to: "T-z", type: "BLOCKS" },

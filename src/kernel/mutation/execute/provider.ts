@@ -1,14 +1,14 @@
 
 
-import { emptyState, isFencedStateVersion } from "../../../storage/state.ts";
-import { bootstrapFencedStateUnderLock, commitFencedStateUnderLock } from "../../../storage/ledger.ts";
+import { emptyState, isCanonicalStateVersion, sqliteStateFile } from "../../../storage/state.ts";
+import { writeSqliteMutation, writeSqliteState } from "../../../storage/sqlite/store.ts";
 import { createTransaction } from "../../transaction.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
 import { buildLogEntry } from "../log-entry.ts";
 import {
   checkStateRevision,
   freezePlan,
-  readMutationStateUnderLock,
+  readMutationSnapshot,
   runPolicy,
   checkPrecondition,
   selectPrecondition,
@@ -27,7 +27,7 @@ function isBootstrapAllowed(loadedState, request, provider) {
 }
 
 function validateLoadedSnapshot(snapshot, mayBootstrap, commandName) {
-  const invalidSnapshot = !snapshot || typeof snapshot !== "object" || !isFencedStateVersion(snapshot.version);
+  const invalidSnapshot = !snapshot || typeof snapshot !== "object" || !isCanonicalStateVersion(snapshot.version);
   if (invalidSnapshot && !mayBootstrap) {
     throw new Error(`${commandName}: state file missing or not canonical (run init first)`);
   }
@@ -88,16 +88,16 @@ function hasStructuralChanges({ created, updated, addedEdges, removedEdges, remo
     initiativeDiff.created.length > 0 || initiativeDiff.updated.length > 0;
 }
 
-function computeMutationDiff(snapshot, draftView) {
-  const { next: nextNodes, removed: removedNodes, created, updated } = assignRevisionsAndDiff(snapshot, draftView);
-  const { added: addedEdges, removed: removedEdges } = computeEdgeDiff(snapshot.edges || [], draftView.edges || []);
-  const initiativeDiff = computeInitiativeDiff(snapshot.initiatives || {}, draftView.initiatives || {});
+function computeMutationDiff(snapshot, draftView, dirtyIds, dirtyEdgeChanges) {
+  const { next: nextNodes, removed: removedNodes, created, updated } = assignRevisionsAndDiff(snapshot, draftView, dirtyIds.nodes);
+  const { added: addedEdges, removed: removedEdges } = computeEdgeDiff(snapshot.edges || [], draftView.edges || [], dirtyEdgeChanges);
+  const initiativeDiff = computeInitiativeDiff(snapshot.initiatives || {}, draftView.initiatives || {}, dirtyIds.initiatives);
   const pluginsBefore = normalizePlugins(snapshot.plugins);
   const pluginsAfter = normalizePlugins(draftView.plugins);
   const pluginsChanged = !deepEqualNodes(pluginsBefore, pluginsAfter);
   const changes = { created, updated, addedEdges, removedEdges, removedNodes, initiativeDiff };
   const isIdempotent = !hasStructuralChanges(changes) && !pluginsChanged;
-  return { nextNodes, removedNodes, created, updated, addedEdges, removedEdges, initiativeDiff, pluginsAfter, isIdempotent };
+  return { nextNodes, removedNodes, created, updated, addedEdges, removedEdges, initiativeDiff, pluginsAfter, pluginsChanged, isIdempotent };
 }
 
 function finalNodesForSnapshot(snapshot, nextNodes) {
@@ -138,7 +138,6 @@ function createPersistedState({ snapshot, draftView, diff, request, pluginId, ta
   const persistedState = {
     ...snapshot,
     version: snapshot.version,
-    fence_generation: snapshot.fence_generation,
     nodes: finalNodesForSnapshot(snapshot, diff.nextNodes),
     edges: draftView.edges,
     initiatives: finalInitiativesForSnapshot(snapshot, draftView.initiatives),
@@ -153,15 +152,11 @@ function createPersistedState({ snapshot, draftView, diff, request, pluginId, ta
   return { persistedState, logEntry };
 }
 
-async function persistMutation({ mayBootstrap, lockContext, persistedState }) {
-  if (mayBootstrap) {
-    await bootstrapFencedStateUnderLock(lockContext, persistedState);
-    return;
-  }
-  await commitFencedStateUnderLock(lockContext, persistedState);
+async function persistMutation({ projectDir, persistedState, previousState }) {
+  await writeSqliteState(sqliteStateFile(projectDir), persistedState, previousState);
 }
 
-async function commitMutation({ snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan }) {
+async function commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, plan, closure }) {
   const targetNextRevision = deriveTargetRevision(snapshot, plan, diff.created, diff.updated);
   const { persistedState, logEntry } = createPersistedState({
     snapshot,
@@ -171,7 +166,28 @@ async function commitMutation({ snapshot, draftView, diff, request, pluginId, lo
     pluginId,
     targetNextRevision,
   });
-  await persistMutation({ mayBootstrap, lockContext, persistedState });
+  if (closure) {
+    const nodeUpsert = Object.fromEntries([...diff.created, ...diff.updated].map(({ id, node }) => [id, node]));
+    const initiativeUpsert = Object.fromEntries([...diff.initiativeDiff.created, ...diff.initiativeDiff.updated]
+      .map(({ name, initiative }) => [name, initiative]));
+    const revision = Math.max(persistedState.revision, closure.maximumNodeRevision || 0);
+    const rootMutation = diff.pluginsChanged ? {
+      rootExtras: Object.fromEntries(Object.entries(persistedState).filter(([key]) =>
+        !["version", "revision", "nodes", "edges", "initiatives", "log"].includes(key))),
+      rootOrder: Object.keys(persistedState),
+    } : {};
+    await writeSqliteMutation(sqliteStateFile(projectDir), {
+      previousRevision: snapshot.revision,
+      revision,
+      nodes: { upsert: nodeUpsert, remove: diff.removedNodes },
+      edges: { add: diff.addedEdges, remove: diff.removedEdges },
+      initiatives: { upsert: initiativeUpsert },
+      logEntry,
+      ...rootMutation,
+    });
+  } else {
+    await persistMutation({ projectDir, persistedState, previousState: snapshot });
+  }
   return logEntry;
 }
 
@@ -180,18 +196,28 @@ async function applyProviderMutation({ provider, tx, plan, request, snapshot, co
   return normalizeApplyResult(applyResult, commandName);
 }
 
-export async function executeProviderMutation({ projectDir, lockContext, request, provider, policyAction, pluginId, commandName }) {
-  const loadedState = await readMutationStateUnderLock(lockContext, projectDir);
-  const { snapshot, mayBootstrap } = initialSnapshot(loadedState, request, provider, commandName);
+export async function executeProviderMutation({ projectDir, request, provider, policyAction, pluginId, snapshotClosure, commandName }) {
+  // A selected policy may inspect the entire project snapshot.
+  const sourceSnapshot = await readMutationSnapshot(projectDir, snapshotClosure, request, !policyAction?.pluginId);
+  const { snapshot, mayBootstrap } = initialSnapshot(sourceSnapshot.state, request, provider, commandName);
   const plan = await prepareMutationPlan({ provider, snapshot, request, pluginId, commandName });
   await runPolicy({ policyAction, snapshot, plan, request, commandName });
   const tx = createTransaction(snapshot);
   const outcome = await applyProviderMutation({ provider, tx, plan, request, snapshot, commandName });
   const draftView = tx.view({ includePlugins: true });
   validateDraftStructural(draftView, commandName);
-  const diff = computeMutationDiff(snapshot, draftView);
+  const diff = computeMutationDiff(snapshot, draftView, tx.getDirtyIds(), tx.getDirtyEdgeChanges());
   const isIdempotent = !mayBootstrap && diff.isIdempotent;
-  const logEntry = isIdempotent ? null : await commitMutation({ snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan });
+  const logEntry = isIdempotent ? null : await commitMutation({
+    projectDir,
+    snapshot,
+    draftView,
+    diff,
+    request,
+    pluginId,
+    plan,
+    closure: sourceSnapshot.closure,
+  });
   return {
     result: outcome.result,
     effects: outcome.effects,

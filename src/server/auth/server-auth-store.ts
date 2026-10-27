@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { errorProperties, isRecord, type ServerError } from "../types.ts";
-import { syncDirectory } from "../../storage/ledger/stages.ts";
 
 const scrypt = promisify(crypto.scrypt) as (password: string, salt: string, keylen: number, options: object) => Promise<Buffer>;
 const AUTH_FILE = "remote-auth.json";
@@ -77,7 +76,8 @@ async function fsyncDirectory(directory: string, platform: NodeJS.Platform, hook
     await hooks.fsyncDirectory(directory);
     return;
   }
-  await syncDirectory(directory, platform);
+  const handle = await fs.open(directory, "r");
+  try { await handle.sync(); } finally { await handle.close(); }
 }
 
 async function writeAuthFileDurably(file: string, state: AuthState, testHooks: AuthTestHooks | undefined, platform: NodeJS.Platform) {

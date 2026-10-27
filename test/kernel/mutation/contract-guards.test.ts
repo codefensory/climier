@@ -103,7 +103,7 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
   const allowedRelative = new Set([
     "../contracts/errors.ts", // throwV2 for structured errors
     "../storage/state.ts", // readState + writeState (atomic)
-    "../storage/lock.ts",          // withLock (single-mutation frontier)
+    "../storage/sqlite/store.ts", // SQLite mutation transaction
     "../storage/log.ts",           // prepareLogEntry (canonical log shape)
     "./transaction.ts",    // createTransaction (the existing draft)
     "./mutation/request.ts", // extracted request/provider/plan contracts

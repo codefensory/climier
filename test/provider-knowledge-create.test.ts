@@ -23,7 +23,7 @@ function caughtError(error: unknown): CaughtError {
 import {
   createTempProject,
   rmTempProject,
-  writeFencedState,
+  writeCanonicalState,
   readState as readStateHelper,
 } from "./helpers.ts";
 
@@ -32,7 +32,7 @@ import {
 // State fixtures (pure, JSON-shaped)
 
 async function prepareCreateFromDisk(provider, dir) {
-  await writeFencedState(dir, emptySnapshot());
+  await writeCanonicalState(dir, emptySnapshot());
   const before = await readStateHelper(dir);
   await provider.prepare({
     snapshot: before,
@@ -55,7 +55,7 @@ function assertKnowledgeCreateLog(log) {
   assert.equal(log[0].action, "knowledge.create");
   assert.equal(log[0].agent, "alice");
   assert.equal(log[0].node, "K-1");
-  assert.equal(log[0].revision, 2);
+  assert.equal(log[0].revision, 1);
 }
 
 function createInput() {
@@ -170,7 +170,7 @@ test("create: apply uses tx only (does not modify the snapshot)", async () => {
     assert.equal(out.idempotent, false);
     assert.equal(out.diff.created.length, 1);
     assert.equal(out.diff.created[0].id, "K-1");
-    assert.equal(out.diff.created[0].node.revision, 2);
+    assert.equal(out.diff.created[0].node.revision, 1);
     const after = await readStateHelper(dir);
     assertCreatedKnowledge(after.nodes["K-1"]);
     assertKnowledgeCreateLog(after.log);
@@ -186,7 +186,7 @@ async function createSupersedingKnowledge(provider, mutate, dir) {
     },
     edges: [],
   });
-  await writeFencedState(dir, base);
+  await writeCanonicalState(dir, base);
   return mutate({
     projectDir: dir,
     request: {
@@ -213,15 +213,15 @@ test("create: supersedes marks the target as superseded and adds a SUPERSEDES ed
     assert.equal(out.diff.updated.length, 1, "superseded target is updated");
     assert.equal(out.diff.updated[0].id, "K-old");
     assert.equal(out.diff.updated[0].node.status, "superseded");
-    assert.equal(out.diff.updated[0].node.revision, 6, "kernel advances beyond the fenced fixture high-water");
+    assert.equal(out.diff.updated[0].node.revision, 5, "kernel increments the node revision in SQLite");
     assert.deepEqual(out.diff.added_edges, [{ from: "K-new", to: "K-old", type: "SUPERSEDES" }]);
 
     const after = await readStateHelper(dir);
     assert.equal(after.nodes["K-old"].status, "superseded");
-    assert.equal(after.nodes["K-old"].revision, 6);
+    assert.equal(after.nodes["K-old"].revision, 5);
     assert.deepEqual(after.edges, [{ from: "K-new", to: "K-old", type: "SUPERSEDES" }]);
     assert.equal(after.log.length, 1);
-    assert.equal(after.log[0].revision, 6, "log carries the fenced transaction revision");
+    assert.equal(after.log[0].revision, 5, "log carries the transaction revision");
   } finally {
     await rmTempProject(dir);
   }
@@ -274,7 +274,7 @@ test("create: provider never writes revision (kernel assigns it)", async () => {
   };
   const dir = await createTempProject();
   try {
-    await writeFencedState(dir, emptySnapshot());
+    await writeCanonicalState(dir, emptySnapshot());
     await assert.rejects(
       importKernel().then(({ mutate }) => mutate({
         projectDir: dir,

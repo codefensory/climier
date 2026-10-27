@@ -67,6 +67,51 @@ test("task.accept accepts submitted tasks, preserves submission metadata and rec
   assert.equal(output.result.done_by, "worker");
 });
 
+test("task.accept computes newly ready tasks without scanning all nodes", async () => {
+  const source = state({
+    submitted: submittedTask(),
+    "z-descendant": task("z-descendant"),
+    "a-descendant": task("a-descendant"),
+    unrelated: task("unrelated"),
+  }, [
+    { from: "submitted", to: "z-descendant", type: "BLOCKS" },
+    { from: "submitted", to: "a-descendant", type: "BLOCKS" },
+  ]);
+  const input = { id: "submitted", actor: "worker", accepted_at: fixedAcceptance };
+  const plan = await taskAcceptProvider.prepare({ snapshot: source, input, request: {} });
+  const tx = createTransaction(source);
+  const snapshot = {
+    ...source,
+    nodes: new Proxy(source.nodes, {
+      ownKeys() {
+        throw new Error("accept must not enumerate every node");
+      },
+    }),
+  };
+
+  const output = await taskAcceptProvider.apply({ tx, plan, input, request: {}, snapshot });
+
+  assert.equal(JSON.stringify(output.effects), '{"newly_ready":["a-descendant","z-descendant"]}');
+});
+
+test("task.accept reports dependents of canceled tasks superseded by the accepted task", async () => {
+  const snapshot = state({
+    replacement: submittedTask("replacement"),
+    canceled: task("canceled", "canceled"),
+    descendant: task("descendant"),
+  }, [
+    { from: "replacement", to: "canceled", type: "SUPERSEDES" },
+    { from: "canceled", to: "descendant", type: "BLOCKS" },
+  ]);
+  const input = { id: "replacement", actor: "worker", accepted_at: fixedAcceptance };
+  const plan = await taskAcceptProvider.prepare({ snapshot, input, request: {} });
+  const tx = createTransaction(snapshot);
+
+  const output = await taskAcceptProvider.apply({ tx, plan, input, request: {}, snapshot });
+
+  assert.deepEqual(output.effects, { newly_ready: ["descendant"] });
+});
+
 test("task.accept allows the same actor that submitted the task", async () => {
   const snapshot = state({ submitted: submittedTask() });
   const plan = await taskAcceptProvider.prepare({

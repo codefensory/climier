@@ -16,7 +16,8 @@ for (const command of ["status", "context"]) {
   test(`${command} command consumes the canonical read-model instead of v2`, async () => {
     const source = await readFile(path.join(ROOT, "src", "cli", "commands", `${command}.ts`), "utf8");
 
-    assert.match(source, /from ["']\.\.\/\.\.\/read-model\/index\.ts["']/,
+    const readModelModule = command === "status" ? "status" : "index";
+    assert.match(source, new RegExp(`from ["']\\.\\.\\/\\.\\.\\/read-model\\/${readModelModule}\\.ts["']`),
       `${command} must import projections from read-model`);
     assert.doesNotMatch(source, /from ["']\.\.\/\.\.\/v2\.ts["']/,
       `${command} must not import the transitional v2 facade`);

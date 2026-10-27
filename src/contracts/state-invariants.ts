@@ -6,6 +6,18 @@ import type { CoreErrorCode, ErrorDetails } from "./errors.ts";
 import type { Edge, EdgeType, Node } from "./domain.ts";
 
 export const EDGE_TYPES = Object.freeze(["BLOCKS", "SUPERSEDES", "DERIVED_FROM"] as const);
+// Keep this inventory aligned with the canonical edge checks and their closure differential cases.
+export const STATE_EDGE_INVARIANT_RULES = Object.freeze([
+  "edge-object",
+  "endpoint-shape",
+  "type-shape",
+  "self-edge",
+  "endpoint-exists",
+  "allowed-type",
+  "kind-compatibility",
+  "unique-edge",
+  "blocks-acyclic",
+] as const);
 
 type StateLike = {
   nodes?: Record<string, NodeLike>;

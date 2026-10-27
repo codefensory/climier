@@ -35,11 +35,12 @@ test("provider allowlists retain kind-specific fields", () => {
   assert.ok(!UPDATE_PATCH_KEYS.task.includes("purpose"));
 });
 
-test("the one-time state importer is absent from the CLI and storage", async () => {
+test("legacy top-level importer stays retired while explicit SQLite migration is scoped under state", async () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   assert.ok(!KNOWN_COMMANDS.includes("migrate"));
   const { HELP_TEXT } = await import("../src/cli/dispatch.ts");
-  assert.doesNotMatch(HELP_TEXT, /\bmigrate\b/i);
+  assert.match(HELP_TEXT, /state migrate --as <agent> --yes/);
+  assert.doesNotMatch(HELP_TEXT, /\n  migrate(?:\s|\n)/i);
   for (const relative of [
     "src/cli/commands/migrate.ts",
     "src/storage/migrate.ts",
@@ -47,6 +48,7 @@ test("the one-time state importer is absent from the CLI and storage", async () 
   ]) {
     await assert.rejects(fs.access(path.join(root, relative)), { code: "ENOENT" });
   }
+  await assert.doesNotReject(fs.access(path.join(root, "src/storage/sqlite/migrate.ts")));
 });
 
 test("manual transfer CLI and remote v1 manifest remain registered", async () => {

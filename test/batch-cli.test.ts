@@ -66,7 +66,7 @@ test("batch CLI reads a JSON document from --file and returns the structured bat
     assert.equal(output.results[0].op, "initiative.create");
     assert.equal(output.results[1].op, "task.create");
 
-    const state = JSON.parse(await fs.readFile(stateFilePath(dir), "utf8"));
+    const state = await readState(dir);
     assert.ok(state.nodes["T-batch-cli"]);
     assert.equal(state.log.at(-1).action, "core.batch");
   } finally {
@@ -95,7 +95,7 @@ test("batch CLI rejects malformed JSON and does not mutate state", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
-    const before = await fs.readFile(stateFilePath(dir), "utf8");
+    const before = await readState(dir);
     const result = await runCliWithInput(
       ["--project", dir, "batch", "--stdin", "--as", "alice"],
       "{not-json}",
@@ -104,7 +104,7 @@ test("batch CLI rejects malformed JSON and does not mutate state", async () => {
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, false);
     assert.equal(output.error.code, "INVALID_EXECUTION_CONTRACT");
-    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
+    assert.deepEqual(await readState(dir), before);
   } finally {
     await rmTempProject(dir);
   }

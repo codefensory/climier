@@ -1,8 +1,6 @@
 /* eslint-disable max-nested-callbacks -- Fenced-state read consumer assertions intentionally share one project fixture callback. */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { asCaughtError } from "../src/contracts/errors.ts";
-
 import {
   createTempProject,
   importFresh,
@@ -103,75 +101,21 @@ test("plugin query reads canonical v1 nodes and projects no fence or ledger fiel
   });
 });
 
-test("read consumers reject legacy state versions with a migration hint", async () => {
+test("SQLite storage rejects noncanonical schema versions", async () => {
   const dir = await createTempProject();
   try {
-    const reads = [
-      async (version) => {
-        await writeState(dir, compatibleState(version));
-        const { default: show } = await importFresh("./cli/commands/show.ts");
-        return show({ statePath: dir, positional: ["T1"], flags: {} });
-      },
-        async (version) => {
-        await writeState(dir, compatibleState(version));
-        const { default: context } = await importFresh("./cli/commands/context.ts");
-        return context({ statePath: dir, positional: ["T1"], flags: {} });
-      },
-      async (version) => {
-        await writeState(dir, compatibleState(version));
-        const { default: search } = await importFresh("./cli/commands/search.ts");
-        return search({ statePath: dir, positional: ["needle"], flags: {} });
-      },
-      async (version) => {
-        await writeState(dir, compatibleState(version));
-        const { createQuery } = await importFresh("../src/plugins/query.ts");
-        return createQuery({ projectDir: dir, agent: "alice", pluginId: "plugin.a" }).node("T1");
-      },
-    ];
-
     for (const version of [2, 3, 4, 5]) {
-      for (const read of reads) {
-        await assert.rejects(read(version), (rawError) => {
-          const error = asCaughtError(rawError);
-          assert.ok(["CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_STATE_NOT_READABLE"].includes(error.code ?? ""));
-          assert.match(error.message, /restore a verified backup/i);
-          return true;
-        });
-      }
+      await assert.rejects(writeState(dir, compatibleState(version)), /canonical schema-1 state/);
     }
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("read consumers reject future state versions", async () => {
+test("SQLite storage rejects future state versions", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, compatibleState(6));
-    const { default: show } = await importFresh("./cli/commands/show.ts");
-    const { default: context } = await importFresh("./cli/commands/context.ts");
-    const { default: search } = await importFresh("./cli/commands/search.ts");
-    const { createQuery } = await importFresh("../src/plugins/query.ts");
-    const query = createQuery({ projectDir: dir, agent: "alice", pluginId: "plugin.a" });
-    const reads = [
-      () => show({ statePath: dir, positional: ["T1"], flags: {} }),
-      () => context({ statePath: dir, positional: ["T1"], flags: {} }),
-      () => search({ statePath: dir, positional: ["needle"], flags: {} }),
-      () => query.node("T1"),
-      () => query.context("T1"),
-      () => query.snapshot(),
-      () => query.status(),
-      () => query.history("T1"),
-    ];
-
-    for (const read of reads) {
-      await assert.rejects(read, (rawError) => {
-        const error = asCaughtError(rawError);
-        assert.equal(error.code, "CLIMIER_INCOMPATIBLE_VERSION");
-        assert.match(error.message, /version 6/);
-        return true;
-      });
-    }
+    await assert.rejects(writeState(dir, compatibleState(6)), /canonical schema-1 state/);
   } finally {
     await rmTempProject(dir);
   }

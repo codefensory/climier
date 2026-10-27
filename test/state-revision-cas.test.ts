@@ -59,8 +59,8 @@ test("kernel mutation increments global state revision exactly once for an effec
     });
     assert.equal(out.idempotent, false);
     const state = await readState(dir);
-    assert.equal(state.revision, 3);
-    assert.equal(state.nodes.T1.revision, 3);
+    assert.equal(state.revision, 2);
+    assert.equal(state.nodes.T1.revision, 2);
   } finally {
     await rmTempProject(dir);
   }
@@ -79,7 +79,7 @@ test("kernel mutation leaves global revision unchanged for a no-op", async () =>
       },
     });
     assert.equal(out.idempotent, true);
-    assert.equal((await readState(dir)).revision, 2);
+    assert.equal((await readState(dir)).revision, 1);
   } finally {
     await rmTempProject(dir);
   }
@@ -107,7 +107,7 @@ test("kernel mutation rejects stale global CAS before policy/apply and does not 
       (error) => {
         const details = (error as { code?: string; details?: { expected?: number; actual?: number } }).details;
         return (error as { code?: string }).code === "STATE_REVISION_CONFLICT" &&
-          details?.expected === 7 && details.actual === 2;
+          details?.expected === 7 && details.actual === 1;
       },
     );
     assert.equal(policyCalls, 0);

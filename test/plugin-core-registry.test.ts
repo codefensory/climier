@@ -287,7 +287,11 @@ function assertBuiltinIds(reg, expectedIds) {
 function assertBuiltinEntryShape(reg, expectedIds) {
   for (const id of expectedIds) {
     const entry = reg.get(id);
-    assert.deepEqual(Object.keys(entry).toSorted(), ["id", "kind", "provider"], `${id} has only canonical entry fields`);
+    assert.deepEqual(
+      Object.keys(entry).toSorted(),
+      entry.snapshotClosure ? ["id", "kind", "provider", "snapshotClosure"] : ["id", "kind", "provider"],
+      `${id} has only canonical entry fields and an optional closure declaration`,
+    );
     assert.equal(entry.id, id);
     assert.ok(["task", "gate", "knowledge", "core"].includes(entry.kind), `${id} kind ∈ ADR-012 + core kinds`);
     assert.deepEqual(Object.keys(entry.provider).toSorted(), ["apply", "prepare"], `${id} provider has only prepare/apply`);

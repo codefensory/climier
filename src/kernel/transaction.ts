@@ -159,7 +159,42 @@ export function createTransaction(snapshot) {
     draftNodes[id] = cloned;
   }
 
-  const draftEdges = baseEdges.map((edge) => clone(edge));
+  const draftEdges: Array<Record<string, unknown>> = [];
+  const dirtyNodes = new Set<string>();
+  const dirtyInitiatives = new Set<string>();
+  const dirtyEdges = new Map<string, {
+    key: string;
+    edge: { from: string; to: string; type: string };
+    before: boolean;
+    after: boolean;
+    originalOrder: number;
+    finalOrder: number | null;
+  }>();
+  const edgeCounts = new Map<string, number>();
+  const originalEdgeOrder = new Map<string, number>();
+  let nextAddedEdgeOrder = 0;
+  for (const inputEdge of baseEdges) {
+    const edge = clone(inputEdge);
+    const index = draftEdges.length;
+    draftEdges.push(edge);
+    if (!edge || typeof edge !== "object") {continue;}
+    const key = edgeKey(edge);
+    edgeCounts.set(key, (edgeCounts.get(key) || 0) + 1);
+    if (!originalEdgeOrder.has(key)) {originalEdgeOrder.set(key, index);}
+  }
+
+  function recordDirtyEdge(edge, before: boolean, after: boolean, finalOrder: number | null) {
+    const key = edgeKey(edge);
+    const previous = dirtyEdges.get(key);
+    dirtyEdges.set(key, {
+      key,
+      edge: { from: edge.from, to: edge.to, type: edge.type },
+      before: previous ? previous.before : before,
+      after,
+      originalOrder: previous ? previous.originalOrder : (originalEdgeOrder.get(key) ?? Number.MAX_SAFE_INTEGER),
+      finalOrder: after ? finalOrder : null,
+    });
+  }
   // initiatives: { name -> cloned initiative }. Initiatives do not carry
   // a kernel-managed revision, so the draft mirrors the snapshot 1:1 and
   // createInitiative only adds new names. Changing an existing initiative
@@ -216,6 +251,7 @@ export function createTransaction(snapshot) {
     const stored = clone(input);
     delete stored.revision;
     draftNodes[id] = stored;
+    dirtyNodes.add(id);
     return clone(stored);
   }
 
@@ -247,6 +283,7 @@ export function createTransaction(snapshot) {
     const merged = { ...clone(existing), ...clone(patch) };
     delete merged.revision;
     draftNodes[nodeId] = merged;
+    dirtyNodes.add(nodeId);
     return clone(merged);
   }
 
@@ -275,7 +312,10 @@ export function createTransaction(snapshot) {
       );
     }
     const stored = clone({ from, to, type });
+    const previousCount = edgeCounts.get(incomingKey) || 0;
+    edgeCounts.set(incomingKey, previousCount + 1);
     draftEdges.push(stored);
+    recordDirtyEdge(stored, false, true, nextAddedEdgeOrder++);
     return clone(stored);
   }
 
@@ -294,6 +334,9 @@ export function createTransaction(snapshot) {
       );
     }
     const [removed] = draftEdges.splice(idx, 1);
+    const remainingCount = Math.max(0, (edgeCounts.get(targetKey) || 0) - 1);
+    if (remainingCount === 0) {edgeCounts.delete(targetKey);} else {edgeCounts.set(targetKey, remainingCount);}
+    recordDirtyEdge(removed, true, remainingCount > 0, null);
     return clone(removed);
   }
 
@@ -323,6 +366,7 @@ export function createTransaction(snapshot) {
     existing.data = cloneValue(value, "setNodePluginData", "value");
     plugins[pid] = existing;
     draftNodes[nid] = { ...node, plugins };
+    dirtyNodes.add(nid);
     return cloneValue(existing.data, "setNodePluginData", "value");
   }
 
@@ -347,6 +391,7 @@ export function createTransaction(snapshot) {
       nextPlugins[pid] = nextEntry;
     }
     draftNodes[nid] = { ...node, plugins: nextPlugins };
+    dirtyNodes.add(nid);
     return true;
   }
 
@@ -473,6 +518,7 @@ export function createTransaction(snapshot) {
       stored.created_at = input.created_at;
     }
     draftInitiatives[name] = stored;
+    dirtyInitiatives.add(name);
     return clone(stored);
   }
 
@@ -492,6 +538,16 @@ export function createTransaction(snapshot) {
     createInitiative,
     view,
     pluginView,
+    getDirtyIds() {
+      return {
+        nodes: [...dirtyNodes],
+        edges: [...dirtyEdges.keys()],
+        initiatives: [...dirtyInitiatives],
+      };
+    },
+    getDirtyEdgeChanges() {
+      return [...dirtyEdges.values()].map((change) => ({ ...change, edge: { ...change.edge } }));
+    },
   };
 }
 

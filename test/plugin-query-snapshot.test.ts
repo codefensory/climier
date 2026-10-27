@@ -88,7 +88,7 @@ test("api.query.snapshot reads one coherent state and exposes only the caller na
     assert.equal(typeof api.query.snapshot, "function");
 
     const out = await api.query.snapshot();
-    assert.equal(out.revision, 17);
+    assert.equal(out.revision, 16);
     assert.deepEqual(Object.keys(out.nodes), ["G-open", "T-a", "T-z"]);
     assert.deepEqual(Object.keys(out.plugins), ["plugin.a"]);
     assert.equal(out.plugins["plugin.b"], undefined);

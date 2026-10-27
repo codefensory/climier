@@ -1,9 +1,10 @@
 
-import { readState, assertReadableState } from "../../storage/state.ts";
-import { projectContextView } from "../../read-model/index.ts";
+import { sqliteStateExists, stateFile } from "../../storage/state.ts";
+import { readSqliteEdgesOf, readSqliteKnowledgeCandidates, readSqliteNode, readSqliteNodesByIds, withSqliteReadTransaction } from "../../storage/sqlite/store.ts";
+import { knowledgeForNode, projectContextView } from "../../read-model/index.ts";
 import { throwV2 } from "../../contracts/errors.ts";
 import type { CommandContext } from "./contracts.ts";
-import type { ReadModelSnapshot } from "../../read-model/types.ts";
+import type { ReadModelEdge, ReadModelNode, ReadModelSnapshot } from "../../read-model/types.ts";
 
 export const knownFlags = ["as", "staleMs"];
 
@@ -26,18 +27,66 @@ async function readRemoteContext(id, flags, backendClient) {
   return backendClient.readContext({ id, as: contextAgent(flags), staleMs: parseStaleMs(flags) });
 }
 
+async function supersedingEdges(file: string, ids: Set<string>): Promise<ReadModelEdge[]> {
+  const edges: ReadModelEdge[] = [];
+  const visited = new Set<string>();
+  let pending = [...ids];
+  while (pending.length > 0) {
+    const batch = pending.filter((id) => !visited.has(id));
+    if (batch.length === 0) {break;}
+    for (const id of batch) {visited.add(id);}
+    const batchIds = new Set(batch);
+    const found = await readSqliteEdgesOf(file, batch, { type: "SUPERSEDES" }) as ReadModelEdge[];
+    const incoming = found.filter((edge) => batchIds.has(edge.to));
+    edges.push(...incoming);
+    pending = incoming.map((edge) => edge.from);
+  }
+  return edges;
+}
+
+function contextRelatedIds(edges: ReadModelEdge[], id: string): Set<string> {
+  const ids = new Set<string>();
+  for (const edge of edges) {
+    if (edge.type === "BLOCKS" && edge.to === id) {ids.add(edge.from);}
+    if (edge.type === "INFORMS" && edge.from === id) {ids.add(edge.to);}
+  }
+  return ids;
+}
+
+async function contextSnapshot(file: string, id: string, node: ReadModelNode): Promise<ReadModelSnapshot> {
+  const knowledgeNodes = await readSqliteKnowledgeCandidates(file, node) as Record<string, ReadModelNode>;
+  const knowledgeView: ReadModelSnapshot = { nodes: { ...knowledgeNodes, [id]: node } };
+  const knowledgeIds = knowledgeForNode({ snapshot: knowledgeView, id }).map((item) => item.id);
+  const candidateNodes = await readSqliteNodesByIds(file, knowledgeIds) as Record<string, ReadModelNode>;
+  const targetEdges = await readSqliteEdgesOf(file, [id]) as ReadModelEdge[];
+  const relatedIds = contextRelatedIds(targetEdges, id);
+  const supersedes = await supersedingEdges(file, relatedIds);
+  const relatedNodes = await readSqliteNodesByIds(file, [...relatedIds, ...supersedes.map((edge) => edge.from)]) as Record<string, ReadModelNode>;
+  const nodes = { ...knowledgeNodes, ...candidateNodes, ...relatedNodes, [id]: node };
+  const edgeMap = new Map<string, ReadModelEdge>();
+  for (const edge of [...targetEdges, ...supersedes]) {
+    edgeMap.set(`${edge.from}\u0000${edge.to}\u0000${edge.type}`, edge);
+  }
+  return { nodes, edges: [...edgeMap.values()] };
+}
+
 async function readLocalContext(statePath, id, flags) {
-  const snapshot = await readState(statePath) as ReadModelSnapshot | null;
-  if (!snapshot) {throw new Error("context: state file missing");}
-  assertReadableState(snapshot, "context");
-  const view = projectContextView({
-    snapshot,
-    id,
-    agent: contextAgent(flags),
-    staleMs: parseStaleMs(flags),
-    now: Date.now(),
+  const file = stateFile(statePath);
+  const view = await withSqliteReadTransaction(file, async () => {
+    const node = await readSqliteNode(file, id) as ReadModelNode | null;
+    if (!node) {return null;}
+    return projectContextView({
+      snapshot: await contextSnapshot(file, id, node),
+      id,
+      agent: contextAgent(flags),
+      staleMs: parseStaleMs(flags),
+      now: Date.now(),
+    });
   });
-  if (!view) {throwV2("NODE_NOT_FOUND", `context: node ${id} not found`, { id });}
+  if (!view) {
+    if (!(await sqliteStateExists(statePath))) {throw new Error("context: state file missing");}
+    throwV2("NODE_NOT_FOUND", `context: node ${id} not found`, { id });
+  }
   return view;
 }
 

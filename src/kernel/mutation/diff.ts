@@ -3,7 +3,7 @@
 // revision assignment live in revisions.mjs. No helper performs I/O or
 // depends on storage, locks, or adapters.
 
-import { assignRevisionsAndDiff, deepEqualNodes, stripRevision } from "./revisions.ts";
+import { assignNodeRevision, assignRevisionsAndDiff as assignAllRevisionsAndDiff, deepEqualNodes, stripRevision } from "./revisions.ts";
 
 function asEdge(e) {
   if (!e || typeof e !== "object" || Array.isArray(e)) {return null;}
@@ -29,7 +29,34 @@ function draftEdgeMap(edges) {
   return snapshotEdgeMap(edges);
 }
 
-export function computeEdgeDiff(snapshotEdges, draftEdges) {
+type DirtyEdgeChange = {
+  key: string;
+  edge: { from: string; to: string; type: string };
+  before: boolean;
+  after: boolean;
+  originalOrder: number;
+  finalOrder: number | null;
+};
+
+export function computeEdgeDiff(snapshotEdges, draftEdges, dirtyChanges?: DirtyEdgeChange[], onCompare?: (key: string) => void) {
+  if (dirtyChanges !== undefined) {
+    const added: DirtyEdgeChange[] = [];
+    const removed: DirtyEdgeChange[] = [];
+    const changes = [...dirtyChanges];
+    for (const change of changes) {
+      onCompare?.(change.key);
+      if (change.before === change.after) {continue;}
+      if (change.after) {added.push(change);}
+      else {removed.push(change);}
+    }
+    added.sort((a, b) => (a.finalOrder ?? 0) - (b.finalOrder ?? 0));
+    removed.sort((a, b) => a.originalOrder - b.originalOrder);
+    return {
+      added: added.map(({ edge }) => ({ from: edge.from, to: edge.to, type: edge.type })),
+      removed: removed.map(({ edge }) => ({ from: edge.from, to: edge.to, type: edge.type })),
+    };
+  }
+
   const snapMap = snapshotEdgeMap(snapshotEdges);
   const draftMap = draftEdgeMap(draftEdges);
   const added: unknown[] = [];
@@ -65,13 +92,17 @@ function initiativesEqual(a, b) {
 
 // Snapshot-vs-draft delta on the initiatives map. Registration is monotonic:
 // the kernel has no provider seam for deleting an existing initiative.
-export function computeInitiativeDiff(snapshotInitiatives, draftInitiatives) {
+export function computeInitiativeDiff(snapshotInitiatives, draftInitiatives, dirtyNames?: string[], onCompare?: (name: string) => void) {
   const snap = snapshotInitiatives && typeof snapshotInitiatives === "object" ? snapshotInitiatives : {};
   const draft = draftInitiatives && typeof draftInitiatives === "object" ? draftInitiatives : {};
   const created: unknown[] = [];
   const updated: unknown[] = [];
-  for (const [name, draftInit] of Object.entries(draft)) {
+  const names = dirtyNames === undefined ? Object.keys(draft) : dirtyNames;
+  for (const name of names) {
+    if (!Object.prototype.hasOwnProperty.call(draft, name)) {continue;}
+    const draftInit = draft[name];
     const prev = snap[name];
+    onCompare?.(name);
     if (!prev) {
       created.push({ name, initiative: objectCopy(draftInit) });
       continue;
@@ -83,6 +114,38 @@ export function computeInitiativeDiff(snapshotInitiatives, draftInitiatives) {
   return { created, updated };
 }
 
+function assignDirtyRevisionsAndDiff(snapshot, draftView, dirtyIds: Iterable<string>, onCompare?: (id: string) => void) {
+  const snapNodes = (snapshot && snapshot.nodes) || {};
+  const draftNodes = draftView.nodes || {};
+  const next = { ...snapNodes };
+  const created: unknown[] = [];
+  const updated: unknown[] = [];
+  const dirty = new Set(dirtyIds);
+  const removed: string[] = [];
+
+  for (const id of dirty) {
+    const previous = snapNodes[id];
+    if (Object.prototype.hasOwnProperty.call(draftNodes, id)) {
+      onCompare?.(id);
+      const assigned = assignNodeRevision(snapshot && snapshot.revision, previous, draftNodes[id]);
+      next[id] = assigned.node;
+      if (assigned.change === "created") {created.push({ id, node: assigned.node });}
+      if (assigned.change === "updated") {updated.push({ id, node: assigned.node });}
+    } else if (Object.prototype.hasOwnProperty.call(snapNodes, id)) {
+      onCompare?.(id);
+      delete next[id];
+      removed.push(id);
+    }
+  }
+  return { next, created, updated, removed };
+}
+
+export function assignRevisionsAndDiff(snapshot, draftView, dirtyIds?: Iterable<string>, onCompare?: (id: string) => void) {
+  return dirtyIds === undefined
+    ? assignAllRevisionsAndDiff(snapshot, draftView)
+    : assignDirtyRevisionsAndDiff(snapshot, draftView, dirtyIds, onCompare);
+}
+
 // Compatibility exports: callers of the original diff boundary continue to
 // receive the same pure helpers while revisions have their own module.
 export {
@@ -91,7 +154,6 @@ export {
   snapshotEdgeMap,
   draftEdgeMap,
   initiativesEqual,
-  assignRevisionsAndDiff,
   deepEqualNodes,
   stripRevision,
 };
