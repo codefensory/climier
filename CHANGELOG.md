@@ -3,6 +3,36 @@
 All notable changes to this project are documented here. The format follows
 Keep a Changelog.
 
+## [2.0.0] - 2026-10-27
+
+### Features
+
+- **core:** SQLite-only state and per-node point access (#17) ([a68e45d](https://github.com/codefensory/climier/commit/a68e45dccb1d36ca75cdd340e932b4fae65bedce)) **BREAKING**
+
+SQLite is now the only runtime state store for
+`~/.climier/projects/<id>/state.sqlite`. The project lock, the revision ledger,
+and `fence_generation` are gone: every mutation runs in a `BEGIN IMMEDIATE`
+transaction with `busy_timeout`, and the state change, the project revision, and
+the audit-log entry commit together. Reads (`status`, `context`, `log`, the UI
+catalog) use per-node point access instead of materializing the whole snapshot.
+
+The canonical state schema is still **1**: no state-schema change. What changed is
+where it lives. A project coming from 1.3.x still has its canonical JSON at
+`~/.climier/projects/<id>/tasks.json` and, until it is imported, commands fail
+with `CLIMIER_SQLITE_MIGRATION_REQUIRED`:
+
+```bash
+climier state migrate --as <agent> --yes
+```
+
+The importer validates the JSON against the database before and after writing,
+keeps a verified copy at `tasks.json.sqlite-backup`, and does **not** delete the
+original JSON, so a 1.3.x binary can still read the project if you need to roll
+back. `climier state export` emits the complete schema-1 state and
+`climier state compact` remains a logged transactional mutation. The
+`status --kind` filter accepts `resolvable|knowledge` (tasks and gates are both
+`resolvable`); `--kind task` and `--kind gate` no longer match anything.
+
 ## [1.3.1] - 2026-10-17
 
 ### Bug Fixes
