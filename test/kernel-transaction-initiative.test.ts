@@ -28,7 +28,7 @@ function errorLike(error: unknown): ErrorLike {
 
 function baseSnapshot(): { version: number; nodes: Record<string, unknown>; edges: unknown[]; initiatives: Record<string, { desc: string; created_at?: string }>; log: unknown[] } {
   return {
-    version: 2,
+    version: 1,
     nodes: {},
     edges: [],
     initiatives: {
@@ -170,7 +170,7 @@ test("isolation: input to createInitiative is not mutated by the kernel", () => 
 });
 
 test("isolation: createTransaction tolerates missing initiatives in the snapshot", () => {
-  const tx = createTransaction({ version: 2, nodes: {}, edges: [], log: [] } as Parameters<typeof createTransaction>[0]);
+  const tx = createTransaction({ version: 1, nodes: {}, edges: [], log: [] } as Parameters<typeof createTransaction>[0]);
   assert.equal(tx.getInitiative("anything"), undefined);
   const view = tx.view();
   assert.deepEqual(view.initiatives, {});

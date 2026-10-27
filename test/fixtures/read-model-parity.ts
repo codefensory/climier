@@ -1,6 +1,6 @@
 export const readModelParity = {
   snapshot: {
-    version: 4,
+    version: 1,
     revision: 41,
     initiatives: {
       migration: { desc: "Migration initiative", created_at: "2025-01-01T00:00:00.000Z" },

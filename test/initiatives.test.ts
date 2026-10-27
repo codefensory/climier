@@ -47,7 +47,7 @@ test("writeState: rejects a state missing initiatives", async () => {
   const dir = await createTempProject();
   try {
     await assert.rejects(
-      writeState(dir, { version: 2, nodes: {}, edges: [], log: [] }),
+      writeState(dir, { version: 1, nodes: {}, edges: [], log: [] }),
       /initiatives/,
     );
   } finally {
@@ -56,7 +56,7 @@ test("writeState: rejects a state missing initiatives", async () => {
 });
 
 test("writeState: accepts a state with empty initiatives", async () => {
-  const { writeState, readState } = await importFresh("./storage/state.ts");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, { nodes: {}, edges: [], log: [], initiatives: {} });

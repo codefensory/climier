@@ -19,7 +19,7 @@ const PLUGIN = "example.audit";
 
 function snapshot() {
   return {
-    version: 2,
+    version: 1,
     nodes: {
       T1: {
         id: "T1",

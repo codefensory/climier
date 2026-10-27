@@ -18,7 +18,7 @@ function errorLike(error: unknown): ErrorLike {
 
 function baseSnapshot(): { version: number; nodes: Record<string, NodeRecord>; edges: Edge[]; initiatives: Record<string, { desc: string }>; log: Array<Record<string, unknown>> } {
   return {
-    version: 2,
+    version: 1,
     nodes: {
       T1: { id: "T1", kind: "resolvable", subkind: "task", title: "existing task", initiative: "kernel", status: "open", revision: 1 },
       G1: { id: "G1", kind: "resolvable", subkind: "gate", title: "existing gate", initiative: "kernel", status: "open", revision: 2 },

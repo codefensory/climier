@@ -17,22 +17,6 @@ const canonicalReadMatrix = [
   { name: "log filters", route: "read/log", command: "log", query: "action=take&limit=1", positional: [] },
 ];
 
-const consumerSources = {
-  status: new URL("../src/cli/commands/status.ts", import.meta.url),
-  context: new URL("../src/cli/commands/context.ts", import.meta.url),
-  search: new URL("../src/cli/commands/search.ts", import.meta.url),
-  initiatives: new URL("../src/cli/commands/initiatives.ts", import.meta.url),
-  log: new URL("../src/cli/commands/log.ts", import.meta.url),
-  http: new URL("../src/server/http.ts", import.meta.url),
-  httpReads: new URL("../src/server/http/reads.ts", import.meta.url),
-  plugin: new URL("../src/plugins/query.ts", import.meta.url),
-  uiApi: new URL("../src/server/http/ui-api.ts", import.meta.url),
-};
-
-async function source(url: URL): Promise<string> {
-  return fs.readFile(url, "utf8");
-}
-
 function authHeaders(token) {
   return { authorization: `Bearer ${token}`, "x-climier-protocol-version": "1" };
 }
@@ -97,10 +81,9 @@ async function withParityEnvironment(run) {
   });
   const address = server.address();
   assert.ok(address && typeof address !== "string");
-  const baseUrl = `http://127.0.0.1:${address.port}`;
   try {
     await writeCanonicalState(projectDir, readModelParity.snapshot);
-    await run({ baseUrl, projectDir, token });
+    await run({ baseUrl: `http://127.0.0.1:${address.port}`, projectDir, token });
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     if (previousHome === undefined) {
@@ -168,46 +151,4 @@ test("canonical CLI and HTTP read owners match across every view fixture", async
       );
     }
   });
-});
-
-// oxlint-disable-next-line max-statements -- this contract inventory intentionally asserts each read adapter
-test("read consumers delegate canonical views and retain adapter-specific shapes", async () => {
-  const [status, context, search, initiatives, log, http, httpReads, plugin, uiApi] = await Promise.all(
-    Object.values(consumerSources).map(source),
-  );
-
-  assert.match(status, /projectStatusView/);
-  assert.match(status, /function emptyResult\(/, "CLI owns only its neutral missing-state result");
-  assert.match(context, /projectContextView/);
-  assert.doesNotMatch(context, /function contextView\(/);
-  assert.match(search, /projectSearchView/);
-  assert.match(initiatives, /projectInitiativesView/);
-  assert.match(log, /projectLogView/);
-  for (const [name, text] of [["search", search], ["initiatives", initiatives], ["log", log]]) {
-    assert.doesNotMatch(text, /\.filter\(|\.sort\(/, `${name} owns no duplicate projection assembly`);
-  }
-
-  for (const projection of ["projectStatusView", "projectContextView", "projectSearchView", "projectInitiativesView", "projectLogView"]) {
-    assert.match(httpReads, new RegExp(projection));
-  }
-  assert.match(httpReads, /function entryReferencesId\(/, "HTTP history remains a distinct view");
-  assert.doesNotMatch(http, /projectStatusView|projectContextView|projectSearchView|projectInitiativesView|projectLogView/);
-
-  assert.match(plugin, /projectStatusView/);
-  assert.match(plugin, /blockingForNode/);
-  assert.match(plugin, /knowledgeForNode/);
-  assert.match(plugin, /informingForNode/);
-  assert.match(plugin, /statusOf/);
-  assert.match(plugin, /function contextView\(/, "plugin keeps its non-equivalent context DTO");
-  assert.match(plugin, /function claimFor\(/, "plugin stale-claim timing remains plugin-specific");
-  assert.match(plugin, /function allowedActions\(/, "plugin allowed actions remain identity-based");
-  assert.match(plugin, /function entryReferencesId\(/, "plugin history remains a distinct view");
-  assert.match(plugin, /query\.node: id required/);
-  assert.match(plugin, /show: state file missing/);
-  assert.match(plugin, /query\.context: node \$\{id\} not found/);
-
-  assert.match(uiApi, /projectUiSnapshot/);
-  assert.match(uiApi, /projectUiNode/);
-  assert.match(uiApi, /projectUiActivity/);
-  assert.doesNotMatch(uiApi, /function (detectStaleClaims|summaryOf)\(/, "UI projections remain owned by the read model");
 });

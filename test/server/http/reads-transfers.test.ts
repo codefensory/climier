@@ -39,7 +39,7 @@ type QueryValue = string | string[];
 
 function readApiState() {
   return {
-    version: 4,
+    version: 1,
     revision: 41,
     plugins: { transferFixture: { value: true } },
     initiatives: {

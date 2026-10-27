@@ -75,7 +75,7 @@ type LifecycleProvider = {
 
 function baseSnapshot() {
   return {
-    version: 2,
+    version: 1,
     initiatives: { work: { desc: "work", created_at: "2026-01-01T00:00:00.000Z" } },
     nodes: baseNodes(),
     edges: baseEdges(),

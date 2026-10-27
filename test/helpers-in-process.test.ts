@@ -34,11 +34,6 @@ function assertSameResult(inProcess, spawned, label) {
   assert.equal(inProcess.stderr, spawned.stderr, `${label}: stderr mismatch`);
 }
 
-test("runCli defaults to the in-process harness and runCliSpawn stays opt-in", () => {
-  assert.equal(runCli, runCliInProcess, "runCli must be the in-process implementation");
-  assert.notEqual(runCli, runCliSpawn, "runCliSpawn must stay a distinct spawned-process path");
-});
-
 test("in-process runCli restores cwd and env around a successful call", async () => {
   const dir = await createTempProject();
   const cwdBefore = process.cwd();

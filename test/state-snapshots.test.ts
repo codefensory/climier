@@ -344,7 +344,7 @@ test("listSnapshots: lists multiple snapshots with mixed reasons", async () => {
 
 // init integration: force-init and corrupt-recovery paths
 
-test("init --force on existing v4 state: snapshot reason=force-init, raw preserves the pre-reset state", async () => {
+test("init --force on existing state: snapshot reason=force-init, raw preserves the pre-reset state", async () => {
   const { default: init } = await importFresh("./cli/commands/init.ts");
   const { readState, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();

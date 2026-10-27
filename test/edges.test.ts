@@ -1,12 +1,10 @@
-// F1 — centralized edge validation.
-// Pure-function tests cover validateEdge / existingEdge / throwV2.
-// Integration tests cover add-edge and add-node end-to-end.
+// Centralized edge validation: pure rules plus add-edge integration.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { throwV2 } from "../src/contracts/errors.ts";
 import type { ErrorCode } from "../src/contracts/errors.ts";
-import { EDGE_TYPES, existingEdge, validateEdge } from "../src/kernel/edges.ts";
+import { EDGE_TYPES, blocksEdge, existingEdge, validateEdge } from "../src/kernel/edges.ts";
 import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.ts";
 
 // --- pure helpers -------------------------------------------------------
@@ -16,7 +14,7 @@ type TestError = Error & { code?: string; details?: Record<string, unknown>; toJ
 
 function makeState(nodes: Record<string, object> = {}, edges: Edge[] = []) {
   return {
-    version: 2,
+    version: 1,
     nodes,
     edges,
     log: [],
@@ -43,6 +41,9 @@ test("throwV2: throws an Error with code, message, and details", async () => {
 
 test("EDGE_TYPES: lists BLOCKS, SUPERSEDES, DERIVED_FROM only", async () => {
   assert.deepEqual([...EDGE_TYPES].toSorted(), ["BLOCKS", "DERIVED_FROM", "SUPERSEDES"]);
+  for (const deprecated of ["INFORMS", "RELATES_TO", "CONFLICTS_WITH"]) {
+    assert.equal((EDGE_TYPES as readonly string[]).includes(deprecated), false, `${deprecated} must be rejected`);
+  }
 });
 
 test("existingEdge: matches on exact (from, to, type) triple", async () => {
@@ -64,6 +65,38 @@ test("existingEdge: returns false when type differs", async () => {
 test("existingEdge: returns false on empty / unrelated edges", async () => {
   const state = makeState({ A: resolvableTask("A"), B: resolvableGate("B") }, []);
   assert.equal(existingEdge(state, "A", "B", "BLOCKS"), false);
+});
+
+test("existingEdge: detects duplicates regardless of position", async () => {
+  const state = makeState(
+    { A: resolvableTask("A"), B: resolvableGate("B"), C: resolvableGate("C") },
+    [
+      { from: "A", to: "C", type: "BLOCKS" },
+      { from: "A", to: "B", type: "BLOCKS" },
+      { from: "A", to: "B", type: "BLOCKS" },
+    ],
+  );
+  assert.equal(existingEdge(state, "A", "B", "BLOCKS"), true);
+  assert.equal(existingEdge(state, "A", "B", "SUPERSEDES"), false);
+});
+
+test("existingEdge: handles missing edges field defensively", async () => {
+  const state = makeState({ A: resolvableTask("A") });
+  delete (state as { edges?: Edge[] }).edges;
+  assert.equal(existingEdge(state, "A", "B", "BLOCKS"), false);
+});
+
+test("blocksEdge: produces the canonical BLOCKS edge shape", async () => {
+  assert.deepEqual(blocksEdge("A", "B"), { from: "A", to: "B", type: "BLOCKS" });
+});
+
+test("blocksEdge: direction is 'blocker BLOCKS blocked' (first arg is the blocker)", async () => {
+  assert.deepEqual(blocksEdge("G-x", "T-y"), { from: "G-x", to: "T-y", type: "BLOCKS" });
+});
+
+test("blocksEdge: returns a fresh object each call", async () => {
+  assert.notEqual(blocksEdge("A", "B"), blocksEdge("A", "B"));
+  assert.deepEqual(blocksEdge("A", "B"), blocksEdge("A", "B"));
 });
 
 // --- validateEdge -------------------------------------------------------
@@ -139,10 +172,46 @@ test("validateEdge: DERIVED_FROM has no extra kind rule", async () => {
 
 test("validateEdge: rejects unknown edge types with code INVALID_EDGE_TYPE", async () => {
   const state = makeState({ T: resolvableTask("T"), G: resolvableGate("G") });
+  for (const type of ["INFORMS", "RELATES_TO", "CONFLICTS_WITH"]) {
+    assert.throws(
+      () => validateEdge(state, { from: "T", to: "G", type }, "cmd"),
+      (err: TestError) => err.code === "INVALID_EDGE_TYPE" && err.message.includes(type),
+      `expected ${type} to be rejected with INVALID_EDGE_TYPE`,
+    );
+  }
+});
+
+test("validateEdge: missing target details carry the offending id", async () => {
+  const state = makeState({ A: resolvableTask("A") });
+  let caught: TestError | undefined;
+  try {
+    validateEdge(state, { from: "A", to: "B", type: "BLOCKS" }, "cmd");
+  } catch (error) {
+    caught = error as TestError;
+  }
+  assert.equal(caught?.code, "INVALID_EDGE_TARGET");
+  assert.deepEqual(caught?.details, { missing: "B", from: "A", to: "B", type: "BLOCKS" });
+});
+
+test("validateEdge: commandName is reflected in error messages", async () => {
+  const state = makeState({ T1: resolvableTask("T1") });
   assert.throws(
-    () => validateEdge(state, { from: "T", to: "G", type: "INFORMS" }, "cmd"),
-    (err: TestError) => err.code === "INVALID_EDGE_TYPE" && /INFORMS/.test(err.message),
+    () => validateEdge(state, { from: "T1", to: "T1", type: "BLOCKS" }, "my-command"),
+    (err: TestError) => err.message.startsWith("my-command:"),
   );
+});
+
+test("validateEdge: handles missing state.nodes field defensively", async () => {
+  assert.throws(
+    () => validateEdge({ version: 1, edges: [], log: [] }, { from: "A", to: "B", type: "BLOCKS" }, "cmd"),
+    (err: TestError) => err.code === "INVALID_EDGE_TARGET",
+  );
+});
+
+test("validateEdge: BLOCKS direction is preserved (from=blocker, to=blocked)", async () => {
+  const state = makeState({ A: resolvableTask("A"), B: resolvableGate("B") });
+  assert.doesNotThrow(() => validateEdge(state, { from: "A", to: "B", type: "BLOCKS" }, "cmd"));
+  assert.doesNotThrow(() => validateEdge(state, { from: "B", to: "A", type: "BLOCKS" }, "cmd"));
 });
 
 // --- add-edge: command integration -------------------------------------

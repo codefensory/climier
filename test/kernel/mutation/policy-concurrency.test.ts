@@ -43,7 +43,7 @@ async function setupPolicyProject(dir, mutate, readState) {
   await mutate({
     projectDir: dir,
     request: { action: "task.update", actor: "alice", input: {} },
-    provider: updateNodeProvider({ id: "T1", newTitle: "fenced v5 baseline" }).provider,
+    provider: updateNodeProvider({ id: "T1", newTitle: "fenced baseline" }).provider,
   });
   const initial = await readState(dir);
   assert.equal(initial.version, 1, "test policy uses a canonical fixture");

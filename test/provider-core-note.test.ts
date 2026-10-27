@@ -40,7 +40,7 @@ function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { desc: "x"
   initiatives?: Record<string, { desc: string }>;
   log?: unknown[];
 } = {}) {
-  return { version: 2, initiatives, nodes, edges, log };
+  return { version: 1, initiatives, nodes, edges, log };
 }
 
 function makeRequest({ input, action = "note.add", actor = ACTOR, if_revision }: {

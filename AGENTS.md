@@ -353,6 +353,9 @@ Do not put domain rules or persistence in the CLI layer.
 
 ## Testing
 
+- Read [`TESTING.md`](TESTING.md) before adding or deleting tests. It defines the
+  layer map, the deduplication rule, and why documentation/config text is not a
+  test target; this section only lists the local commands and helpers.
 - `npm test` runs the whole suite; there is no separate UI suite to skip.
 - For changes limited to `/ui`, the subproject's own checks are enough: `(cd ui && npm run build)` and any manual check you document. The root suite still applies to everything outside `/ui`.
 - `ui/` consumes CLI state through the HTTP API the CLI serves (`src/server/http/ui-api.ts`, `ui-events.ts`, and the `/v1/projects/:id/ui/*` routes). If a change moves that contract or a shared CLI read helper, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it. The UI is experimental and carries no root test suite.

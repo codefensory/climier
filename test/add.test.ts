@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.ts";
 
-test("add-task: appends a new task to state via the v2 wrapper", async () => {
+test("add-task: appends a new task to state through the CLI adapter", async () => {
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   const { default: addTask } = await importFresh("./cli/commands/add-task.ts");
   const dir = await createTempProject();

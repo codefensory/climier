@@ -172,7 +172,7 @@ test("climier ui keeps an unreadable project in the catalog and fails when it is
   await fs.mkdir(path.join(home, "projects", "legacy"), { recursive: true });
   await fs.writeFile(
     path.join(home, "projects", "legacy", "tasks.json"),
-    `${JSON.stringify({ version: 3, nodes: {}, edges: [], initiatives: {}, log: [] })}\n`,
+    `${JSON.stringify({ version: 1, nodes: {}, edges: [], initiatives: {}, log: [] })}\n`,
   );
 
   const previousHome = process.env.CLIMIER_HOME;

@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { extractChangelogSection, renderReleaseNotes } from "../scripts/release-notes.ts";
@@ -58,11 +57,4 @@ test("renderReleaseNotes appends the compare link only when a base tag and repos
 
 test("renderReleaseNotes fails loudly when the changelog has no section for the version", () => {
   assert.throws(() => renderReleaseNotes({ changelog: CHANGELOG, version: "9.9.9" }), /no usable '## \[9\.9\.9\]' section/);
-});
-
-test("the repository CHANGELOG documents the version in package.json", () => {
-  const version = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
-  const changelog = readFileSync(new URL("../CHANGELOG.md", import.meta.url), "utf8");
-  const notes = renderReleaseNotes({ changelog, version });
-  assert.ok(notes.length > 40, "the release body is more than a heading");
 });

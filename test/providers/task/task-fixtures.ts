@@ -71,7 +71,7 @@ export function makeSnapshot({
   log = [],
   revision = 0,
 }: Partial<FixtureSnapshot> = {}): FixtureSnapshot {
-  return { version: 2, revision, initiatives, nodes, edges, log };
+  return { version: 1, revision, initiatives, nodes, edges, log };
 }
 
 export function makeRequest({ action, input, actor = ACTOR, if_revision, if_revisions }: RequestOptions = {}): RequestOptions {

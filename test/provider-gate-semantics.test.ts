@@ -19,7 +19,7 @@ function caughtError(error: unknown): CaughtError {
 
 function snapshot() {
   return {
-    version: 2,
+    version: 1,
     initiatives: { work: { desc: "work" } },
     nodes: {
       "G-old": {

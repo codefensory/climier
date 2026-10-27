@@ -26,7 +26,7 @@ type GraphModule = {
 type EdgesModule = { blocksEdge: (from: string, to: string) => Edge };
 
 function makeState(nodes: Record<string, Record<string, string>> = {}, edges: Edge[] = []): State {
-  return { version: 2, nodes, edges, log: [] };
+  return { version: 1, nodes, edges, log: [] };
 }
 
 async function graphModule(): Promise<GraphModule> {
@@ -42,14 +42,14 @@ async function edgesModule(): Promise<EdgesModule> {
 test("edgesArray: returns the edges array verbatim when present", async () => {
   const { edgesArray } = await graphModule();
   const edges = [{ from: "A", to: "B", type: "BLOCKS" }];
-  assert.deepEqual(edgesArray({ version: 2, edges, log: [] }), edges);
+  assert.deepEqual(edgesArray({ version: 1, edges, log: [] }), edges);
 });
 
 test("edgesArray: returns [] when edges field is missing or wrong type", async () => {
   const { edgesArray } = await graphModule();
-  assert.deepEqual(edgesArray({ version: 2, log: [] }), []);
-  assert.deepEqual(edgesArray({ version: 2, edges: null, log: [] }), []);
-  assert.deepEqual(edgesArray({ version: 2, edges: "not-array", log: [] }), []);
+  assert.deepEqual(edgesArray({ version: 1, log: [] }), []);
+  assert.deepEqual(edgesArray({ version: 1, edges: null, log: [] }), []);
+  assert.deepEqual(edgesArray({ version: 1, edges: "not-array", log: [] }), []);
 });
 
 // --- incoming -----------------------------------------------------------
@@ -99,8 +99,8 @@ test("graph indexes preserve typed incoming and outgoing edge order", async () =
 
 test("incoming: empty / missing edges yields []", async () => {
   const { incoming } = await graphModule();
-  assert.deepEqual(incoming({ version: 2, log: [] }, "X"), []);
-  assert.deepEqual(incoming({ version: 2, edges: [], log: [] }, "X"), []);
+  assert.deepEqual(incoming({ version: 1, log: [] }, "X"), []);
+  assert.deepEqual(incoming({ version: 1, edges: [], log: [] }, "X"), []);
 });
 
 // --- outgoing -----------------------------------------------------------
@@ -133,8 +133,8 @@ test("outgoing: filters by type when provided", async () => {
 
 test("outgoing: empty / missing edges yields []", async () => {
   const { outgoing } = await graphModule();
-  assert.deepEqual(outgoing({ version: 2, log: [] }, "X"), []);
-  assert.deepEqual(outgoing({ version: 2, edges: [], log: [] }, "X"), []);
+  assert.deepEqual(outgoing({ version: 1, log: [] }, "X"), []);
+  assert.deepEqual(outgoing({ version: 1, edges: [], log: [] }, "X"), []);
 });
 
 // --- relations ----------------------------------------------------------

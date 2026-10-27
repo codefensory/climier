@@ -18,7 +18,7 @@ function snapshot({
   claim = { by: ACTOR, at: "2026-01-01T00:00:00.000Z" },
 }: { status?: string; claim?: Claim } = {}) {
   return {
-    version: 3,
+    version: 1,
     initiatives: {},
     nodes: {
       "T-submit": {

@@ -16,7 +16,7 @@ import {
 
 test("deriveV2 does not consume `plugins` or `nodes[id].plugins` (ready/blocked unchanged)", async () => {
   const withoutPlugins = {
-    version: 2,
+    version: 1,
     nodes: {
       T1: { id: "T1", kind: "resolvable", subkind: "task", title: "T1", status: "open", revision: 1 },
       T2: { id: "T2", kind: "resolvable", subkind: "task", title: "T2", status: "open", revision: 1 },
@@ -54,7 +54,7 @@ test("statusOfV2 does not consume `plugins` or `nodes[id].plugins`", async () =>
     plugins: { "example.audit": { data: { foo: "bar" } } },
   };
   const state = {
-    version: 2,
+    version: 1,
     plugins: { "example.audit": { data: { foo: "bar" } } },
     nodes: { T1: node },
     edges: [],
@@ -75,7 +75,7 @@ test("isSatisfiedV2 does not consume `nodes[id].plugins`", async () => {
     plugins: { "example.audit": { data: { perNode: "T1" } } },
   };
   const state = {
-    version: 2,
+    version: 1,
     plugins: {},
     nodes: { T1: done },
     edges: [],

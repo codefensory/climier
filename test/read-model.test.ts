@@ -15,7 +15,7 @@ import { readModelParity } from "./fixtures/read-model-parity.ts";
 import { unsatisfiedBlockerIdsForNode } from "../src/read-model/core.ts";
 
 const snapshot = {
-  version: 2,
+  version: 1,
   initiatives: { work: {} },
   nodes: {
     gate: { id: "gate", kind: "resolvable", subkind: "gate", status: "resolved" },

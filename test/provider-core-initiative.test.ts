@@ -42,7 +42,7 @@ function makeSnapshot({ nodes = {}, edges = [], initiatives = {}, log = [] }: {
   initiatives?: Record<string, Initiative>;
   log?: unknown[];
 } = {}) {
-  return { version: 2, initiatives, nodes, edges, log };
+  return { version: 1, initiatives, nodes, edges, log };
 }
 
 function makeRequest({ input, action = "initiative.create", actor = ACTOR }: {

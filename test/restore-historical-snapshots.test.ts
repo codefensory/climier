@@ -11,7 +11,7 @@ import { asCaughtError } from "../src/contracts/errors.ts";
 import type { ProjectState } from "../src/contracts/domain.ts";
 
 async function withIsolatedProject(run) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-v1-restore-transfer-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-restore-historical-"));
   const previousHome = process.env.CLIMIER_HOME;
   const projectDir = path.join(root, "project");
   process.env.CLIMIER_HOME = path.join(root, "climier-home");

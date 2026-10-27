@@ -109,19 +109,6 @@ test("install.sh: rejects an invalid checksum before touching the destination", 
   });
 });
 
-test("install docs: the one-line installer matches a POSIX shell", async () => {
-  const [installGuide, readme, script] = await Promise.all([
-    readFile(path.join(root, "docs/content/docs/getting-started/install.mdx"), "utf8"),
-    readFile(path.join(root, "README.md"), "utf8"),
-    readFile(installer, "utf8"),
-  ]);
-  assert.equal(script.split("\n", 1)[0], "#!/bin/sh");
-  for (const text of [installGuide, readme]) {
-    assert.match(text, /releases\/latest\/download\/install\.sh \| sh/u);
-    assert.doesNotMatch(text, /install\.sh \| bash/u);
-  }
-});
-
 test("install.sh: rejects Windows with manual binary installation instructions", async () => {
   await withFixture(async ({ root: fixtureRoot, baseUrl }) => {
     const fakeBin = path.join(fixtureRoot, "fake-bin");

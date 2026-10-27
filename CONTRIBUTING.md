@@ -30,6 +30,10 @@ Keep changes focused and include tests or documentation when behavior changes.
 Preserve the CLI's JSON output contract and the documented paths of canonical
 reference files. Do not commit generated dependencies or build output.
 
+Read [`TESTING.md`](TESTING.md) before adding a suite: it explains which layer
+owns a failure, when a test is a duplicate, and what to delete with a retired
+feature.
+
 ## Remote server deployment
 
 Packaged hosts set up their server with `climier server init`, documented in

@@ -58,7 +58,7 @@ test("blockingForNode: T-x sees G-y as blocker (incoming edge, to === id)", asyn
   const dir = await createTempProject();
   try {
     const state = {
-      version: 2,
+      version: 1,
       initiatives: {},
       nodes: {
         "T-x": {
@@ -87,7 +87,7 @@ test("blockingForNode: T-x sees G-y as blocker (incoming edge, to === id)", asyn
 
 test("derivation: T-x with satisfied blocker G-y is ready", async () => {
   const state = {
-    version: 2,
+    version: 1,
     initiatives: {},
     nodes: {
       "T-x": {

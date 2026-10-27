@@ -20,39 +20,6 @@ async function currentCatalogs() {
   return collectCatalogs(ROOT);
 }
 
-function parseTsConfig(text) {
-  return JSON.parse(text.replace(/,\s*([}\]])/g, "$1"));
-}
-
-test("the single TypeScript config has the intended checking options", async () => {
-  const config = parseTsConfig(await fs.readFile(path.join(ROOT, "tsconfig.json"), "utf8"));
-  const { compilerOptions } = config;
-
-  assert.equal(compilerOptions.target, "ES2023");
-  assert.equal(compilerOptions.module, "NodeNext");
-  assert.equal(compilerOptions.moduleResolution, "NodeNext");
-  assert.deepEqual(compilerOptions.lib, ["ES2023"]);
-  assert.deepEqual(compilerOptions.types, ["node"]);
-  assert.equal(compilerOptions.allowImportingTsExtensions, true);
-  assert.equal(compilerOptions.resolveJsonModule, true);
-  assert.equal(compilerOptions.esModuleInterop, true);
-  assert.equal(compilerOptions.strict, true);
-  assert.equal(compilerOptions.noImplicitAny, false);
-  assert.equal(compilerOptions.noEmit, true);
-  assert.equal(compilerOptions.skipLibCheck, true);
-  assert.equal("composite" in compilerOptions, false);
-  assert.equal("declaration" in compilerOptions, false);
-  assert.equal("emitDeclarationOnly" in compilerOptions, false);
-});
-
-test("the root has no TypeScript project split", async () => {
-  const configs = (await fs.readdir(ROOT))
-    .filter((filename) => /^tsconfig.*\.json$/.test(filename))
-    .sort();
-
-  assert.deepEqual(configs, ["tsconfig.json"]);
-});
-
 test("generated type catalogs are deterministic", async () => {
   const first = await currentCatalogs();
   const second = await currentCatalogs();

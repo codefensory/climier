@@ -52,3 +52,12 @@ La suite core son 188 archivos y más de 42.600 líneas. De esos archivos, **57 
 - `grep -rn "version: [234]," test/` no devuelve resultados en archivos core.
 - `grep -rn "v2" test/ --include="*.test.mjs" -l` no devuelve archivos cuyo nombre o describe conserve la etiqueta de era.
 - `npm run pack:check` sigue pasando y el tarball no cambia de contenido por razones de test.
+
+## Enmienda (2026-10-27): retiro del manifiesto
+
+La pieza 1 (manifiesto versionado, checker y allowlist) se retiró al cerrar la
+migración: ningún comando ni job de CI la ejecutaba. El gate del baseline vuelve
+a ser `bun run test`. ADR-034 sigue aplicando al mover o partir suites (hay que
+conservar el multiconjunto exacto de nombres), pero no prohíbe deduplicar ni
+borrar intencionalmente un caso sin cobertura única. La guía vigente para
+escribir y podar tests es `TESTING.md`.

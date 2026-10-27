@@ -9,7 +9,7 @@ import {
   writeState,
 } from "./helpers.ts";
 
-function compatibleState(version = 4) {
+function stateFixture(version = 1) {
   return {
     version,
     revision: 12,
@@ -42,7 +42,7 @@ function compatibleState(version = 4) {
 async function withFencedProject(run) {
   const dir = await createTempProject();
   try {
-    await writeCanonicalState(dir, compatibleState(1));
+    await writeCanonicalState(dir, stateFixture());
     await run(dir);
   } finally {
     await rmTempProject(dir);
@@ -105,7 +105,7 @@ test("SQLite storage rejects noncanonical schema versions", async () => {
   const dir = await createTempProject();
   try {
     for (const version of [2, 3, 4, 5]) {
-      await assert.rejects(writeState(dir, compatibleState(version)), /canonical schema-1 state/);
+      await assert.rejects(writeState(dir, stateFixture(version)), /canonical schema-1 state/);
     }
   } finally {
     await rmTempProject(dir);
@@ -115,7 +115,7 @@ test("SQLite storage rejects noncanonical schema versions", async () => {
 test("SQLite storage rejects future state versions", async () => {
   const dir = await createTempProject();
   try {
-    await assert.rejects(writeState(dir, compatibleState(6)), /canonical schema-1 state/);
+    await assert.rejects(writeState(dir, stateFixture(6)), /canonical schema-1 state/);
   } finally {
     await rmTempProject(dir);
   }

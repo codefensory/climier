@@ -280,7 +280,7 @@ test("CLI: add-note appends to the thread", async () => {
   }
 });
 
-test("CLI: update on an in_progress task is allowed (v2 contract: no claim lock)", async () => {
+test("CLI: update on an in_progress task is allowed (no claim lock)", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);

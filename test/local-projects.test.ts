@@ -69,7 +69,7 @@ test("readStateByProjectId rejects a tasks.json-only project with migration guid
   const home = await makeHome(t);
   const dir = path.join(home, "projects", "legacy");
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, "tasks.json"), `${JSON.stringify({ version: 3, nodes: {}, edges: [], initiatives: {}, log: [] })}\n`);
+  await fs.writeFile(path.join(dir, "tasks.json"), `${JSON.stringify({ version: 1, nodes: {}, edges: [], initiatives: {}, log: [] })}\n`);
 
   await assert.rejects(
     readStateByProjectId("legacy"),

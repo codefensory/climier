@@ -4,7 +4,6 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { projectLogView } from "../src/read-model/index.ts";
 import { createRemoteApiServer } from "../src/server/http.ts";
 import { createServerAuthStore } from "../src/server/auth/server-auth-store.ts";
 import { createProjectCatalog } from "../src/server/catalog/index.ts";
@@ -70,14 +69,6 @@ async function cliLog(projectDir, filters) {
   return JSON.parse(result.stdout);
 }
 
-test("pure log projection preserves exact filters, chronological order, limit, and array shape", () => {
-  assert.deepEqual(projectLogView({ snapshot }), log);
-  assert.deepEqual(projectLogView({ snapshot, filters: { action: "take", agent: "alice", node: "T-two", limit: 1 } }), [log[2]]);
-  assert.deepEqual(projectLogView({ snapshot, filters: { agent: "alice", limit: 2 } }), [log[3], log[4]]);
-  assert.deepEqual(projectLogView({ snapshot: { ...snapshot, log: undefined } }), []);
-  assert.deepEqual(projectLogView({ snapshot, filters: { node: "T-one" } }), [log[3]], "node is the canonical reference field");
-});
-
 test("log CLI and HTTP use the same pure filter, order, limit, and array projection", async () => {
   await withLogProject(async ({ baseUrl, projectDir, token }) => {
     const cases = [
@@ -93,19 +84,5 @@ test("log CLI and HTTP use the same pure filter, order, limit, and array project
       assert.deepEqual(http, entry.expected, entry.query);
       assert.deepEqual(await cliLog(projectDir, entry.filters), entry.expected, entry.query);
     }
-  });
-});
-
-test("history matches the canonical node reference and ignores the pre-canonical fields", async () => {
-
-  await withLogProject(async ({ baseUrl, projectDir, token }) => {
-    const http = await (await fetch(`${baseUrl}/v1/projects/log-parity/read/history/T-one`, { headers: authHeaders(token) })).json() as { result: { entries: Array<{ ts: string }> } };
-    const entries = http.result.entries;
-    assert.ok(Array.isArray(entries));
-    assert.deepEqual(entries.map((entry) => entry.ts), ["2025-01-04T00:00:00.000Z"]);
-
-    const cli = await runCli(["--project", projectDir, "history", "T-one"]);
-    assert.equal(cli.code, 0, cli.stdout || cli.stderr);
-    assert.deepEqual(JSON.parse(cli.stdout).entries.map((entry) => entry.ts), ["2025-01-04T00:00:00.000Z"]);
   });
 });

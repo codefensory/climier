@@ -16,7 +16,7 @@ function state(
   nodes: Record<string, Record<string, unknown>>,
   edges: Array<{ from: string; to: string; type: string }> = [],
 ) {
-  return { version: 3, initiatives: {}, nodes, edges, log: [] };
+  return { version: 1, initiatives: {}, nodes, edges, log: [] };
 }
 
 const task = (id, status = "open", extra = {}) => ({
