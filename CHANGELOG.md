@@ -13,8 +13,10 @@ SQLite is now the only runtime state store for
 `~/.climier/projects/<id>/state.sqlite`. The project lock, the revision ledger,
 and `fence_generation` are gone: every mutation runs in a `BEGIN IMMEDIATE`
 transaction with `busy_timeout`, and the state change, the project revision, and
-the audit-log entry commit together. Reads (`status`, `context`, `log`, the UI
-catalog) use per-node point access instead of materializing the whole snapshot.
+the audit-log entry commit together. A writer queued behind another waits up to
+30 seconds for the lock instead of failing after five. Reads (`status`,
+`context`, `log`, the UI catalog) use per-node point access instead of
+materializing the whole snapshot.
 
 The canonical state schema is still **1**: no state-schema change. What changed is
 where it lives. A project coming from 1.3.x still has its canonical JSON at

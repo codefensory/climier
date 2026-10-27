@@ -72,8 +72,10 @@ CREATE INDEX IF NOT EXISTS idx_nodes_count_status_position ON nodes (json_extrac
 CREATE INDEX IF NOT EXISTS idx_nodes_count_subkind_status_position ON nodes (json_extract(data, '$.subkind'), json_extract(data, '$.status'), position);
 `;
 
+// A queued writer waits for the whole write, so the timeout must exceed a burst of concurrent
+// mutations on a loaded machine; SQLite releases locks when a process dies, so the wait ends.
 export const SQLITE_PRAGMAS = `
-PRAGMA busy_timeout = 5000;
+PRAGMA busy_timeout = 30000;
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 `;

@@ -106,6 +106,30 @@ test("50 concurrent SQLite CLI mutations serialize on the database revision and 
   } finally { await rmTempProject(projectDir); }
 });
 
+test("a writer queued behind a held lock waits past five seconds instead of failing", { timeout: 20_000 }, async () => {
+  const projectDir = await createTempProject();
+  try {
+    const { sqliteStateFile } = await import("../src/storage/state.ts");
+    const { writeSqliteState } = await import("../src/storage/sqlite/store.ts");
+    const file = sqliteStateFile(projectDir);
+    await writeSqliteState(file, {
+      ...emptyState(),
+      revision: 1,
+      nodes: { "T-queued": { id: "T-queued", kind: "resolvable", subkind: "task", title: "queued", status: "open", initiative: "core", revision: 1 } },
+      initiatives: { core: { desc: "queued", created_at: "2026-10-20T00:00:00.000Z" } },
+    });
+    const { Database } = await import(SQLITE_MODULE);
+    const holder = new Database(file);
+    holder.exec("BEGIN IMMEDIATE");
+    const queued = runCliSpawn(["--project", projectDir, "add-note", "T-queued", "queued", "--as", "worker"]);
+    await new Promise((resolve) => setTimeout(resolve, 5_500));
+    holder.exec("COMMIT");
+    holder.close();
+    const result = await queued;
+    assert.equal(result.code, 0, result.stdout);
+  } finally { await rmTempProject(projectDir); }
+});
+
 async function killDuringSqliteMutation(projectDir: string) {
   const dispatchUrl = new URL("../src/cli/dispatch.ts", import.meta.url).href;
   const script = `

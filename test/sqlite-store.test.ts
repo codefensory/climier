@@ -43,7 +43,7 @@ async function assertSqliteDatabase(file) {
     assert.equal(database.query("PRAGMA user_version").get().user_version, 4);
     const { SQLITE_PRAGMAS } = await import("../src/storage/sqlite/schema.ts");
     assert.match(SQLITE_PRAGMAS, /PRAGMA synchronous = NORMAL/i);
-    assert.match(SQLITE_PRAGMAS, /PRAGMA busy_timeout = 5000/i);
+    assert.match(SQLITE_PRAGMAS, /PRAGMA busy_timeout = 30000/i);
     const tables = database.query("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(({ name }) => name);
     for (const table of ["meta", "nodes", "node_body", "edges", "initiatives", "log", "sync_state"]) { assert.ok(tables.includes(table), table); }
   } finally { database.close(); }
