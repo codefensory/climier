@@ -419,6 +419,7 @@ and `cancel` are available for explicit administration.
 | `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open` for correction, subject to policy. |
 | `restore <snapshot-id> --as <agent>` | Replace the live state with a validated schema-1 snapshot under the recovery path and a pre-restore snapshot. A policy plugin may restrict the actor; invalid or incomplete snapshots fail without mutating state. |
 | `state compact [--keep N] --as <agent>` | Keep the newest 1000 prior entries by default (or `N` when supplied); older events become per-node summaries with action/actor counts and first/last timestamps. The compact operation is itself logged atomically. |
+| `state migrate --as <agent> --yes` | Explicitly import a legacy canonical schema-1 JSON state into SQLite, keeping a verified `tasks.json.sqlite-backup`. Local-only; refuses to overwrite a database that already holds different state. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |
 | `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | Execute several operations atomically. |
 | `link <origin> [--replace=true] [--name "<name>"]` | Select a Remote v1 origin while preserving the checkout project ID; does not copy a DAG. `--name` also sets the project's display name. |
@@ -442,7 +443,7 @@ Claims are serialized by SQLite, so two actors racing to take the same task cann
 | `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | Low-level node creation (prefer `add-task` / `add-gate` / `add-knowledge`). |
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | Low-level edge creation. |
 | `remove-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | Idempotently remove one exact edge. |
-| `state` | Read the deterministic current core projection. |
+| `state` / `state export` | Read the deterministic current core projection; `export` prints the complete canonical schema-1 state, including log checkpoints. |
 
 ## Operational guarantees
 
